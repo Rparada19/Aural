@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Aural-app",
-    "slug": "Aural-app",
+    "name": "Aural Medica",
+    "slug": "aural-medica",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -19,6 +19,10 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-asset"
+    ]
   }
 }
