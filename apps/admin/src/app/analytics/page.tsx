@@ -70,7 +70,7 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   // TOPS (solo ventas cerradas)
   const closed = list.filter((p) => p.sale_closed);
-  const byKey = (key: 'technology_id' | 'platform_id' | 'professional_id' | 'city_id', resolver: Map<string, string>) => {
+  const byKey = (key: 'technology_id' | 'platform_id' | 'professional_id' | 'city_id' | 'audiologist_id', resolver: Map<string, string>) => {
     const tally = new Map<string, { count: number; amount: number }>();
     for (const p of closed) {
       const id = p[key];
