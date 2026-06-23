@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { ROLES, OTORRINO_SPECIALTIES } from '@aural/shared';
+import { getAdminMe, hasAccess } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,19 +21,17 @@ export default async function UsersPage({
 }) {
   const sp = await searchParams;
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-  const { data: me } = await supabase
-    .from('profiles')
-    .select('is_admin, full_name')
-    .eq('id', user.id)
-    .single();
-  if (!me?.is_admin) redirect('/login');
+  const me = await getAdminMe();
+  if (!hasAccess(me)) redirect('/login');
 
   let query = supabase
     .from('profiles')
     .select('id, full_name, email, cedula, city, profession, role, specialty, status, is_admin, created_at')
     .order('created_at', { ascending: false });
+
+  if (me?.admin_role === 'visitor_rep' && me.linked_visitor_id) {
+    query = query.eq('visitor_id', me.linked_visitor_id);
+  }
 
   if (sp.q) {
     const term = `%${sp.q}%`;
@@ -45,7 +44,7 @@ export default async function UsersPage({
   const { data: users } = await query.limit(200);
 
   return (
-    <DashboardLayout userName={me.full_name}>
+    <DashboardLayout userName={me!.full_name} role={me!.admin_role} isAdmin={me!.is_admin}>
       <h1 className="text-3xl font-bold text-primary">Profesionales</h1>
       <p className="text-secondary mt-1">Accede al CRM de cada profesional.</p>
 

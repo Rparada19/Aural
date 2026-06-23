@@ -39,7 +39,7 @@ export function Button({ label, onPress, variant = 'primary', loading, disabled,
 
 const styles = StyleSheet.create({
   base: {
-    height: 54,
+    height: 60,
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.85 },
   disabled: { opacity: 0.4 },
-  label: { ...typography.bodyStrong },
+  label: { fontSize: 17, fontWeight: '700' },
   labelLight: { color: colors.white },
   labelDark: { color: colors.primary },
 });

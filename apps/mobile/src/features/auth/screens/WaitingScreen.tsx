@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Hourglass, XCircle, PauseCircle } from 'lucide-react-native';
 import { colors, spacing, typography, radius } from '@aural/shared';
 import { Button } from '../../../components/ui/Button';
 import { useAuth } from '../AuthContext';
@@ -9,13 +10,15 @@ export function WaitingScreen() {
   const rejected = profile?.status === 'rejected';
   const suspended = profile?.status === 'suspended';
 
+  const Icon = rejected ? XCircle : suspended ? PauseCircle : Hourglass;
+  const iconColor = rejected ? colors.danger : suspended ? colors.warning : colors.primary;
+  const tint = rejected ? colors.dangerSoft : suspended ? colors.warningSoft : colors.primaryTint;
+
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.container}>
-        <View style={styles.iconWrap}>
-          <Text style={styles.iconText}>
-            {rejected ? '✕' : suspended ? '⏸' : '⏳'}
-          </Text>
+        <View style={[styles.iconWrap, { backgroundColor: tint }]}>
+          <Icon size={36} color={iconColor} />
         </View>
         <Text style={styles.title}>
           {rejected ? 'Solicitud rechazada' : suspended ? 'Cuenta suspendida' : 'En revisión'}
@@ -40,13 +43,11 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: spacing.xl, alignItems: 'center' },
   iconWrap: {
     width: 96, height: 96, borderRadius: radius.pill,
-    backgroundColor: colors.surface,
     alignItems: 'center', justifyContent: 'center', marginTop: spacing.xxl,
   },
-  iconText: { fontSize: 44 },
   title: { ...typography.display, color: colors.primary, marginTop: spacing.lg, textAlign: 'center' },
   body: {
     ...typography.body, color: colors.textMuted, textAlign: 'center',
-    marginTop: spacing.md, lineHeight: 24, paddingHorizontal: spacing.sm,
+    marginTop: spacing.md, paddingHorizontal: spacing.sm,
   },
 });

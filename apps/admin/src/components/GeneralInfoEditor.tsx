@@ -20,11 +20,15 @@ interface Props {
     location_id: string | null;
     audiologist_id: string | null;
     case_type: string;
+    hearing_loss_side: string | null;
   };
   visitors: Opt[];
   locations: Opt[];
   audiologists: Audio[];
 }
+
+const showSide = (ct: string) => ct === 'sale_candidate' || ct === 'sudden_hearing_loss';
+const SIDE_LABEL: Record<string, string> = { unilateral: 'Unilateral', bilateral: 'Bilateral' };
 
 const APPT_STATUS = [
   { v: 'pending', l: 'Pendiente' },
@@ -46,6 +50,7 @@ export function GeneralInfoEditor({ patientId, professionalId, initial, visitors
     location_id: initial.location_id ?? '',
     audiologist_id: initial.audiologist_id ?? '',
     case_type: initial.case_type,
+    hearing_loss_side: initial.hearing_loss_side ?? '',
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +72,7 @@ export function GeneralInfoEditor({ patientId, professionalId, initial, visitors
           location_id: d.location_id || null,
           audiologist_id: d.audiologist_id || null,
           case_type: d.case_type,
+          hearing_loss_side: showSide(d.case_type) ? (d.hearing_loss_side || null) : null,
         };
         await updatePatient(patientId, professionalId, payload);
         setEditing(false);
@@ -93,6 +99,9 @@ export function GeneralInfoEditor({ patientId, professionalId, initial, visitors
         <Row label="Centro auditivo" value={locName} />
         <Row label="Audiólogo" value={audioName} />
         <Row label="Tipo de caso" value={CASE_TYPE_LABEL[initial.case_type as keyof typeof CASE_TYPE_LABEL] ?? initial.case_type} />
+        {showSide(initial.case_type) && (
+          <Row label="Lateralidad" value={SIDE_LABEL[initial.hearing_loss_side ?? ''] ?? '—'} />
+        )}
         <button onClick={() => setEditing(true)} className="mt-3 text-xs font-semibold text-primary hover:underline">
           Editar
         </button>
@@ -141,6 +150,15 @@ export function GeneralInfoEditor({ patientId, professionalId, initial, visitors
           {Object.entries(CASE_TYPE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
       </Field>
+      {showSide(d.case_type) && (
+        <Field label="Lateralidad">
+          <select value={d.hearing_loss_side} onChange={(e) => setD({ ...d, hearing_loss_side: e.target.value })} className={inputCls}>
+            <option value="">—</option>
+            <option value="unilateral">Unilateral</option>
+            <option value="bilateral">Bilateral</option>
+          </select>
+        </Field>
+      )}
 
       {error && <p className="text-danger text-sm">{error}</p>}
 

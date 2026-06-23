@@ -21,12 +21,17 @@ export function ReportDetailScreen({ route }: Props) {
   const [generating, setGenerating] = useState(false);
 
   const load = useCallback(async () => {
-    const r = await getReport(id);
-    setReport(r);
-    if (r?.audiometry_url) setAudioUrl(await signedImageUrl(r.audiometry_url));
-    if (r?.logoaudiometry_url) setLogoUrl(await signedImageUrl(r.logoaudiometry_url));
-    setLoading(false);
-    if (session?.user) markReportAsRead(id, session.user.id).catch(() => {});
+    try {
+      const r = await getReport(id);
+      setReport(r);
+      if (r?.audiometry_url) setAudioUrl(await signedImageUrl(r.audiometry_url));
+      if (r?.logoaudiometry_url) setLogoUrl(await signedImageUrl(r.logoaudiometry_url));
+      if (session?.user) markReportAsRead(id, session.user.id).catch(() => {});
+    } catch (e) {
+      console.error('[ReportDetail] load error:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [id, session?.user]);
 
   useEffect(() => { load(); }, [load]);

@@ -2,8 +2,9 @@ import { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import { UserPlus, Phone, Calendar, Stethoscope, ClipboardCheck, FileText, Coins, PartyPopper } from 'lucide-react-native';
 import {
-  colors, spacing, typography, radius, FUNNEL_STATUS_LABEL, type PatientFunnelStatus,
+  colors, spacing, typography, radius, shadow, FUNNEL_STATUS_LABEL, type PatientFunnelStatus,
   CASE_TYPE_LABEL, type PatientCaseType,
 } from '@aural/shared';
 import { supabase } from '../../lib/supabase';
@@ -14,14 +15,19 @@ import type { MainStackParamList } from '../../navigation/types';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'PatientTimeline'>;
 
+type EventType = 'create' | 'contact' | 'appointment' | 'note' | 'followup' | 'report' | 'commission' | 'sale';
 interface TimelineEvent {
   at: string;
-  type: 'create' | 'contact' | 'appointment' | 'note' | 'followup' | 'report' | 'commission' | 'sale';
+  type: EventType;
   title: string;
   body?: string;
-  icon: string;
   color: string;
 }
+
+const EVENT_ICONS: Record<EventType, React.ComponentType<{ size?: number; color?: string }>> = {
+  create: UserPlus, contact: Phone, appointment: Calendar, note: Stethoscope,
+  followup: ClipboardCheck, report: FileText, commission: Coins, sale: PartyPopper,
+};
 
 export function PatientTimelineScreen({ route, navigation }: Props) {
   const { id } = route.params;
@@ -44,37 +50,51 @@ export function PatientTimelineScreen({ route, navigation }: Props) {
       const evs: TimelineEvent[] = [];
       evs.push({
         at: p.created_at, type: 'create',
-        title: 'Paciente registrado en CRM', icon: '👤', color: colors.primary,
+        title: 'Paciente registrado en CRM', color: colors.primary,
       });
-      if (p.first_contact_at) {
-        evs.push({ at: p.first_contact_at, type: 'contact', title: 'Primer contacto', icon: '📞', color: colors.textMuted });
-      }
+      // No mostramos "Primer contacto" porque first_contact_at se setea por defecto al crear el paciente.
+      // El contacto real se refleja al cambiar funnel_status a "contacted" o agregar un seguimiento.
       if (p.appointment_at) {
         evs.push({
           at: p.appointment_at, type: 'appointment',
-          title: `Cita ${p.appointment_status}`,
-          icon: '📅', color: p.appointment_status === 'attended' ? colors.success : colors.warning,
+          title: ({
+            pending: 'Cita agendada',
+            confirmed: 'Cita agendada',
+            attended: 'Paciente asistió a la cita',
+            cancelled: 'Paciente no asistió',
+          } as Record<string, string>)[p.appointment_status] ?? 'Cita agendada',
+          color: p.appointment_status === 'attended' ? colors.success
+            : p.appointment_status === 'cancelled' ? colors.danger
+            : colors.warning,
         });
       }
       for (const n of notes as any[]) {
-        evs.push({ at: n.created_at, type: 'note', title: 'Evolución clínica', body: n.body, icon: '🩺', color: colors.primary });
+        evs.push({ at: n.created_at, type: 'note', title: 'Evolución clínica', body: n.body, color: colors.primary });
       }
       for (const f of fups as any[]) {
-        evs.push({ at: f.created_at, type: 'followup', title: 'Seguimiento', body: f.comment, icon: '📝', color: colors.primarySoft });
+        const c = (f.comment ?? '') as string;
+        let title = 'Seguimiento';
+        let color: string = colors.primarySoft;
+        let body: string | undefined = f.comment;
+        if (c.startsWith('Cita re-agendada')) { title = 'Cita re-agendada'; color = colors.warning; body = c.replace(/^Cita re-agendada\s*/, '').trim() || undefined; }
+        else if (c.startsWith('Cita agendada')) { title = 'Cita agendada'; color = colors.primary; body = c.replace(/^Cita agendada\s*/, '').trim() || undefined; }
+        else if (c.startsWith('Paciente asistió')) { title = 'Paciente asistió a la cita'; color = colors.success; body = undefined; }
+        else if (c.startsWith('Paciente no asistió')) { title = 'Paciente no asistió'; color = colors.danger; body = undefined; }
+        evs.push({ at: f.created_at, type: 'followup', title, body, color });
       }
       for (const r of (reports.data ?? [])) {
-        evs.push({ at: r.generated_at ?? r.created_at, type: 'report', title: `Informe: ${r.title}`, icon: '📄', color: colors.success });
+        evs.push({ at: r.generated_at ?? r.created_at, type: 'report', title: `Informe: ${r.title}`, color: colors.success });
       }
       for (const c of (commissions.data ?? [])) {
         evs.push({
           at: c.generated_at, type: 'commission',
           title: `Comisión generada`,
           body: c.status === 'paid' ? `Pagada el ${new Date(c.paid_at).toLocaleDateString('es-CO')}` : 'Pendiente',
-          icon: '💰', color: c.status === 'paid' ? colors.success : colors.warning,
+          color: c.status === 'paid' ? colors.success : colors.warning,
         });
       }
       if (p.sale_closed_at) {
-        evs.push({ at: p.sale_closed_at, type: 'sale', title: 'Venta cerrada', icon: '🎉', color: colors.success });
+        evs.push({ at: p.sale_closed_at, type: 'sale', title: 'Venta cerrada', color: colors.success });
       }
       evs.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
       setEvents(evs);
@@ -130,11 +150,13 @@ export function PatientTimelineScreen({ route, navigation }: Props) {
           {events.length === 0 && (
             <Text style={styles.muted}>Aún no hay actividad registrada.</Text>
           )}
-          {events.map((e, idx) => (
+          {events.map((e, idx) => {
+            const Icon = EVENT_ICONS[e.type];
+            return (
             <View key={idx} style={styles.eventRow}>
               <View style={styles.eventLeft}>
                 <View style={[styles.eventDot, { backgroundColor: e.color }]}>
-                  <Text style={styles.eventIcon}>{e.icon}</Text>
+                  <Icon size={16} color={colors.white} />
                 </View>
                 {idx < events.length - 1 && <View style={styles.eventLine} />}
               </View>
@@ -146,7 +168,8 @@ export function PatientTimelineScreen({ route, navigation }: Props) {
                 {e.body && <Text style={styles.eventText}>{e.body}</Text>}
               </View>
             </View>
-          ))}
+            );
+          })}
         </View>
 
         <Button

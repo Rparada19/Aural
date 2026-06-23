@@ -70,6 +70,12 @@ export default async function CatalogsPage() {
           table="locations"
           rows={(locs.data ?? []).map((r: any) => ({ ...r, _extra: r.city?.name ?? '—' }))}
           extraColumnLabel="Ciudad"
+          selectField={{
+            field: 'city_id',
+            label: 'Ciudad',
+            required: true,
+            options: (cities.data ?? []).map((c: any) => ({ id: c.id, label: c.name })),
+          }}
         />
         <CatalogManager
           title="Orígenes del paciente"

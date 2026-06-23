@@ -60,6 +60,48 @@ export async function updatePatient(patientId: string, professionalId: string, p
   revalidatePath(`/users/${professionalId}/patients/${patientId}`);
 }
 
+export async function setAppointment(patientId: string, professionalId: string, when: string) {
+  const { supabase, adminId } = await ensureAdmin();
+  const iso = new Date(when).toISOString();
+  // Determinar si era re-agendamiento
+  const { data: prev } = await supabase.from('patients').select('appointment_at').eq('id', patientId).single();
+  const isReschedule = !!prev?.appointment_at;
+  const { error } = await supabase
+    .from('patients')
+    .update({
+      appointment_at: iso,
+      appointment_status: 'confirmed',
+      funnel_status: 'appointment_scheduled',
+    })
+    .eq('id', patientId);
+  if (error) throw error;
+  const label = new Date(when).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' });
+  await supabase.from('patient_followups').insert({
+    patient_id: patientId,
+    author_id: adminId,
+    comment: `${isReschedule ? 'Cita re-agendada' : 'Cita agendada'} para ${label}.`,
+  });
+  revalidatePath(`/users/${professionalId}/patients/${patientId}`);
+}
+
+export async function markAttendance(patientId: string, professionalId: string, attended: boolean) {
+  const { supabase, adminId } = await ensureAdmin();
+  const { error } = await supabase
+    .from('patients')
+    .update({
+      appointment_status: attended ? 'attended' : 'cancelled',
+      funnel_status: attended ? 'attended' : 'sale_lost',
+    })
+    .eq('id', patientId);
+  if (error) throw error;
+  await supabase.from('patient_followups').insert({
+    patient_id: patientId,
+    author_id: adminId,
+    comment: attended ? 'Paciente asistió a la cita.' : 'Paciente no asistió a la cita.',
+  });
+  revalidatePath(`/users/${professionalId}/patients/${patientId}`);
+}
+
 export async function markLeadAsManaged(patientId: string) {
   const { supabase, adminId } = await ensureAdmin();
   const { error } = await supabase

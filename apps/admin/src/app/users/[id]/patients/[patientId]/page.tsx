@@ -7,6 +7,7 @@ import { CommercialEditor } from '@/components/CommercialEditor';
 import { ClinicalEditor } from '@/components/ClinicalEditor';
 import { NoteAdder } from '@/components/NoteAdder';
 import { GeneralInfoEditor } from '@/components/GeneralInfoEditor';
+import { AppointmentGate } from '@/components/AppointmentGate';
 import { FUNNEL_STATUS_LABEL, type PatientFunnelStatus, CASE_TYPE_LABEL, type PatientCaseType } from '@aural/shared';
 
 export const dynamic = 'force-dynamic';
@@ -66,7 +67,6 @@ export default async function PatientDetailAdminPage({
   type Ev = { at: string; type: string; title: string; body?: string; color: string };
   const events: Ev[] = [];
   events.push({ at: patient.created_at, type: 'create', title: 'Paciente creado', color: '#0A2B5E' });
-  if (patient.first_contact_at) events.push({ at: patient.first_contact_at, type: 'contact', title: 'Primer contacto', color: '#706F6F' });
   if (patient.appointment_at) events.push({ at: patient.appointment_at, type: 'appointment', title: `Cita: ${patient.appointment_status}`, color: '#D97706' });
   for (const n of notes ?? []) events.push({ at: n.created_at, type: 'note', title: 'Evolución clínica', body: n.body, color: '#041E42' });
   for (const f of followups ?? []) events.push({ at: f.created_at, type: 'followup', title: 'Seguimiento', body: f.comment, color: '#0A2B5E' });
@@ -116,6 +116,7 @@ export default async function PatientDetailAdminPage({
               location_id: patient.location_id,
               audiologist_id: patient.audiologist_id,
               case_type: patient.case_type ?? 'sale_candidate',
+              hearing_loss_side: patient.hearing_loss_side ?? null,
             }}
             visitors={visitorOpts}
             locations={locOpts}
@@ -127,30 +128,44 @@ export default async function PatientDetailAdminPage({
         </Card>
 
         <Card title="Información comercial">
-          <CommercialEditor
+          <AppointmentGate
             patientId={patientId}
             professionalId={id}
-            technologies={techOpts}
-            platforms={platOpts}
-            locations={locOpts}
-            initial={{
-              technology_id: patient.technology_id,
-              platform_id: patient.platform_id,
-              rechargeable: patient.rechargeable,
-              binaural: patient.binaural,
-              location_id: patient.location_id,
-              unit_price: patient.unit_price ? Number(patient.unit_price) : null,
-              total_price: patient.total_price ? Number(patient.total_price) : null,
-              sale_closed: patient.sale_closed,
-              is_opportunity: patient.is_opportunity ?? false,
-              discount_percent: Number(patient.discount_percent ?? 0),
-            }}
-          />
+            appointmentAt={patient.appointment_at}
+            appointmentStatus={patient.appointment_status}
+          >
+            <CommercialEditor
+              patientId={patientId}
+              professionalId={id}
+              technologies={techOpts}
+              platforms={platOpts}
+              locations={locOpts}
+              initial={{
+                technology_id: patient.technology_id,
+                platform_id: patient.platform_id,
+                rechargeable: patient.rechargeable,
+                binaural: patient.binaural,
+                location_id: patient.location_id,
+                unit_price: patient.unit_price ? Number(patient.unit_price) : null,
+                total_price: patient.total_price ? Number(patient.total_price) : null,
+                sale_closed: patient.sale_closed,
+                is_opportunity: patient.is_opportunity ?? false,
+                discount_percent: Number(patient.discount_percent ?? 0),
+              }}
+            />
+          </AppointmentGate>
         </Card>
       </div>
 
       <Card title="Hallazgos clínicos" className="mt-6">
-        <ClinicalEditor patientId={patientId} professionalId={id} initial={patient.clinical_findings} />
+        <AppointmentGate
+          patientId={patientId}
+          professionalId={id}
+          appointmentAt={patient.appointment_at}
+          appointmentStatus={patient.appointment_status}
+        >
+          <ClinicalEditor patientId={patientId} professionalId={id} initial={patient.clinical_findings} />
+        </AppointmentGate>
       </Card>
 
       <Card title="Comisiones" className="mt-6">
@@ -199,7 +214,14 @@ export default async function PatientDetailAdminPage({
       </Card>
 
       <Card title="Informe médico (nuevo)" className="mt-6">
-        <ReportComposer patientId={patientId} professionalId={id} />
+        <AppointmentGate
+          patientId={patientId}
+          professionalId={id}
+          appointmentAt={patient.appointment_at}
+          appointmentStatus={patient.appointment_status}
+        >
+          <ReportComposer patientId={patientId} professionalId={id} />
+        </AppointmentGate>
       </Card>
 
       <Card title={`Informes generados (${reports?.length ?? 0})`} className="mt-6">

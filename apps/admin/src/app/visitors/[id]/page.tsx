@@ -36,8 +36,7 @@ export default async function VisitorDetailPage({
     supabase.from('profiles').select('id, full_name, status').eq('visitor_id', id),
     supabase.from('patients')
       .select('id, full_name, cedula, phone, professional_id, sale_closed, sale_closed_at, total_price, case_type, is_opportunity, funnel_status, created_at, updated_at')
-      .is('deleted_at', null)
-      .eq('case_type', 'sale_candidate'),
+      .is('deleted_at', null),
   ]);
 
   const proIds = new Set((profiles ?? []).map((p) => p.id));

@@ -5,6 +5,7 @@ import { DashboardLayout } from '@/components/DashboardLayout';
 import { StatCard } from '@/components/StatCard';
 import { ProStatusControls } from '@/components/ProStatusControls';
 import { VisitorAssign } from '@/components/VisitorAssign';
+import { ProfessionalInfoCard } from '@/components/ProfessionalInfoCard';
 import { MonthlyDiagnosis } from '@/components/charts/MonthlyDiagnosis';
 import { ROLES, OTORRINO_SPECIALTIES, FUNNEL_STATUS_LABEL, type PatientFunnelStatus } from '@aural/shared';
 
@@ -37,7 +38,7 @@ export default async function ProfessionalDetailPage({
   const [{ data: patients }, { data: commissions }, { data: payments }] = await Promise.all([
     supabase
       .from('patients')
-      .select('id, full_name, cedula, phone, funnel_status, sale_closed, total_price, case_type, created_at')
+      .select('id, full_name, cedula, phone, funnel_status, sale_closed, total_price, case_type, created_at, binaural, hearing_loss_side')
       .eq('professional_id', id)
       .is('deleted_at', null)
       .order('created_at', { ascending: false }),
@@ -72,6 +73,17 @@ export default async function ProfessionalDetailPage({
   const salesClosed = list.filter((p) => p.sale_closed).length;
   const amountSold = list.filter((p) => p.sale_closed).reduce((s, p) => s + Number(p.total_price ?? 0), 0);
   const amountQuoted = list.filter((p) => !p.sale_closed && p.total_price).reduce((s, p) => s + Number(p.total_price ?? 0), 0);
+
+  // Lateralidad (pérdida auditiva o hipoacusia súbita)
+  const sideEligible = list.filter((p) => p.case_type === 'sale_candidate' || p.case_type === 'sudden_hearing_loss');
+  const bilateralCount = sideEligible.filter((p) => p.hearing_loss_side === 'bilateral').length;
+  const unilateralCount = sideEligible.filter((p) => p.hearing_loss_side === 'unilateral').length;
+  const sideUnclassified = sideEligible.length - bilateralCount - unilateralCount;
+
+  // Audífonos cotizados vs vendidos (binaural = 2, mono = 1)
+  const aidsOf = (p: any) => (p.binaural ? 2 : 1);
+  const aidsQuoted = list.filter((p) => p.total_price).reduce((s, p) => s + aidsOf(p), 0);
+  const aidsSold = list.filter((p) => p.sale_closed).reduce((s, p) => s + aidsOf(p), 0);
   const commissionGenerated = (commissions ?? []).reduce((s, c) => s + Number(c.amount ?? 0), 0);
   const commissionPaid = (payments ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0);
   const commissionPending = Math.max(0, commissionGenerated - commissionPaid);
@@ -90,16 +102,31 @@ export default async function ProfessionalDetailPage({
 
       <div className="mt-4 flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-primary">{pro.full_name}</h1>
+          <h1 className="text-3xl font-bold text-primary">{pro.full_name || '(Sin nombre)'}</h1>
           <p className="text-secondary mt-1">
-            {roleLabel}{specialtyLabel ? ` · ${specialtyLabel}` : ''} · {pro.city}
-          </p>
-          <p className="text-secondary text-sm mt-1">
-            CC {pro.cedula} · {pro.email} · {pro.phone}
+            {roleLabel}{specialtyLabel ? ` · ${specialtyLabel}` : ''}
           </p>
         </div>
         <ProStatusControls userId={pro.id} status={pro.status} rejectionReason={pro.rejection_reason} />
       </div>
+
+      <ProfessionalInfoCard
+        userId={pro.id}
+        initial={{
+          full_name: pro.full_name,
+          cedula: pro.cedula,
+          phone: pro.phone,
+          city: pro.city,
+          profession: pro.profession,
+          address: pro.address,
+          email: pro.email,
+          specialty_label: specialtyLabel ?? null,
+          status: pro.status,
+          created_at: pro.created_at,
+          approved_at: pro.approved_at,
+          rejection_reason: pro.rejection_reason,
+        }}
+      />
 
       <section className="mt-8 bg-white border border-border rounded-2xl p-6">
         <p className="text-xs uppercase tracking-widest text-secondary font-semibold mb-3">Visitador médico asignado</p>
@@ -130,6 +157,30 @@ export default async function ProfessionalDetailPage({
           <StatCard label="Ventas cerradas" value={salesClosed} accent="success" />
           <StatCard label="Valor vendido" value={cop(amountSold)} />
           <StatCard label="Valor cotizado" value={cop(amountQuoted)} accent="warning" />
+        </div>
+      </section>
+
+      <section className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white border border-border rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-lg font-semibold text-primary">Lateralidad</h2>
+            <span className="text-xs text-secondary">{sideEligible.length} con pérdida</span>
+          </div>
+          <p className="text-secondary text-sm mb-4">Unilateral vs bilateral en pacientes con pérdida auditiva o hipoacusia súbita.</p>
+          <SidesBar bilateral={bilateralCount} unilateral={unilateralCount} unclassified={sideUnclassified} />
+        </div>
+
+        <div className="bg-white border border-border rounded-2xl p-6">
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-lg font-semibold text-primary">Audífonos</h2>
+            <span className="text-xs text-secondary">cotizados vs vendidos</span>
+          </div>
+          <p className="text-secondary text-sm mb-4">Binaural cuenta 2, monoaural cuenta 1.</p>
+          <AidsBar quoted={aidsQuoted} sold={aidsSold} />
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <StatCard label="Cotizados" value={aidsQuoted} accent="warning" />
+            <StatCard label="Vendidos" value={aidsSold} accent="success" />
+          </div>
         </div>
       </section>
 
@@ -205,4 +256,61 @@ function Th({ children, className = '' }: { children: React.ReactNode; className
 }
 function Td({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return <td className={`px-6 py-4 text-foreground ${className}`}>{children}</td>;
+}
+
+function SidesBar({ bilateral, unilateral, unclassified }: { bilateral: number; unilateral: number; unclassified: number }) {
+  const total = Math.max(1, bilateral + unilateral + unclassified);
+  const pctBi = (bilateral / total) * 100;
+  const pctUni = (unilateral / total) * 100;
+  const pctUn = (unclassified / total) * 100;
+  return (
+    <div>
+      <div className="flex h-10 rounded-md overflow-hidden border border-border">
+        {bilateral > 0 && <div style={{ width: `${pctBi}%` }} className="bg-primary flex items-center justify-center text-white text-xs font-semibold">{bilateral}</div>}
+        {unilateral > 0 && <div style={{ width: `${pctUni}%` }} className="bg-warning flex items-center justify-center text-white text-xs font-semibold">{unilateral}</div>}
+        {unclassified > 0 && <div style={{ width: `${pctUn}%` }} className="bg-border flex items-center justify-center text-secondary text-xs font-semibold">{unclassified}</div>}
+        {bilateral + unilateral + unclassified === 0 && <div className="w-full flex items-center justify-center text-secondary text-xs">Sin datos</div>}
+      </div>
+      <div className="flex flex-wrap gap-4 mt-3 text-xs">
+        <Legend color="bg-primary" label="Bilateral" value={bilateral} />
+        <Legend color="bg-warning" label="Unilateral" value={unilateral} />
+        {unclassified > 0 && <Legend color="bg-border" label="Sin clasificar" value={unclassified} />}
+      </div>
+    </div>
+  );
+}
+
+function AidsBar({ quoted, sold }: { quoted: number; sold: number }) {
+  const max = Math.max(quoted, sold, 1);
+  return (
+    <div className="space-y-2">
+      <Row label="Cotizados" value={quoted} max={max} color="bg-warning" />
+      <Row label="Vendidos"  value={sold}   max={max} color="bg-success" />
+    </div>
+  );
+}
+
+function Row({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+  const pct = (value / max) * 100;
+  return (
+    <div>
+      <div className="flex justify-between text-xs text-secondary mb-1">
+        <span>{label}</span>
+        <span className="font-semibold text-primary">{value}</span>
+      </div>
+      <div className="h-3 bg-surface rounded">
+        <div className={`h-3 rounded ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function Legend({ color, label, value }: { color: string; label: string; value: number }) {
+  return (
+    <div className="inline-flex items-center gap-2">
+      <span className={`inline-block w-3 h-3 rounded ${color}`} />
+      <span className="text-secondary">{label}</span>
+      <span className="font-semibold text-primary">{value}</span>
+    </div>
+  );
 }

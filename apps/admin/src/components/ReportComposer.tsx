@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { uploadExamImage, createReport, generateReportWithAI } from '@/app/actions/reports';
+import { uploadExamImage, createReport, generateReportWithAI, updateReportBody, deleteReport } from '@/app/actions/reports';
 
 export function ReportComposer({ patientId, professionalId }: { patientId: string; professionalId: string }) {
   const router = useRouter();
@@ -12,7 +12,11 @@ export function ReportComposer({ patientId, professionalId }: { patientId: strin
   const [otoscopy, setOtoscopy] = useState('');
   const [title, setTitle] = useState('Informe audiológico');
   const [error, setError] = useState<string | null>(null);
-  const [generated, setGenerated] = useState<string | null>(null);
+
+  // Estado del borrador IA en edición
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftBody, setDraftBody] = useState<string>('');
+  const [bodyDirty, setBodyDirty] = useState(false);
 
   async function uploadIfPresent(file: File | null, kind: string) {
     if (!file) return null;
@@ -23,9 +27,8 @@ export function ReportComposer({ patientId, professionalId }: { patientId: strin
     return await uploadExamImage(fd);
   }
 
-  function onSubmit(generate: boolean) {
+  function generate() {
     setError(null);
-    setGenerated(null);
     startTransition(async () => {
       try {
         const [audioPath, logoPath] = await Promise.all([
@@ -38,17 +41,106 @@ export function ReportComposer({ patientId, professionalId }: { patientId: strin
           logoaudiometry_url: logoPath,
           otoscopy_description: otoscopy || null,
         });
-        if (generate) {
-          const body = await generateReportWithAI(report.id, professionalId, patientId);
-          setGenerated(body);
-        }
+        const body = await generateReportWithAI(report.id, professionalId, patientId);
+        setDraftId(report.id);
+        setDraftBody(body);
+        setBodyDirty(false);
         router.refresh();
       } catch (e: any) {
-        setError(e?.message ?? 'Error al guardar el informe.');
+        setError(e?.message ?? 'Error al generar.');
       }
     });
   }
 
+  function saveBody() {
+    if (!draftId) return;
+    startTransition(async () => {
+      try {
+        await updateReportBody(draftId, professionalId, patientId, draftBody);
+        setBodyDirty(false);
+        router.refresh();
+      } catch (e: any) {
+        setError(e?.message ?? 'Error al guardar.');
+      }
+    });
+  }
+
+  function discard() {
+    if (!draftId) return;
+    if (!confirm('¿Descartar este borrador? Se eliminará el informe.')) return;
+    startTransition(async () => {
+      await deleteReport(draftId);
+      setDraftId(null);
+      setDraftBody('');
+      setAudio(null);
+      setLogo(null);
+      setOtoscopy('');
+      setTitle('Informe audiológico');
+      router.refresh();
+    });
+  }
+
+  function newOne() {
+    setDraftId(null);
+    setDraftBody('');
+    setAudio(null);
+    setLogo(null);
+    setOtoscopy('');
+    setTitle('Informe audiológico');
+    setBodyDirty(false);
+  }
+
+  // Vista de edición / preview del borrador
+  if (draftId) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-warning/10 border border-warning/30 rounded-md p-3 text-sm">
+          <p className="font-semibold text-warning">Borrador generado — revisa, corrige y guarda.</p>
+          <p className="text-warning/80 text-xs mt-1">
+            El informe queda visible para el doctor solo después de que guardes los cambios.
+          </p>
+        </div>
+
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Cuerpo del informe</span>
+          <textarea
+            value={draftBody}
+            onChange={(e) => { setDraftBody(e.target.value); setBodyDirty(true); }}
+            rows={20}
+            className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 outline-none focus:border-primary font-mono text-sm leading-6 resize-y"
+          />
+        </label>
+
+        {error && <p className="text-danger text-sm bg-danger/10 px-3 py-2 rounded-md">{error}</p>}
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={saveBody}
+            disabled={isPending || !bodyDirty}
+            className="px-5 h-11 rounded-md bg-primary text-white font-semibold hover:bg-primary-soft disabled:opacity-40"
+          >
+            {isPending ? 'Guardando…' : bodyDirty ? 'Guardar cambios' : 'Sin cambios'}
+          </button>
+          <button
+            onClick={newOne}
+            disabled={isPending}
+            className="px-5 h-11 rounded-md border border-border text-secondary"
+          >
+            Crear otro informe
+          </button>
+          <button
+            onClick={discard}
+            disabled={isPending}
+            className="px-5 h-11 rounded-md border border-danger text-danger hover:bg-danger/10"
+          >
+            Descartar borrador
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Vista del formulario inicial
   return (
     <div className="space-y-4">
       <label className="block">
@@ -73,28 +165,15 @@ export function ReportComposer({ patientId, professionalId }: { patientId: strin
         />
       </label>
 
-      {error && <p className="text-danger text-sm">{error}</p>}
-      {generated && (
-        <div className="bg-success/10 border border-success/30 rounded-md p-3 text-sm">
-          <p className="font-semibold text-success mb-2">Informe generado por IA</p>
-          <pre className="whitespace-pre-wrap text-foreground text-sm">{generated}</pre>
-        </div>
-      )}
+      {error && <p className="text-danger text-sm bg-danger/10 px-3 py-2 rounded-md">{error}</p>}
 
-      <div className="flex gap-2 pt-2">
+      <div className="pt-2">
         <button
-          onClick={() => onSubmit(false)}
+          onClick={generate}
           disabled={isPending}
-          className="px-4 h-11 rounded-md border border-primary text-primary font-semibold hover:bg-surface disabled:opacity-50"
+          className="px-5 h-11 rounded-md bg-primary text-white font-semibold hover:bg-primary-soft disabled:opacity-50"
         >
-          Solo guardar
-        </button>
-        <button
-          onClick={() => onSubmit(true)}
-          disabled={isPending}
-          className="px-4 h-11 rounded-md bg-primary text-white font-semibold hover:bg-primary-soft disabled:opacity-50"
-        >
-          {isPending ? 'Procesando…' : 'Crear informe con IA'}
+          {isPending ? 'Generando con IA…' : 'Generar borrador con IA'}
         </button>
       </div>
     </div>

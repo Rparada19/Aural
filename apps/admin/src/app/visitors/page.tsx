@@ -45,7 +45,6 @@ export default async function VisitorsPage() {
   const salesByPro = new Map<string, number>();
   const totalSalesByPro = new Map<string, number>();
   for (const p of patients ?? []) {
-    if (p.case_type !== 'sale_candidate') continue;
     if (!p.sale_closed || !p.total_price) continue;
     const amt = Number(p.total_price);
     totalSalesByPro.set(p.professional_id, (totalSalesByPro.get(p.professional_id) ?? 0) + amt);

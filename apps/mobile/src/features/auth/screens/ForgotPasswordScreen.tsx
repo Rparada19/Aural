@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing, typography } from '@aural/shared';
+import { KeyRound, CheckCircle } from 'lucide-react-native';
+import { colors, spacing, typography, radius } from '@aural/shared';
 import { Input } from '../../../components/ui/Input';
 import { Button } from '../../../components/ui/Button';
 import { supabase, isSupabaseConfigured } from '../../../lib/supabase';
@@ -37,6 +38,9 @@ export function ForgotPasswordScreen({ navigation }: Props) {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+          <View style={styles.iconWrap}>
+            {sent ? <CheckCircle size={32} color={colors.success} /> : <KeyRound size={32} color={colors.primary} />}
+          </View>
           <Text style={styles.title}>Recuperar contraseña</Text>
           <Text style={styles.subtitle}>
             Te enviaremos un correo con un enlace para restablecer tu contraseña.
@@ -78,7 +82,12 @@ export function ForgotPasswordScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { padding: spacing.xl, flexGrow: 1 },
-  title: { ...typography.display, color: colors.primary, marginTop: spacing.lg },
+  iconWrap: {
+    width: 72, height: 72, borderRadius: radius.pill,
+    backgroundColor: colors.primaryTint, alignSelf: 'flex-start',
+    alignItems: 'center', justifyContent: 'center', marginTop: spacing.lg,
+  },
+  title: { ...typography.display, color: colors.primary, marginTop: spacing.md },
   subtitle: { ...typography.body, color: colors.textMuted, marginTop: spacing.xs, lineHeight: 22 },
   form: { marginTop: spacing.xl },
   success: { marginTop: spacing.xl, alignItems: 'center', paddingHorizontal: spacing.md },

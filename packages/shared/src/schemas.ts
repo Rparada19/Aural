@@ -33,6 +33,7 @@ export const signupSchema = z
     address: z.string().min(5, 'Dirección requerida'),
     role: roleSlugSchema,
     specialty: otorrinoSpecialtySchema.optional(),
+    visitor_id: z.string().uuid('Selecciona un visitador médico'),
     password: passwordSchema,
     confirmPassword: z.string(),
   })

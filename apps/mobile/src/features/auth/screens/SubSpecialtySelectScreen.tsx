@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing, typography, radius, OTORRINO_SPECIALTIES } from '@aural/shared';
+import { ChevronRight, Stethoscope } from 'lucide-react-native';
+import { colors, spacing, typography, radius, shadow, OTORRINO_SPECIALTIES } from '@aural/shared';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../../navigation/types';
 
@@ -22,10 +23,13 @@ export function SubSpecialtySelectScreen({ navigation, route }: Props) {
             <Pressable
               key={sp.slug}
               onPress={() => navigation.navigate('Register', { role, specialty: sp.slug })}
-              style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+              style={({ pressed }) => [styles.card, pressed && { opacity: 0.6 }]}
             >
+              <View style={styles.iconBox}>
+                <Stethoscope size={22} color={colors.primary} />
+              </View>
               <Text style={styles.cardLabel}>{sp.label}</Text>
-              <Text style={styles.cardArrow}>→</Text>
+              <ChevronRight size={18} color={colors.textSubtle} />
             </Pressable>
           ))}
         </View>
@@ -37,22 +41,20 @@ export function SubSpecialtySelectScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { padding: spacing.xl },
-  overline: { ...typography.overline, color: colors.textMuted, marginTop: spacing.md },
+  overline: { ...typography.overline, color: colors.textSubtle, marginTop: spacing.md },
   title: { ...typography.display, color: colors.primary, marginTop: spacing.xs },
-  subtitle: { ...typography.body, color: colors.textMuted, marginTop: spacing.xs, lineHeight: 22 },
+  subtitle: { ...typography.body, color: colors.textMuted, marginTop: spacing.xs },
   list: { marginTop: spacing.xl, gap: spacing.sm },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
+    backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, padding: spacing.md,
+    ...shadow.sm,
   },
-  cardPressed: { opacity: 0.6 },
-  cardLabel: { ...typography.bodyStrong, color: colors.primary },
-  cardArrow: { ...typography.h2, color: colors.primary },
+  iconBox: {
+    width: 44, height: 44, borderRadius: radius.sm,
+    backgroundColor: colors.primaryTint,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cardLabel: { ...typography.bodyStrong, color: colors.primary, flex: 1 },
 });

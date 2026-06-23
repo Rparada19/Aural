@@ -2,7 +2,8 @@ import { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, Pressable, RefreshControl, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { colors, spacing, typography, radius } from '@aural/shared';
+import { Wallet, FileText, Receipt } from 'lucide-react-native';
+import { colors, spacing, typography, radius, shadow } from '@aural/shared';
 import { listMyPayments, type PaymentRow } from './api';
 
 const cop = (n: number) =>
@@ -19,12 +20,9 @@ export function PaymentsScreen() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const r = await listMyPayments();
-      setRows(r);
-    } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'No se pudieron cargar los pagos.');
-    } finally { setLoading(false); }
+    try { setRows(await listMyPayments()); }
+    catch (e: any) { Alert.alert('Error', e?.message ?? 'No se pudieron cargar los pagos.'); }
+    finally { setLoading(false); }
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -42,23 +40,24 @@ export function PaymentsScreen() {
       <FlatList
         data={rows}
         keyExtractor={(item) => item.id}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={colors.primary} />}
         contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          !loading ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>Aún no tienes pagos</Text>
-              <Text style={styles.emptySubtitle}>Cuando Aural registre un pago aparecerá aquí.</Text>
-            </View>
-          ) : null
-        }
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={!loading ? (
+          <View style={styles.empty}>
+            <View style={styles.emptyIcon}><Wallet size={32} color={colors.textSubtle} /></View>
+            <Text style={styles.emptyTitle}>Aún no tienes pagos</Text>
+            <Text style={styles.emptySubtitle}>Cuando Aural registre un pago aparecerá aquí.</Text>
+          </View>
+        ) : null}
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.headerRow}>
-              <View>
+              <View style={styles.iconBox}><Wallet size={20} color={colors.primary} /></View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.amount}>{cop(item.amount)}</Text>
                 <Text style={styles.meta}>
-                  {new Date(item.paid_at).toLocaleDateString('es-CO')} · {item.channel}
+                  {new Date(item.paid_at).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })} · {item.channel}
                 </Text>
               </View>
             </View>
@@ -78,7 +77,8 @@ export function PaymentsScreen() {
                   onPress={() => item.receipt_signed_url && Linking.openURL(item.receipt_signed_url)}
                   style={styles.fileBtn}
                 >
-                  <Text style={styles.fileBtnText}>📄  Ver comprobante</Text>
+                  <Receipt size={16} color={colors.primary} />
+                  <Text style={styles.fileBtnText}>Ver comprobante</Text>
                 </Pressable>
               )
             )}
@@ -94,18 +94,25 @@ const styles = StyleSheet.create({
   summary: {
     margin: spacing.lg, marginBottom: 0,
     backgroundColor: colors.primary, borderRadius: radius.lg, padding: spacing.lg,
+    ...shadow.md,
   },
-  summaryLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 12, letterSpacing: 1.5, fontWeight: '600', textTransform: 'uppercase' },
-  summaryValue: { color: colors.white, fontSize: 32, fontWeight: '700', marginTop: spacing.xs },
-  summaryMeta: { color: 'rgba(255,255,255,0.7)', fontSize: 13, marginTop: 4 },
+  summaryLabel: { ...typography.overline, color: 'rgba(255,255,255,0.7)' },
+  summaryValue: { fontFamily: 'Manrope_800ExtraBold', fontSize: 32, color: colors.white, marginTop: spacing.xs, letterSpacing: -0.5 },
+  summaryMeta: { ...typography.caption, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
 
-  list: { padding: spacing.lg, gap: spacing.sm },
+  list: { padding: spacing.lg, gap: spacing.md },
   card: {
-    backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.md, padding: spacing.md,
+    backgroundColor: colors.surfaceAlt, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, padding: spacing.md, gap: spacing.xs,
+    ...shadow.sm,
   },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  amount: { ...typography.h2, color: colors.primary, fontWeight: '700' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  iconBox: {
+    width: 44, height: 44, borderRadius: radius.sm,
+    backgroundColor: colors.primaryTint,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  amount: { ...typography.h2, color: colors.primary },
   meta: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
   ref: { ...typography.caption, color: colors.textMuted, marginTop: spacing.xs },
   notes: { ...typography.body, color: colors.primary, marginTop: spacing.xs },
@@ -113,17 +120,19 @@ const styles = StyleSheet.create({
     width: '100%', aspectRatio: 16 / 10,
     borderRadius: radius.sm, marginTop: spacing.sm, backgroundColor: colors.white,
   },
-  receiptHint: {
-    ...typography.caption, color: colors.textMuted,
-    textAlign: 'center', marginTop: 4,
-  },
+  receiptHint: { ...typography.caption, color: colors.textMuted, textAlign: 'center', marginTop: 4 },
   fileBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs,
     marginTop: spacing.sm, borderWidth: 1, borderColor: colors.border,
-    borderRadius: radius.md, padding: spacing.sm, alignItems: 'center', backgroundColor: colors.white,
+    borderRadius: radius.md, padding: spacing.sm, backgroundColor: colors.white,
   },
   fileBtnText: { ...typography.bodyStrong, color: colors.primary },
 
-  empty: { alignItems: 'center', paddingTop: spacing.xxl },
+  empty: { alignItems: 'center', paddingTop: spacing.xxl, gap: spacing.sm },
+  emptyIcon: {
+    width: 72, height: 72, borderRadius: 36, backgroundColor: colors.surface,
+    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm,
+  },
   emptyTitle: { ...typography.h2, color: colors.primary },
-  emptySubtitle: { ...typography.body, color: colors.textMuted, marginTop: spacing.xs },
+  emptySubtitle: { ...typography.body, color: colors.textMuted, textAlign: 'center', paddingHorizontal: spacing.lg },
 });

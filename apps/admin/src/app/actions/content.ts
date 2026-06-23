@@ -80,6 +80,44 @@ export async function createContent(input: ContentInput) {
   return content;
 }
 
+export async function updateContent(id: string, input: ContentInput) {
+  const { supabase } = await ensureAdmin();
+  const { error } = await supabase.from('content').update({
+    type: input.type,
+    title: input.title,
+    body: input.body || null,
+    media_url: input.media_url ?? null,
+    thumbnail_url: input.thumbnail_url ?? null,
+    status: input.status,
+    publish_at: input.publish_at || null,
+  }).eq('id', id);
+  if (error) throw error;
+
+  await supabase.from('content_audiences').delete().eq('content_id', id);
+  if (input.audience_roles.length > 0) {
+    await supabase.from('content_audiences').insert(
+      input.audience_roles.map((r) => ({ content_id: id, role: r }))
+    );
+  }
+
+  if (input.type === 'event') {
+    await supabase.from('events').upsert({
+      content_id: id,
+      starts_at: input.event_starts_at || new Date().toISOString(),
+      location: input.event_location || null,
+    }, { onConflict: 'content_id' });
+  }
+  if (input.type === 'video' && input.video_url) {
+    await supabase.from('videos').upsert({
+      content_id: id,
+      video_url: input.video_url,
+    }, { onConflict: 'content_id' });
+  }
+
+  revalidatePath('/news');
+  revalidatePath(`/news/${id}/edit`);
+}
+
 export async function updateContentStatus(id: string, status: 'draft' | 'scheduled' | 'published' | 'archived') {
   const { supabase } = await ensureAdmin();
   const { error } = await supabase.from('content').update({ status }).eq('id', id);

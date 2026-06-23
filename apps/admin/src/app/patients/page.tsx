@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { FUNNEL_STATUS_LABEL, type PatientFunnelStatus, ROLES, trafficLight, TRAFFIC_LIGHT_COLOR, CASE_TYPE_LABEL, type PatientCaseType } from '@aural/shared';
+import { getAdminMe, hasAccess } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,17 +24,18 @@ export default async function PatientsPage({
 }) {
   const sp = await searchParams;
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-  const { data: me } = await supabase
-    .from('profiles').select('is_admin, full_name').eq('id', user.id).single();
-  if (!me?.is_admin) redirect('/login');
+  const me = await getAdminMe();
+  if (!hasAccess(me)) redirect('/login');
 
-  const { data: pros } = await supabase
+  let prosQ = supabase
     .from('profiles')
     .select('id, full_name, role')
     .eq('status', 'approved')
     .order('full_name');
+  if (me?.admin_role === 'visitor_rep' && me.linked_visitor_id) {
+    prosQ = prosQ.eq('visitor_id', me.linked_visitor_id);
+  }
+  const { data: pros } = await prosQ;
 
   let query = supabase
     .from('patients')
@@ -46,6 +48,16 @@ export default async function PatientsPage({
     const term = `%${sp.q}%`;
     query = query.or(`full_name.ilike.${term},cedula.ilike.${term},phone.ilike.${term}`);
   }
+  // Visitor_rep: solo pacientes de sus médicos
+  if (me?.admin_role === 'visitor_rep' && me.linked_visitor_id) {
+    const proIds = (pros ?? []).map((p) => p.id);
+    if (proIds.length === 0) {
+      // sin médicos → forzar vacío
+      query = query.eq('professional_id', '00000000-0000-0000-0000-000000000000');
+    } else {
+      query = query.in('professional_id', proIds);
+    }
+  }
   if (sp.professional) query = query.eq('professional_id', sp.professional);
   if (sp.status) query = query.eq('funnel_status', sp.status);
   if (sp.sale === 'closed') query = query.eq('sale_closed', true);
@@ -55,7 +67,7 @@ export default async function PatientsPage({
   const proMap = new Map((pros ?? []).map((p) => [p.id, p.full_name]));
 
   return (
-    <DashboardLayout userName={me.full_name}>
+    <DashboardLayout userName={me!.full_name} role={me!.admin_role} isAdmin={me!.is_admin}>
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-primary">Pacientes</h1>

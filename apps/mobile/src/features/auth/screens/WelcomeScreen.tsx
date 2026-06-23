@@ -17,7 +17,9 @@ export function WelcomeScreen({ navigation }: Props) {
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={styles.tagline}>CONÉCTATE A TU VIDA</Text>
+          <Text style={styles.welcomeMsg}>
+            Conectamos el mundo con el sonido.
+          </Text>
         </View>
 
         <View style={styles.actions}>
@@ -43,11 +45,11 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xxl,
     paddingBottom: spacing.xl,
   },
-  brand: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  logo: { width: 340, height: 200 },
-  tagline: {
-    fontSize: 12, letterSpacing: 4, color: colors.primary,
-    fontWeight: '600', marginTop: spacing.sm,
+  brand: { alignItems: 'center', flex: 1, justifyContent: 'center', gap: spacing.lg },
+  logo: { width: 360, height: 220 },
+  welcomeMsg: {
+    ...typography.h2, color: colors.primary,
+    textAlign: 'center', maxWidth: 300,
   },
   actions: { width: '100%' },
 });

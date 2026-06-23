@@ -14,6 +14,12 @@ export interface ProfessionalStats {
   caseNormal: number;
   caseSudden: number;
   casePending: number;
+  bilateralCount: number;
+  unilateralCount: number;
+  aidsQuoted: number;
+  aidsSold: number;
+  conversionRate: number; // 0-100
+  monthlyReferrals: { month: string; total: number }[]; // últimos 6 meses
 }
 
 export async function getProfessionalStats(): Promise<ProfessionalStats> {
@@ -25,11 +31,15 @@ export async function getProfessionalStats(): Promise<ProfessionalStats> {
       commissionGenerated: 0, commissionPaid: 0, commissionPending: 0,
       upcomingAppointments: 0,
       caseHearingLoss: 0, caseNormal: 0, caseSudden: 0, casePending: 0,
+      bilateralCount: 0, unilateralCount: 0,
+      aidsQuoted: 0, aidsSold: 0,
+      conversionRate: 0,
+      monthlyReferrals: [],
     };
   }
 
   const [patients, commissions, payments, upcoming] = await Promise.all([
-    supabase.from('patients').select('sale_closed, total_price, case_type').eq('professional_id', user.id).is('deleted_at', null),
+    supabase.from('patients').select('sale_closed, total_price, case_type, binaural, hearing_loss_side, created_at').eq('professional_id', user.id).is('deleted_at', null),
     supabase.from('commissions').select('amount').eq('professional_id', user.id),
     supabase.from('payments').select('amount').eq('professional_id', user.id),
     supabase
@@ -62,6 +72,33 @@ export async function getProfessionalStats(): Promise<ProfessionalStats> {
   const caseSudden = allPatients.filter((p) => p.case_type === 'sudden_hearing_loss').length;
   const casePending = allPatients.filter((p) => p.case_type === 'pending_evaluation').length;
 
+  // Lateralidad
+  const sideEligible = allPatients.filter((p: any) => p.case_type === 'sale_candidate' || p.case_type === 'sudden_hearing_loss');
+  const bilateralCount = sideEligible.filter((p: any) => p.hearing_loss_side === 'bilateral').length;
+  const unilateralCount = sideEligible.filter((p: any) => p.hearing_loss_side === 'unilateral').length;
+
+  // Audífonos cotizados vs vendidos
+  const aidsOf = (p: any) => (p.binaural ? 2 : 1);
+  const aidsQuoted = allPatients.filter((p: any) => p.total_price).reduce((s, p) => s + aidsOf(p), 0);
+  const aidsSold = allPatients.filter((p: any) => p.sale_closed).reduce((s, p) => s + aidsOf(p), 0);
+
+  // Conversión: ventas cerradas / pacientes
+  const conversionRate = allPatients.length > 0 ? Math.round((salesClosed / allPatients.length) * 100) : 0;
+
+  // Referidos por mes (últimos 6 meses)
+  const MONTHS_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const now = new Date();
+  const monthlyReferrals: { month: string; total: number }[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const y = d.getFullYear(); const m = d.getMonth();
+    const total = allPatients.filter((p: any) => {
+      const cd = new Date(p.created_at);
+      return cd.getFullYear() === y && cd.getMonth() === m;
+    }).length;
+    monthlyReferrals.push({ month: MONTHS_SHORT[m] ?? '', total });
+  }
+
   return {
     patientsTotal: allPatients.length,
     salesClosed,
@@ -76,5 +113,11 @@ export async function getProfessionalStats(): Promise<ProfessionalStats> {
     caseNormal,
     caseSudden,
     casePending,
+    bilateralCount,
+    unilateralCount,
+    aidsQuoted,
+    aidsSold,
+    conversionRate,
+    monthlyReferrals,
   };
 }

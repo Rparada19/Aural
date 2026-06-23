@@ -2,6 +2,7 @@
 
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { updateContentStatus, deleteContent } from '@/app/actions/content';
 
 export function NewsActions({ id, status }: { id: string; status: string }) {
@@ -18,6 +19,7 @@ export function NewsActions({ id, status }: { id: string; status: string }) {
 
   return (
     <div className="flex flex-wrap gap-1.5">
+      <Link href={`/news/${id}/edit`} className="text-xs font-semibold text-primary hover:underline">Editar</Link>
       {status !== 'published' && (
         <button onClick={() => setStatus('published')} disabled={isPending} className="text-xs font-semibold text-success hover:underline">Publicar</button>
       )}

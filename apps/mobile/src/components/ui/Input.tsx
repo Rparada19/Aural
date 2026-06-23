@@ -26,7 +26,7 @@ Input.displayName = 'Input';
 const styles = StyleSheet.create({
   field: { marginBottom: spacing.md },
   label: {
-    ...typography.caption,
+    fontSize: 13,
     color: colors.textMuted,
     marginBottom: spacing.xs,
     textTransform: 'uppercase',
@@ -34,14 +34,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   input: {
-    height: 52,
+    height: 58,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.surface,
     paddingHorizontal: spacing.md,
     color: colors.text,
-    fontSize: 16,
+    fontSize: 18,
   },
   inputError: { borderColor: colors.danger },
   error: {

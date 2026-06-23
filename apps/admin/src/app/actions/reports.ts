@@ -51,6 +51,25 @@ export async function createReport(patientId: string, professionalId: string, in
   return data;
 }
 
+export async function updateReportBody(reportId: string, professionalId: string, patientId: string, body: string) {
+  const { supabase } = await ensureAdmin();
+  const { error } = await supabase
+    .from('medical_reports')
+    .update({ ai_body: body, generated_at: new Date().toISOString() })
+    .eq('id', reportId);
+  if (error) throw error;
+  revalidatePath(`/users/${professionalId}/patients/${patientId}`);
+}
+
+export async function deleteReport(reportId: string) {
+  const { supabase } = await ensureAdmin();
+  const { error } = await supabase
+    .from('medical_reports')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', reportId);
+  if (error) throw error;
+}
+
 export async function generateReportWithAI(reportId: string, professionalId: string, patientId: string) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('Falta ANTHROPIC_API_KEY en .env.local del admin');
