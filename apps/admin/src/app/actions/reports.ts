@@ -191,12 +191,7 @@ Cierra con una línea: "Atentamente, ${audiologistName || 'Audióloga tratante'}
     .map((b) => (b as any).text)
     .join('\n\n');
 
-  const { error: upErr } = await supabase
-    .from('medical_reports')
-    .update({ ai_body: body, generated_at: new Date().toISOString() })
-    .eq('id', reportId);
-  if (upErr) throw upErr;
-
-  revalidatePath(`/users/${professionalId}/patients/${patientId}`);
+  // No guardamos en DB todavía. El admin debe revisar y dar "Guardar cambios"
+  // explícitamente. Solo retornamos el borrador al cliente.
   return body;
 }
