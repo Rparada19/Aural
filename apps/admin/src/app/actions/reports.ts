@@ -95,18 +95,86 @@ export async function getExamSignedUrl(path: string): Promise<string | null> {
   return data.signedUrl;
 }
 
-export async function getAIConfig() {
+export type GlossaryEntry = { avoid: string; prefer: string };
+
+export type AIConfig = {
+  system_prompt: string;
+  glossary: GlossaryEntry[];
+  banned_words: string[];
+  report_sections: string[];
+  updated_at: string | null;
+};
+
+export async function getAIConfig(): Promise<AIConfig> {
   const { supabase } = await ensureAdmin();
   const { data } = await supabase
-    .from('ai_report_config').select('system_prompt, updated_at').eq('id', 1).single();
-  return { system_prompt: data?.system_prompt ?? '', updated_at: data?.updated_at ?? null };
+    .from('ai_report_config')
+    .select('system_prompt, glossary, banned_words, report_sections, updated_at')
+    .eq('id', 1).single();
+  return {
+    system_prompt: data?.system_prompt ?? '',
+    glossary: Array.isArray(data?.glossary) ? (data!.glossary as GlossaryEntry[]) : [],
+    banned_words: Array.isArray(data?.banned_words) ? (data!.banned_words as string[]) : [],
+    report_sections: Array.isArray(data?.report_sections) ? (data!.report_sections as string[]) : [],
+    updated_at: data?.updated_at ?? null,
+  };
 }
 
-export async function updateAIConfig(systemPrompt: string) {
+export async function updateAIConfig(input: {
+  system_prompt?: string;
+  glossary?: GlossaryEntry[];
+  banned_words?: string[];
+  report_sections?: string[];
+}) {
   const { supabase, adminId } = await ensureAdmin();
-  const { error } = await supabase
-    .from('ai_report_config')
-    .upsert({ id: 1, system_prompt: systemPrompt, updated_at: new Date().toISOString(), updated_by: adminId });
+  const patch: Record<string, any> = { id: 1, updated_at: new Date().toISOString(), updated_by: adminId };
+  if (input.system_prompt !== undefined) patch.system_prompt = input.system_prompt;
+  if (input.glossary !== undefined) patch.glossary = input.glossary;
+  if (input.banned_words !== undefined) patch.banned_words = input.banned_words;
+  if (input.report_sections !== undefined) patch.report_sections = input.report_sections;
+  const { error } = await supabase.from('ai_report_config').upsert(patch);
+  if (error) throw error;
+  revalidatePath('/settings/ai');
+}
+
+export async function uploadReferenceDoc(formData: FormData) {
+  const { supabase, adminId } = await ensureAdmin();
+  const file = formData.get('file') as File | null;
+  const title = ((formData.get('title') as string | null) || file?.name || 'Documento').trim();
+  if (!file) throw new Error('Falta archivo.');
+  const ext = (file.name.split('.').pop() ?? '').toLowerCase();
+  if (ext !== 'pdf') throw new Error('Solo PDF permitido.');
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${Date.now()}-${safeName}`;
+  const buf = Buffer.from(await file.arrayBuffer());
+  const { error: upErr } = await supabase.storage.from('ai-refs').upload(path, buf, {
+    contentType: 'application/pdf',
+    upsert: false,
+  });
+  if (upErr) throw upErr;
+  const { error } = await supabase.from('ai_reference_docs').insert({
+    title, storage_path: path, uploaded_by: adminId,
+  });
+  if (error) throw error;
+  revalidatePath('/settings/ai');
+}
+
+export async function deleteReferenceDoc(id: string) {
+  const { supabase } = await ensureAdmin();
+  const { data: row } = await supabase
+    .from('ai_reference_docs').select('storage_path').eq('id', id).single();
+  if (row?.storage_path) {
+    await supabase.storage.from('ai-refs').remove([row.storage_path]);
+  }
+  const { error } = await supabase.from('ai_reference_docs').delete().eq('id', id);
+  if (error) throw error;
+  revalidatePath('/settings/ai');
+}
+
+export async function updateCatalogAISpec(kind: 'technology' | 'platform', id: string, aiSpec: string) {
+  const { supabase } = await ensureAdmin();
+  const table = kind === 'technology' ? 'technologies' : 'platforms';
+  const { error } = await supabase.from(table).update({ ai_spec: aiSpec }).eq('id', id);
   if (error) throw error;
   revalidatePath('/settings/ai');
 }
@@ -134,8 +202,8 @@ export async function generateReportWithAI(reportId: string, professionalId: str
   const { data: patient } = await supabase
     .from('patients')
     .select(`full_name, cedula, phone, binaural, rechargeable, professional_id,
-      technology:technology_id (name),
-      platform:platform_id (code),
+      technology:technology_id (name, ai_spec),
+      platform:platform_id (code, ai_spec),
       audiologist:audiologist_id (name),
       visitor:visitor_id (name)
     `)
@@ -171,50 +239,62 @@ export async function generateReportWithAI(reportId: string, professionalId: str
   const binaural = (patient as any)?.binaural === true;
   const rechargeable = (patient as any)?.rechargeable === true;
 
-  // Catálogo de productos Aural — usado por la IA para describir con propiedad
-  const TECH_SPECS: Record<string, string> = {
-    'Evoke': 'Audífono con procesamiento SoundSense Learn que aprende de las preferencias del usuario en distintos entornos. Sistema TruAcoustics para naturalidad de voz. Indicado en hipoacusias leves a moderadas-severas.',
-    'Magnify': 'Audífono con procesamiento integral basado en redes neuronales (BrainHearing). Excelente desempeño en ruido. Indicado en hipoacusias leves a severas que requieren claridad de voz en ambientes complejos.',
-    'Moment': 'Audífono ultra-discreto con tecnología SoundSense Adapt y procesamiento de sonido natural. Ideal para usuarios primerizos. Indicado en hipoacusias leves a moderadas-severas.',
-    'Smart-RIC': 'Receptor en canal (RIC) compacto con conectividad inalámbrica avanzada (Bluetooth) y streaming directo a iPhone/Android. Indicado para pacientes activos con hipoacusias leves a severas.',
-    'Allure': 'Última generación: procesador PureSound 3.0 con reducción de ruido 35% superior, Bluetooth LE Audio + Auracast, recarga inalámbrica 30h, diseño RIC ultra-discreto 22% más pequeño. Indicado en hipoacusias leves a severas (15–90 dB HL), pacientes activos que requieren conectividad y simplicidad.',
-  };
-  const PLATFORM_SPECS: Record<string, string> = {
-    '30':  'plataforma básica: 4 canales, programa único, ideal para ambientes tranquilos.',
-    '50':  'plataforma básica+: 6 canales, 2 programas, manejo básico de ruido.',
-    '100': 'plataforma media: 8 canales, direccionalidad adaptativa, reducción de ruido.',
-    '110': 'plataforma media+: 10 canales, antifeedback dinámico, conectividad básica.',
-    '220': 'plataforma media-alta: 12 canales, direccionalidad inteligente, streaming.',
-    '330': 'plataforma alta: 16 canales, escenarios automáticos, aprendizaje contextual.',
-    '440': 'plataforma premium: 20+ canales, IA acústica, todos los programas avanzados, máxima personalización.',
-  };
+  // Descripciones de catálogo (editables desde /settings/ai)
+  const techSpec: string | null = (patient as any)?.technology?.ai_spec ?? null;
+  const platformSpec: string | null = (patient as any)?.platform?.ai_spec ?? null;
 
-  const techSpec = techName && TECH_SPECS[techName] ? TECH_SPECS[techName] : null;
-  const platformSpec = platformCode && PLATFORM_SPECS[platformCode] ? PLATFORM_SPECS[platformCode] : null;
+  // Entrenamiento: config completa desde /settings/ai
+  const { data: cfg } = await supabase
+    .from('ai_report_config')
+    .select('system_prompt, glossary, banned_words, report_sections')
+    .eq('id', 1).single();
+  const systemPrompt = (cfg?.system_prompt ?? '').trim();
+  const glossary: GlossaryEntry[] = Array.isArray(cfg?.glossary) ? cfg!.glossary as GlossaryEntry[] : [];
+  const bannedWords: string[] = Array.isArray(cfg?.banned_words) ? cfg!.banned_words as string[] : [];
+  const DEFAULT_SECTIONS = ['Identificación del paciente', 'Resumen otoscópico', 'Audiometría tonal liminar', 'Logoaudiometría', 'Diagnóstico audiológico', 'Recomendaciones'];
+  const reportSections: string[] = Array.isArray(cfg?.report_sections) && cfg!.report_sections.length > 0
+    ? cfg!.report_sections as string[]
+    : DEFAULT_SECTIONS;
+
+  // Documentos PDF de referencia
+  const { data: refDocs } = await supabase
+    .from('ai_reference_docs')
+    .select('id, title, storage_path')
+    .order('uploaded_at', { ascending: false });
+  const referencePDFs: { title: string; data: string }[] = [];
+  for (const d of refDocs ?? []) {
+    const { data: blob, error: dlErr } = await supabase.storage.from('ai-refs').download(d.storage_path);
+    if (dlErr || !blob) continue;
+    const buf = Buffer.from(await blob.arrayBuffer());
+    referencePDFs.push({ title: d.title, data: buf.toString('base64') });
+  }
 
   const recommendationBlock = techName
     ? `\n\n## Producto cotizado al paciente\n- **Tecnología:** ${techName}${techSpec ? `\n  Características: ${techSpec}` : ''}\n- **Plataforma:** ${platformCode || '—'}${platformSpec ? `\n  Características: ${platformSpec}` : ''}\n- **Adaptación:** ${binaural ? 'binaural (2 audífonos)' : 'monoaural (1 audífono)'}\n- **Energía:** ${rechargeable ? 'recargable' : 'pilas'}\n\nEn la sección **Recomendaciones** del informe debes:\n1. Justificar clínicamente por qué los audífonos **${techName} ${platformCode}** son apropiados para el diagnóstico audiológico del paciente.\n2. Describir explícitamente las características técnicas listadas arriba (no inventes funciones que no figuren).\n3. Explicar el beneficio de la adaptación ${binaural ? 'binaural' : 'monoaural'} y de la opción ${rechargeable ? 'recargable' : 'con pilas'} en este caso.\n4. Sugerir programas de uso y expectativas realistas de adaptación.`
     : `\n\nEn la sección **Recomendaciones**, dado que aún no se ha cotizado producto, sugiere tecnología y plataforma adecuadas al diagnóstico audiológico, justificando la elección.`;
+
+  const sectionsBlock = reportSections.map((s) => `## ${s}`).join('\n');
+  const glossaryBlock = glossary.length > 0
+    ? `\n\nGlosario terminológico obligatorio (respetar sin excepciones):\n${glossary.map(g => `- En vez de "${g.avoid}", di "${g.prefer}".`).join('\n')}`
+    : '';
+  const bannedBlock = bannedWords.length > 0
+    ? `\n\nPalabras/frases prohibidas — NO uses nunca:\n${bannedWords.map(w => `- ${w}`).join('\n')}`
+    : '';
 
   const userContent: any[] = [
     {
       type: 'text',
       text: `Redacta un informe audiológico profesional, personalizado y firme, en español, para el paciente **${patient?.full_name ?? ''}** (CC ${patient?.cedula ?? ''}).
 
-Estructúralo con estos encabezados (## en markdown):
-## Identificación del paciente
-## Resumen otoscópico
-## Audiometría tonal liminar
-## Logoaudiometría
-## Diagnóstico audiológico
-## Recomendaciones
+Estructúralo con estos encabezados (## en markdown, en este orden):
+${sectionsBlock}
 
 Importante:
 - Dirígete al **Dr(a). ${doctorName || 'profesional tratante'}** mencionando su nombre como receptor del informe (no como autor).
 - El informe es elaborado por la audióloga tratante **${audiologistName || 'a definir'}** (firma al final).
 - Resume la otoscopia en máximo 2 frases con lenguaje clínico, sin transcribir literalmente lo escrito por el operador.
 - Usa lenguaje técnico audiológico colombiano (umbrales, PTA, SRT, discriminación, configuración audiométrica).
-- Si una imagen no es legible, dilo y sugiere repetir el examen.
+- Si una imagen no es legible, dilo y sugiere repetir el examen.${glossaryBlock}${bannedBlock}
 
 Datos de input:
 - Otoscopia (texto del operador): ${report.otoscopy_description ?? '(no proporcionada)'}
@@ -224,6 +304,14 @@ Cierra con una línea: "Atentamente, ${audiologistName || 'Audióloga tratante'}
     },
   ];
 
+  // PDFs de referencia como bloques document (Claude soporta PDF nativo)
+  for (const pdf of referencePDFs) {
+    userContent.push(
+      { type: 'text', text: `↑ Documento de referencia: ${pdf.title} (úsalo como base de conocimiento y estilo)` },
+      { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf.data } },
+    );
+  }
+
   for (const im of images) {
     userContent.push({
       type: 'image',
@@ -231,11 +319,6 @@ Cierra con una línea: "Atentamente, ${audiologistName || 'Audióloga tratante'}
     });
     userContent.push({ type: 'text', text: `↑ ${im.kind}` });
   }
-
-  // Entrenamiento: system prompt editable + ejemplos gold marcados desde admin
-  const { data: cfg } = await supabase
-    .from('ai_report_config').select('system_prompt').eq('id', 1).single();
-  const systemPrompt = (cfg?.system_prompt ?? '').trim();
 
   const { data: gold } = await supabase
     .from('medical_reports')
