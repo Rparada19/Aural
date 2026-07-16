@@ -11,8 +11,8 @@ export default async function AITrainingPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
   const { data: me } = await supabase
-    .from('profiles').select('is_admin, admin_role, full_name').eq('id', user.id).single();
-  if (!me?.is_admin || me?.admin_role !== 'coordinator') redirect('/');
+    .from('profiles').select('is_admin, full_name').eq('id', user.id).single();
+  if (!me?.is_admin) redirect('/login');
 
   const { data: cfg } = await supabase
     .from('ai_report_config').select('system_prompt, updated_at').eq('id', 1).single();
