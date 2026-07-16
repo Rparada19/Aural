@@ -17,6 +17,7 @@ const NAV: NavItem[] = [
   { href: '/marketing', label: 'Marketing', allowed: ['coordinator'] },
   { href: '/catalogs', label: 'Catálogos', allowed: ['coordinator'] },
   { href: '/staff', label: 'Equipo Aural', allowed: ['coordinator'] },
+  { href: '/settings/ai', label: 'Entrenamiento IA', allowed: ['coordinator'] },
 ];
 
 const ROLE_LABEL: Record<NonNullable<AdminRoleLite>, string> = {

@@ -95,6 +95,33 @@ export async function getExamSignedUrl(path: string): Promise<string | null> {
   return data.signedUrl;
 }
 
+export async function getAIConfig() {
+  const { supabase } = await ensureAdmin();
+  const { data } = await supabase
+    .from('ai_report_config').select('system_prompt, updated_at').eq('id', 1).single();
+  return { system_prompt: data?.system_prompt ?? '', updated_at: data?.updated_at ?? null };
+}
+
+export async function updateAIConfig(systemPrompt: string) {
+  const { supabase, adminId } = await ensureAdmin();
+  const { error } = await supabase
+    .from('ai_report_config')
+    .upsert({ id: 1, system_prompt: systemPrompt, updated_at: new Date().toISOString(), updated_by: adminId });
+  if (error) throw error;
+  revalidatePath('/settings/ai');
+}
+
+export async function toggleGoldExample(reportId: string, value: boolean, professionalId: string, patientId: string) {
+  const { supabase } = await ensureAdmin();
+  const { error } = await supabase
+    .from('medical_reports')
+    .update({ is_gold_example: value })
+    .eq('id', reportId);
+  if (error) throw error;
+  revalidatePath(`/users/${professionalId}/patients/${patientId}/reports/${reportId}`);
+  revalidatePath('/settings/ai');
+}
+
 export async function generateReportWithAI(reportId: string, professionalId: string, patientId: string) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('Falta ANTHROPIC_API_KEY en .env.local del admin');
@@ -205,10 +232,48 @@ Cierra con una línea: "Atentamente, ${audiologistName || 'Audióloga tratante'}
     userContent.push({ type: 'text', text: `↑ ${im.kind}` });
   }
 
+  // Entrenamiento: system prompt editable + ejemplos gold marcados desde admin
+  const { data: cfg } = await supabase
+    .from('ai_report_config').select('system_prompt').eq('id', 1).single();
+  const systemPrompt = (cfg?.system_prompt ?? '').trim();
+
+  const { data: gold } = await supabase
+    .from('medical_reports')
+    .select(`title, otoscopy_description, ai_body,
+      patient:patient_id (full_name, cedula,
+        technology:technology_id (name),
+        platform:platform_id (code)
+      )`)
+    .eq('is_gold_example', true)
+    .not('ai_body', 'is', null)
+    .is('deleted_at', null)
+    .neq('id', reportId)
+    .order('created_at', { ascending: false })
+    .limit(3);
+
+  const fewShot: { role: 'user' | 'assistant'; content: string }[] = [];
+  for (const g of gold ?? []) {
+    const p: any = g.patient;
+    const summary = [
+      `Paciente: ${p?.full_name ?? '—'} (CC ${p?.cedula ?? '—'})`,
+      `Otoscopia: ${g.otoscopy_description ?? '—'}`,
+      p?.technology?.name ? `Producto cotizado: ${p.technology.name} ${p?.platform?.code ?? ''}`.trim() : 'Sin producto cotizado.',
+    ].join('\n');
+    fewShot.push({
+      role: 'user',
+      content: `[EJEMPLO GOLD — usa este mismo tono, estructura y nivel de detalle]\n${summary}\n\nGenera el informe:`,
+    });
+    fewShot.push({ role: 'assistant', content: g.ai_body ?? '' });
+  }
+
   const msg = await anthropic.messages.create({
     model: 'claude-opus-4-7',
     max_tokens: 8000,
-    messages: [{ role: 'user', content: userContent }],
+    ...(systemPrompt ? { system: systemPrompt } : {}),
+    messages: [
+      ...fewShot,
+      { role: 'user', content: userContent },
+    ],
   });
 
   const body = msg.content

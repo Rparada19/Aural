@@ -2,18 +2,20 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { regenerateReportBody, deleteReport } from '@/app/actions/reports';
+import { regenerateReportBody, deleteReport, toggleGoldExample } from '@/app/actions/reports';
 
 export function ReportActions({
   reportId,
   professionalId,
   patientId,
   hasBody,
+  isGold,
 }: {
   reportId: string;
   professionalId: string;
   patientId: string;
   hasBody: boolean;
+  isGold: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -44,6 +46,18 @@ export function ReportActions({
     });
   }
 
+  function toggleGold() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await toggleGoldExample(reportId, !isGold, professionalId, patientId);
+        router.refresh();
+      } catch (e: any) {
+        setError(e?.message ?? 'Error.');
+      }
+    });
+  }
+
   return (
     <div className="flex flex-wrap gap-2">
       <button
@@ -53,6 +67,19 @@ export function ReportActions({
       >
         {isPending ? 'Generando…' : hasBody ? 'Re-generar con IA' : 'Generar con IA'}
       </button>
+      {hasBody && (
+        <button
+          onClick={toggleGold}
+          disabled={isPending}
+          className={`px-4 h-10 rounded-md border font-semibold text-sm disabled:opacity-50 ${
+            isGold
+              ? 'border-warning bg-warning/10 text-warning hover:bg-warning/20'
+              : 'border-border text-secondary hover:bg-surface'
+          }`}
+        >
+          {isGold ? '⭐ Ejemplo gold (quitar)' : '☆ Marcar como ejemplo gold'}
+        </button>
+      )}
       <button
         onClick={remove}
         disabled={isPending}

@@ -22,7 +22,7 @@ export default async function ReportDetailPage({
 
   const { data: report } = await supabase
     .from('medical_reports')
-    .select('id, title, ai_body, otoscopy_description, audiometry_url, logoaudiometry_url, generated_at, created_at, patient_id, author_id')
+    .select('id, title, ai_body, otoscopy_description, audiometry_url, logoaudiometry_url, generated_at, created_at, patient_id, author_id, is_gold_example')
     .eq('id', reportId)
     .is('deleted_at', null)
     .single();
@@ -80,6 +80,7 @@ export default async function ReportDetailPage({
           professionalId={id}
           patientId={patientId}
           hasBody={hasBody}
+          isGold={!!report.is_gold_example}
         />
       </div>
 
