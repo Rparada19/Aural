@@ -61,13 +61,31 @@ export async function updateReportBody(reportId: string, professionalId: string,
   revalidatePath(`/users/${professionalId}/patients/${patientId}`);
 }
 
-export async function deleteReport(reportId: string) {
+export async function deleteReport(reportId: string, professionalId?: string, patientId?: string) {
   const { supabase } = await ensureAdmin();
   const { error } = await supabase
     .from('medical_reports')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', reportId);
   if (error) throw error;
+  if (professionalId && patientId) {
+    revalidatePath(`/users/${professionalId}/patients/${patientId}`);
+  }
+}
+
+export async function regenerateReportBody(reportId: string, professionalId: string, patientId: string) {
+  const body = await generateReportWithAI(reportId, professionalId, patientId);
+  await updateReportBody(reportId, professionalId, patientId, body);
+  return body;
+}
+
+export async function getExamSignedUrl(path: string): Promise<string | null> {
+  const { supabase } = await ensureAdmin();
+  const { data, error } = await supabase.storage
+    .from('medical-exams')
+    .createSignedUrl(path, 60 * 60);
+  if (error || !data) return null;
+  return data.signedUrl;
 }
 
 export async function generateReportWithAI(reportId: string, professionalId: string, patientId: string) {

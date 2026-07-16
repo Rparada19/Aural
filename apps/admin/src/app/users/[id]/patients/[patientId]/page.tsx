@@ -228,22 +228,32 @@ export default async function PatientDetailAdminPage({
         {(reports ?? []).length === 0 ? (
           <p className="text-secondary text-sm">Aún no hay informes.</p>
         ) : (
-          <ul className="space-y-3">
-            {(reports ?? []).map((r) => (
-              <li key={r.id} className="bg-surface/60 border border-border rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-primary">{r.title}</p>
-                  <span className="text-xs text-secondary">
-                    {new Date(r.generated_at ?? r.created_at).toLocaleString('es-CO')}
-                  </span>
-                </div>
-                {r.ai_body && (
-                  <pre className="whitespace-pre-wrap text-foreground text-sm mt-2 max-h-64 overflow-y-auto">
-                    {r.ai_body}
-                  </pre>
-                )}
-              </li>
-            ))}
+          <ul className="space-y-2">
+            {(reports ?? []).map((r) => {
+              const empty = !r.ai_body || !r.ai_body.trim();
+              return (
+                <li key={r.id}>
+                  <Link
+                    href={`/users/${id}/patients/${patientId}/reports/${r.id}`}
+                    className="block bg-surface/60 hover:bg-surface border border-border rounded-lg p-3 transition"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <p className="font-semibold text-primary truncate">{r.title}</p>
+                        {empty && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-warning/15 text-warning border border-warning/30 whitespace-nowrap">
+                            Borrador
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs text-secondary whitespace-nowrap">
+                        {new Date(r.generated_at ?? r.created_at).toLocaleString('es-CO')}
+                      </span>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>
