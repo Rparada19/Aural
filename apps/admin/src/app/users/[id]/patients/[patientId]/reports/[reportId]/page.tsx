@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { ReportActions } from '@/components/ReportActions';
+import { ReportBodyEditor } from '@/components/ReportBodyEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ export default async function ReportDetailPage({
 
   const { data: report } = await supabase
     .from('medical_reports')
-    .select('id, title, ai_body, otoscopy_description, audiometry_url, logoaudiometry_url, generated_at, created_at, patient_id')
+    .select('id, title, ai_body, otoscopy_description, audiometry_url, logoaudiometry_url, generated_at, created_at, patient_id, author_id')
     .eq('id', reportId)
     .is('deleted_at', null)
     .single();
@@ -39,6 +40,7 @@ export default async function ReportDetailPage({
   const [audioUrl, logoUrl] = await Promise.all([sign(report.audiometry_url), sign(report.logoaudiometry_url)]);
 
   const hasBody = !!(report.ai_body && report.ai_body.trim().length > 0);
+  const canEdit = report.author_id === user.id;
 
   return (
     <DashboardLayout userName={me.full_name}>
@@ -63,16 +65,13 @@ export default async function ReportDetailPage({
       </div>
 
       <div className="mt-6 bg-white rounded-2xl border border-border p-6">
-        {hasBody ? (
-          <article className="whitespace-pre-wrap text-foreground text-sm leading-6">
-            {report.ai_body}
-          </article>
-        ) : (
-          <div className="text-secondary text-sm">
-            <p className="font-semibold text-foreground mb-1">Este informe no tiene cuerpo guardado.</p>
-            <p>Probablemente el borrador se generó pero no se pulsó "Guardar cambios". Re-genera con IA para persistirlo, o elimínalo.</p>
-          </div>
-        )}
+        <ReportBodyEditor
+          reportId={report.id}
+          professionalId={id}
+          patientId={patientId}
+          initialBody={report.ai_body ?? ''}
+          canEdit={canEdit}
+        />
       </div>
 
       <div className="mt-6">

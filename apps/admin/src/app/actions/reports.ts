@@ -52,13 +52,20 @@ export async function createReport(patientId: string, professionalId: string, in
 }
 
 export async function updateReportBody(reportId: string, professionalId: string, patientId: string, body: string) {
-  const { supabase } = await ensureAdmin();
+  const { supabase, adminId } = await ensureAdmin();
+  const { data: existing, error: readErr } = await supabase
+    .from('medical_reports').select('author_id').eq('id', reportId).single();
+  if (readErr || !existing) throw new Error('Informe no encontrado');
+  if (existing.author_id !== adminId) {
+    throw new Error('Solo el autor original puede editar este informe.');
+  }
   const { error } = await supabase
     .from('medical_reports')
     .update({ ai_body: body, generated_at: new Date().toISOString() })
     .eq('id', reportId);
   if (error) throw error;
   revalidatePath(`/users/${professionalId}/patients/${patientId}`);
+  revalidatePath(`/users/${professionalId}/patients/${patientId}/reports/${reportId}`);
 }
 
 export async function deleteReport(reportId: string, professionalId?: string, patientId?: string) {
