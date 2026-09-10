@@ -6,40 +6,14 @@ import Link from 'next/link';
 import { createLoan, returnLoan, sellLoan, deleteLoan } from '@/app/actions/wholesale';
 import { Field, inputClass } from './Field';
 import { cop } from '@/lib/format';
+import { LOAN_DAYS, daysLeft, dueDateFrom, type Loan } from '@/lib/loans';
 
-export const LOAN_DAYS = 14;
-
-export interface Loan {
-  id: string;
-  client_id: string;
-  rep_id: string | null;
-  loaned_on: string;
-  due_on: string;
-  returned_on: string | null;
-  platform: string | null;
-  tech_level: string | null;
-  style: string | null;
-  units: number;
-  binaural: boolean;
-  rechargeable: boolean;
-  serials: string[];
-  patient_name: string | null;
-  notes: string | null;
-  status: 'active' | 'returned' | 'sold' | 'lost';
-}
+export type { Loan };
 
 export interface Catalogs {
   platforms: { slug: string; label: string }[];
   techLevels: { slug: string; label: string }[];
   styles: { slug: string; label: string }[];
-}
-
-/** Días que faltan (positivo) o que lleva vencido (negativo). */
-export function daysLeft(dueOn: string): number {
-  const today = new Date().toISOString().slice(0, 10);
-  return Math.round(
-    (Date.parse(`${dueOn}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000,
-  );
 }
 
 export function LoanLight({ dueOn }: { dueOn: string }) {
@@ -330,8 +304,7 @@ function NewLoan({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const due = new Date(Date.parse(`${form.loaned_on}T00:00:00Z`) + LOAN_DAYS * 86_400_000)
-    .toISOString().slice(0, 10);
+  const due = dueDateFrom(form.loaned_on);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

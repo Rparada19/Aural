@@ -10,7 +10,8 @@ import { ActivityTargets } from '@/components/wholesale/ActivityTargets';
 import { ActivityTypeManager } from '@/components/wholesale/ActivityTypeManager';
 import { Expenses, type Expense, type ExpenseCategory } from '@/components/wholesale/Expenses';
 import { RepAccess, type LinkedProfile } from '@/components/wholesale/RepAccess';
-import { Loans, type Loan } from '@/components/wholesale/Loans';
+import { Loans } from '@/components/wholesale/Loans';
+import type { Loan } from '@/lib/loans';
 import {
   agendaRange, shiftAnchor, mondayOf, monthStart, monthEnd,
   type ActivityType, type AgendaView,

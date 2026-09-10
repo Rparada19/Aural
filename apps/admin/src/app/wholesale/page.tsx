@@ -3,7 +3,8 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { WholesaleLayout } from '@/components/WholesaleLayout';
 import { MetricCard, EmptyState } from '@/components/wholesale/MetricCard';
 import { requireWholesaleMe, salesMetrics, cop, pct } from '@/lib/wholesale';
-import { LoanLight, daysLeft, type Loan } from '@/components/wholesale/Loans';
+import { LoanLight } from '@/components/wholesale/Loans';
+import { daysLeft, type Loan } from '@/lib/loans';
 
 export const dynamic = 'force-dynamic';
 
