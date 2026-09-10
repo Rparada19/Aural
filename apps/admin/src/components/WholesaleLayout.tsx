@@ -10,7 +10,9 @@ const NAV: { href: string; label: string; num: string; allowed: WholesaleRole[] 
   { href: '/wholesale/clients', label: 'Clientes', num: '02', allowed: ['coordinator', 'rep'] },
   { href: '/wholesale/sales', label: 'Ventas', num: '03', allowed: ['coordinator', 'rep'] },
   { href: '/wholesale/budgets', label: 'Presupuestos', num: '04', allowed: ['coordinator', 'rep'] },
-  { href: '/wholesale/reps', label: 'Comerciales', num: '05', allowed: ['coordinator'] },
+  { href: '/wholesale/proyectos', label: 'Proyectos', num: '05', allowed: ['coordinator', 'rep'] },
+  { href: '/wholesale/documentos', label: 'Documentos', num: '06', allowed: ['coordinator', 'rep'] },
+  { href: '/wholesale/reps', label: 'Comerciales', num: '07', allowed: ['coordinator'] },
 ];
 
 export function WholesaleLayout({

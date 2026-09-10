@@ -588,3 +588,159 @@ export async function deleteLoan(loanId: string) {
   if (error) throw error;
   revalidatePath('/wholesale/loans');
 }
+
+const DOCS_BUCKET = 'wholesale-docs';
+const MAX_UPLOAD_MB = 25;
+
+/** Nombre seguro para el almacenamiento: sin tildes, espacios ni rutas. */
+function safeName(name: string) {
+  return name
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .slice(-80);
+}
+
+async function uploadToBucket(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, folder: string, file: File) {
+  if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+    throw new Error(`El archivo supera ${MAX_UPLOAD_MB} MB`);
+  }
+  const path = `${folder}/${Date.now()}-${safeName(file.name)}`;
+  const { error } = await supabase.storage
+    .from(DOCS_BUCKET)
+    .upload(path, file, { contentType: file.type || undefined, upsert: false });
+  if (error) throw error;
+  return path;
+}
+
+/** Coordinación publica un documento y decide quién lo ve. */
+export async function uploadDocument(formData: FormData) {
+  const { supabase, me } = await ensureCoordinator();
+
+  const file = formData.get('file') as File | null;
+  const title = String(formData.get('title') ?? '').trim();
+  const description = String(formData.get('description') ?? '').trim();
+  const repIds = formData.getAll('rep_ids').map(String).filter(Boolean);
+
+  if (!file || file.size === 0) throw new Error('Selecciona un archivo');
+  if (!title) throw new Error('Ponle un título');
+
+  const path = await uploadToBucket(supabase, 'docs', file);
+
+  const { data: doc, error } = await supabase
+    .from('wholesale_documents')
+    .insert({
+      title,
+      description: description || null,
+      file_path: path,
+      file_name: file.name,
+      file_size: file.size,
+      mime_type: file.type || null,
+      is_public: repIds.length === 0,
+      uploaded_by: me.id,
+    })
+    .select('id')
+    .single();
+  if (error || !doc) throw error ?? new Error('No se pudo guardar');
+
+  if (repIds.length > 0) {
+    const { error: audErr } = await supabase
+      .from('wholesale_document_audience')
+      .insert(repIds.map((rep_id) => ({ document_id: doc.id, rep_id })));
+    if (audErr) throw audErr;
+  }
+
+  revalidatePath('/wholesale/documentos');
+}
+
+export async function deleteDocument(documentId: string) {
+  const { supabase } = await ensureCoordinator();
+  const { data: doc } = await supabase
+    .from('wholesale_documents')
+    .select('file_path')
+    .eq('id', documentId)
+    .single();
+
+  const { error } = await supabase
+    .from('wholesale_documents')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', documentId);
+  if (error) throw error;
+
+  if (doc?.file_path) {
+    await supabase.storage.from(DOCS_BUCKET).remove([doc.file_path]);
+  }
+  revalidatePath('/wholesale/documentos');
+}
+
+/** URL temporal de descarga: el bucket es privado, así que se firma. */
+export async function getDownloadUrl(filePath: string) {
+  const { supabase } = await ensureMember();
+  const { data, error } = await supabase.storage
+    .from(DOCS_BUCKET)
+    .createSignedUrl(filePath, 60 * 5);
+  if (error || !data) throw error ?? new Error('No se pudo generar el enlace');
+  return data.signedUrl;
+}
+
+/** Mensaje en el hilo de un proyecto, con archivo opcional y avance. */
+export async function addProjectNote(formData: FormData) {
+  const { supabase, me } = await ensureMember();
+
+  const projectId = String(formData.get('project_id') ?? '');
+  const body = String(formData.get('body') ?? '').trim();
+  const progressRaw = String(formData.get('progress_percent') ?? '').trim();
+  const file = formData.get('file') as File | null;
+
+  if (!projectId) throw new Error('Falta el proyecto');
+  if (!body && (!file || file.size === 0) && !progressRaw) {
+    throw new Error('Escribe algo o adjunta un archivo');
+  }
+
+  let filePath: string | null = null;
+  let fileName: string | null = null;
+  let fileSize: number | null = null;
+  if (file && file.size > 0) {
+    filePath = await uploadToBucket(supabase, `projects/${projectId}`, file);
+    fileName = file.name;
+    fileSize = file.size;
+  }
+
+  const progress = progressRaw === '' ? null : Number(progressRaw);
+
+  const { error } = await supabase.from('wholesale_project_notes').insert({
+    project_id: projectId,
+    author_id: me.id,
+    author_name: me.full_name,
+    author_role: me.role === 'coordinator' ? 'Coordinación' : 'Comercial',
+    body: body || null,
+    file_path: filePath,
+    file_name: fileName,
+    file_size: fileSize,
+    progress_percent: progress,
+  });
+  if (error) throw error;
+
+  // Si el mensaje reporta avance, el proyecto se actualiza con él
+  if (progress !== null) {
+    await supabase
+      .from('wholesale_projects')
+      .update({
+        progress_percent: progress,
+        status: progress >= 100 ? 'done' : progress > 0 ? 'in_progress' : 'pending',
+      })
+      .eq('id', projectId);
+  }
+
+  revalidatePath(`/wholesale/proyectos/${projectId}`);
+  revalidatePath('/wholesale/proyectos');
+}
+
+export async function deleteProjectNote(noteId: string, projectId: string) {
+  const { supabase } = await ensureMember();
+  const { error } = await supabase
+    .from('wholesale_project_notes')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', noteId);
+  if (error) throw error;
+  revalidatePath(`/wholesale/proyectos/${projectId}`);
+}

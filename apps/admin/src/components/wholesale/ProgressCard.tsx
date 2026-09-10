@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { updateGoalProgress, updateProjectProgress } from '@/app/actions/wholesale';
 
@@ -21,9 +22,10 @@ const STATUS_STYLE: Record<GoalStatus, string> = {
 };
 
 export function ProgressCard({
-  kind, id, repId, title, subtitle, meta, progress, status, note,
+  kind, id, repId, title, subtitle, meta, progress, status, note, href,
 }: {
   kind: 'goal' | 'project';
+  href?: string;
   id: string;
   repId: string;
   title: string;
@@ -61,7 +63,13 @@ export function ProgressCard({
     <div className="border border-[var(--rule)] rounded-[3px] p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-medium truncate">{title}</p>
+          {href ? (
+            <Link href={href} className="font-medium truncate block hover:text-[var(--accent)] transition">
+              {title}
+            </Link>
+          ) : (
+            <p className="font-medium truncate">{title}</p>
+          )}
           {subtitle && <p className="text-[var(--ink-soft)] text-xs mt-0.5">{subtitle}</p>}
         </div>
         <span className={`shrink-0 text-xs px-2 py-1 rounded-[2px] font-semibold ${STATUS_STYLE[status]}`}>

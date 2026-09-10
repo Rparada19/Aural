@@ -388,6 +388,7 @@ export default async function WholesaleRepDetail({
             {(projects ?? []).map((p) => (
               <ProgressCard
                 key={p.id}
+                href={`/wholesale/proyectos/${p.id}`}
                 kind="project"
                 id={p.id}
                 repId={id}
