@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { WholesaleLayout } from '@/components/WholesaleLayout';
+import { WholesaleLayout, PageHead } from '@/components/WholesaleLayout';
 import { EmptyState } from '@/components/wholesale/MetricCard';
 import { NewRepForm } from '@/components/wholesale/NewRepForm';
 import { RepCharts } from '@/components/wholesale/RepCharts';
@@ -11,12 +11,12 @@ import { requireWholesaleMe, styleMix, cop } from '@/lib/wholesale';
 export const dynamic = 'force-dynamic';
 
 function Compliance({ actual, budget }: { actual: number; budget: number }) {
-  if (budget <= 0) return <span className="text-secondary">—</span>;
+  if (budget <= 0) return <span className="text-[var(--ink-soft)]">—</span>;
   const ratio = actual / budget;
   const tone =
-    ratio >= 1 ? 'text-success font-semibold'
-    : ratio >= 0.8 ? 'text-warning'
-    : 'text-danger';
+    ratio >= 1 ? 'wsale-good font-semibold'
+    : ratio >= 0.8 ? 'wsale-warn'
+    : 'wsale-bad';
   return <span className={tone}>{Math.round(ratio * 100)}%</span>;
 }
 
@@ -189,41 +189,31 @@ export default async function WholesaleRepsPage({
 
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-secondary">Wholesale</p>
-          <h1 className="text-2xl font-semibold mt-1">Comerciales · {periodLabel}</h1>
-          <p className="text-secondary text-sm mt-1">
-            Presupuesto, gasto y cumplimiento de cada zona, en valores y en unidades.
-          </p>
-        </div>
-        <div className="flex gap-2 items-center">
-          <Link
-            href={`/wholesale/reps/reporte?year=${year}${month ? `&month=${month}` : ''}`}
-            className="h-10 leading-10 px-4 rounded-lg border border-border text-sm font-semibold hover:border-primary transition"
-          >
-            Reporte PDF
-          </Link>
-          {years.map((y) => (
+      <PageHead
+        overline="Comerciales"
+        title={periodLabel}
+        subtitle="Presupuesto, gasto y cumplimiento de cada zona, en valores y en unidades."
+        actions={
+          <>
             <Link
-              key={y}
-              href={href(y, month)}
-              className={`h-10 leading-10 px-4 rounded-lg text-sm font-semibold transition ${
-                y === year ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
-              }`}
+              href={`/wholesale/reps/reporte?year=${year}${month ? `&month=${month}` : ''}`}
+              className="wsale-btn-ghost"
             >
-              {y}
+              Reporte
             </Link>
-          ))}
-        </div>
-      </header>
+            {years.map((y) => (
+              <Link key={y} href={href(y, month)} className="wsale-chip" data-on={y === year}>
+                {y}
+              </Link>
+            ))}
+          </>
+        }
+      />
 
       <div className="flex flex-wrap gap-1 mb-8">
         <Link
           href={href(year, null)}
-          className={`h-9 leading-9 px-3 rounded-lg text-xs font-semibold transition ${
-            month === null ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
-          }`}
+          className="wsale-chip" data-on={month === null}
         >
           Todo el año
         </Link>
@@ -231,9 +221,7 @@ export default async function WholesaleRepsPage({
           <Link
             key={label}
             href={href(year, i + 1)}
-            className={`h-9 leading-9 px-3 rounded-lg text-xs font-semibold transition ${
-              month === i + 1 ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
-            }`}
+            className="wsale-chip" data-on={month === i + 1}
           >
             {label}
           </Link>
@@ -263,23 +251,23 @@ export default async function WholesaleRepsPage({
               description="Crea el primer comercial de zona para poder asignarle clientes."
             />
           ) : (
-            <div className="bg-white rounded-2xl border border-border shadow-sm overflow-x-auto">
-              <table className="w-full text-sm min-w-[880px] border-collapse [&_th]:border [&_th]:border-border [&_td]:border [&_td]:border-border">
-                <thead className="bg-surface text-secondary">
-                  <tr className="text-left">
-                    <th className="px-5 py-3 font-semibold" rowSpan={2}>Comercial</th>
-                    <th className="px-3 py-3 font-semibold text-right" rowSpan={2}>Clientes</th>
-                    <th className="px-3 py-2 font-semibold text-center border-l border-border" colSpan={2}>Presupuesto</th>
-                    <th className="px-3 py-2 font-semibold text-center border-l border-border" colSpan={2}>Real</th>
-                    <th className="px-3 py-2 font-semibold text-center border-l border-border" colSpan={2}>Cumplimiento</th>
+            <div className="wsale-panel overflow-x-auto">
+              <table className="wsale-table min-w-[880px]">
+                <thead>
+                  <tr>
+                    <th rowSpan={2}>Comercial</th>
+                    <th className="num" rowSpan={2}>Clientes</th>
+                    <th className="px-3 py-2 font-semibold text-center border-l border-[var(--rule)]" colSpan={2}>Presupuesto</th>
+                    <th className="px-3 py-2 font-semibold text-center border-l border-[var(--rule)]" colSpan={2}>Real</th>
+                    <th className="px-3 py-2 font-semibold text-center border-l border-[var(--rule)]" colSpan={2}>Cumplimiento</th>
                   </tr>
-                  <tr className="text-right text-xs">
-                    <th className="px-3 pb-2 font-medium border-l border-border">Valor</th>
-                    <th className="px-3 pb-2 font-medium">Und</th>
-                    <th className="px-3 pb-2 font-medium border-l border-border">Valor</th>
-                    <th className="px-3 pb-2 font-medium">Und</th>
-                    <th className="px-3 pb-2 font-medium border-l border-border">Valor</th>
-                    <th className="px-3 pb-2 font-medium">Und</th>
+                  <tr>
+                    <th className="px-3 pb-2 font-medium border-l border-[var(--rule)]">Valor</th>
+                    <th className="num">Und</th>
+                    <th className="px-3 pb-2 font-medium border-l border-[var(--rule)]">Valor</th>
+                    <th className="num">Und</th>
+                    <th className="px-3 pb-2 font-medium border-l border-[var(--rule)]">Valor</th>
+                    <th className="num">Und</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -287,31 +275,31 @@ export default async function WholesaleRepsPage({
                     const b = budgetByRep.get(r.id) ?? { amount: 0, units: 0 };
                     const a = actualByRep.get(r.id) ?? { amount: 0, units: 0 };
                     return (
-                      <tr key={r.id} className="border-t border-border hover:bg-surface/60 transition">
-                        <td className="px-5 py-3">
+                      <tr key={r.id} className="border-t border-[var(--rule)] hover:bg-[rgba(180,85,31,0.04)] transition">
+                        <td >
                           <Link href={`/wholesale/reps/${r.id}`} className="font-medium hover:underline">
                             {r.name}
                           </Link>
-                          <p className="text-xs text-secondary">{r.zone ?? 'Sin zona'}</p>
+                          <p className="text-xs text-[var(--ink-soft)]">{r.zone ?? 'Sin zona'}</p>
                         </td>
-                        <td className="px-3 py-3 text-right">{clientsByRep.get(r.id) ?? 0}</td>
-                        <td className="px-3 py-3 text-right border-l border-border">
-                          {b.amount > 0 ? cop(b.amount) : <span className="text-secondary">—</span>}
+                        <td className="num">{clientsByRep.get(r.id) ?? 0}</td>
+                        <td className="px-3 py-3 text-right border-l border-[var(--rule)]">
+                          {b.amount > 0 ? cop(b.amount) : <span className="text-[var(--ink-soft)]">—</span>}
                         </td>
-                        <td className="px-3 py-3 text-right text-secondary">{b.units || '—'}</td>
-                        <td className="px-3 py-3 text-right border-l border-border font-medium">{cop(a.amount)}</td>
-                        <td className="px-3 py-3 text-right text-secondary">{a.units || '—'}</td>
-                        <td className="px-3 py-3 text-right border-l border-border">
+                        <td className="num text-[var(--ink-soft)]">{b.units || '—'}</td>
+                        <td className="px-3 py-3 text-right border-l border-[var(--rule)] font-medium">{cop(a.amount)}</td>
+                        <td className="num text-[var(--ink-soft)]">{a.units || '—'}</td>
+                        <td className="px-3 py-3 text-right border-l border-[var(--rule)]">
                           <Compliance actual={a.amount} budget={b.amount} />
                         </td>
-                        <td className="px-3 py-3 text-right">
+                        <td className="num">
                           <Compliance actual={a.units} budget={b.units} />
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
-                <tfoot className="bg-surface font-semibold">
+                <tfoot>
                   {(() => {
                     const tb = repList.reduce(
                       (acc, r) => {
@@ -326,18 +314,18 @@ export default async function WholesaleRepsPage({
                     );
                     return (
                       <tr>
-                        <td className="px-5 py-3">Total canal</td>
-                        <td className="px-3 py-3 text-right">
+                        <td >Total canal</td>
+                        <td className="num">
                           {[...clientsByRep.values()].reduce((a, n) => a + n, 0)}
                         </td>
-                        <td className="px-3 py-3 text-right border-l border-border">{cop(tb.bAmount)}</td>
-                        <td className="px-3 py-3 text-right">{tb.bUnits || '—'}</td>
-                        <td className="px-3 py-3 text-right border-l border-border">{cop(tb.aAmount)}</td>
-                        <td className="px-3 py-3 text-right">{tb.aUnits || '—'}</td>
-                        <td className="px-3 py-3 text-right border-l border-border">
+                        <td className="px-3 py-3 text-right border-l border-[var(--rule)]">{cop(tb.bAmount)}</td>
+                        <td className="num">{tb.bUnits || '—'}</td>
+                        <td className="px-3 py-3 text-right border-l border-[var(--rule)]">{cop(tb.aAmount)}</td>
+                        <td className="num">{tb.aUnits || '—'}</td>
+                        <td className="px-3 py-3 text-right border-l border-[var(--rule)]">
                           <Compliance actual={tb.aAmount} budget={tb.bAmount} />
                         </td>
-                        <td className="px-3 py-3 text-right">
+                        <td className="num">
                           <Compliance actual={tb.aUnits} budget={tb.bUnits} />
                         </td>
                       </tr>

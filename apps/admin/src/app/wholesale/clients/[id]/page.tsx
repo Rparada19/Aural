@@ -57,11 +57,11 @@ export default async function WholesaleClientDetail({
     <WholesaleLayout userName={me.full_name} role={me.role}>
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <Link href="/wholesale/clients" className="text-secondary text-sm hover:underline">
+          <Link href="/wholesale/clients" className="text-[var(--ink-soft)] text-sm hover:underline">
             ← Clientes
           </Link>
           <h1 className="text-2xl font-semibold mt-2">{client.name}</h1>
-          <p className="text-secondary text-sm mt-1">
+          <p className="text-[var(--ink-soft)] text-sm mt-1">
             {[client.city, client.zone, repName && `Comercial: ${repName}`]
               .filter(Boolean)
               .join(' · ') || 'Sin datos de zona'}
@@ -69,7 +69,7 @@ export default async function WholesaleClientDetail({
         </div>
         <Link
           href={`/wholesale/sales/new?client=${client.id}`}
-          className="h-11 leading-[44px] px-5 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft transition"
+          className="wsale-btn"
         >
           Registrar venta
         </Link>
@@ -101,17 +101,17 @@ export default async function WholesaleClientDetail({
       </section>
 
       {expenseList.length > 0 && (
-        <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
+        <section className="mt-8 wsale-panel p-6">
           <div className="flex items-baseline justify-between mb-4">
             <h2 className="font-semibold">Inversión en este cliente</h2>
-            <p className="text-secondary text-sm">{cop(invested)} en {expenseList.length} gasto{expenseList.length === 1 ? '' : 's'}</p>
+            <p className="text-[var(--ink-soft)] text-sm">{cop(invested)} en {expenseList.length} gasto{expenseList.length === 1 ? '' : 's'}</p>
           </div>
           <div className="space-y-2">
             {expenseList.slice(0, 12).map((e) => (
-              <div key={e.id} className="flex items-center gap-3 text-sm border-b border-border pb-2 last:border-0">
+              <div key={e.id} className="flex items-center gap-3 text-sm border-b border-[var(--rule)] pb-2 last:border-0">
                 <span aria-hidden title={catLabel.get(e.category)}>{catIcon.get(e.category) ?? '💸'}</span>
                 <span className="flex-1 truncate">{e.description || catLabel.get(e.category) || 'Gasto'}</span>
-                <span className="text-secondary text-xs">{e.spent_on}</span>
+                <span className="text-[var(--ink-soft)] text-xs">{e.spent_on}</span>
                 <span className="font-medium w-28 text-right">{cop(Number(e.amount))}</span>
               </div>
             ))}
@@ -120,20 +120,20 @@ export default async function WholesaleClientDetail({
       )}
 
       {(client.contact_name || client.phone || client.email || client.notes) && (
-        <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
+        <section className="mt-8 wsale-panel p-6">
           <h2 className="font-semibold">Contacto</h2>
           <dl className="mt-4 grid gap-4 sm:grid-cols-3 text-sm">
             {client.contact_name && (
-              <div><dt className="text-secondary text-xs uppercase tracking-wider">Persona</dt><dd>{client.contact_name}</dd></div>
+              <div><dt className="text-[var(--ink-soft)] text-xs uppercase tracking-wider">Persona</dt><dd>{client.contact_name}</dd></div>
             )}
             {client.phone && (
-              <div><dt className="text-secondary text-xs uppercase tracking-wider">Teléfono</dt><dd>{client.phone}</dd></div>
+              <div><dt className="text-[var(--ink-soft)] text-xs uppercase tracking-wider">Teléfono</dt><dd>{client.phone}</dd></div>
             )}
             {client.email && (
-              <div><dt className="text-secondary text-xs uppercase tracking-wider">Correo</dt><dd className="truncate">{client.email}</dd></div>
+              <div><dt className="text-[var(--ink-soft)] text-xs uppercase tracking-wider">Correo</dt><dd className="truncate">{client.email}</dd></div>
             )}
           </dl>
-          {client.notes && <p className="text-secondary text-sm mt-4">{client.notes}</p>}
+          {client.notes && <p className="text-[var(--ink-soft)] text-sm mt-4">{client.notes}</p>}
         </section>
       )}
 
@@ -147,16 +147,16 @@ export default async function WholesaleClientDetail({
             action={
               <Link
                 href={`/wholesale/sales/new?client=${client.id}`}
-                className="inline-block h-11 leading-[44px] px-6 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft transition"
+                className="wsale-btn"
               >
                 Registrar venta
               </Link>
             }
           />
         ) : (
-          <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+          <div className="wsale-panel overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-surface text-secondary">
+              <thead>
                 <tr className="text-left">
                   <th className="px-5 py-3 font-semibold">Fecha</th>
                   <th className="px-5 py-3 font-semibold">Factura</th>
@@ -168,16 +168,16 @@ export default async function WholesaleClientDetail({
               </thead>
               <tbody>
                 {saleList.map((s) => (
-                  <tr key={s.id} className="border-t border-border">
+                  <tr key={s.id} className="border-t border-[var(--rule)]">
                     <td className="px-5 py-3">{s.sold_on}</td>
-                    <td className="px-5 py-3 text-secondary">{s.invoice_number ?? '—'}</td>
+                    <td className="px-5 py-3 text-[var(--ink-soft)]">{s.invoice_number ?? '—'}</td>
                     <td className="px-5 py-3">{s.patient_name ?? '—'}</td>
-                    <td className="px-5 py-3 text-secondary">
+                    <td className="px-5 py-3 text-[var(--ink-soft)]">
                       {s.units} und · {s.binaural ? 'binaural' : 'unilateral'} ·{' '}
                       {s.rechargeable ? 'recargable' : 'batería'}
                       {s.style && ` · ${styleLabel.get(s.style) ?? s.style}`}
                     </td>
-                    <td className="px-5 py-3 text-right text-secondary">{Number(s.discount_percent)}%</td>
+                    <td className="px-5 py-3 text-right text-[var(--ink-soft)]">{Number(s.discount_percent)}%</td>
                     <td className="px-5 py-3 text-right font-semibold">{cop(Number(s.net_amount))}</td>
                   </tr>
                 ))}

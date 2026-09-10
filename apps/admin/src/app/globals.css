@@ -49,3 +49,213 @@ body {
   tr, .print-row { break-inside: avoid; }
   a { text-decoration: none; color: inherit; }
 }
+
+/* =====================================================================
+   Wholesale · sistema visual propio
+   Papel cálido, tinta marina, acento cobre. Densidad de terminal
+   financiero: reglas finas en vez de sombras, cifras en serif, sin
+   esquinas exageradas.
+   ===================================================================== */
+.wsale {
+  --ink: #10233f;
+  --ink-soft: #48566d;
+  --ink-faint: #8b93a4;
+  --paper: #f6f4ef;
+  --paper-raised: #fffefb;
+  --rule: #ddd8cd;
+  --rule-strong: #c3bdb0;
+  --accent: #b4551f;
+  --accent-soft: #f0e0d3;
+  --positive: #186a45;
+  --caution: #a8720d;
+  --alert: #a52f2a;
+  --navy: #0b1c33;
+
+  font-family: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  font-feature-settings: 'tnum' 1, 'ss01' 1;
+}
+
+/* --- tipografía ---------------------------------------------------- */
+.wsale-display {
+  font-family: var(--font-display), Georgia, serif;
+  font-variation-settings: 'SOFT' 0, 'WONK' 1, 'opsz' 40;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.wsale-figure {
+  font-family: var(--font-display), Georgia, serif;
+  font-variation-settings: 'SOFT' 0, 'WONK' 0, 'opsz' 32;
+  font-weight: 600;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.02em;
+}
+
+.wsale-mono { font-family: var(--font-mono), ui-monospace, monospace; }
+
+.wsale-overline {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* --- superficies ---------------------------------------------------- */
+.wsale-panel {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+/* La regla superior en cobre marca las piezas de dato duro */
+.wsale-stat {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--ink);
+  border-radius: 2px;
+  padding: 14px 16px 16px;
+}
+.wsale-stat[data-tone='positive'] { border-top-color: var(--positive); }
+.wsale-stat[data-tone='caution']  { border-top-color: var(--caution); }
+.wsale-stat[data-tone='alert']    { border-top-color: var(--alert); }
+
+/* --- tablas --------------------------------------------------------- */
+.wsale-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wsale-table thead th {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--rule-strong);
+  white-space: nowrap;
+}
+.wsale-table tbody td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+}
+.wsale-table tbody tr:hover { background: rgba(180, 85, 31, 0.04); }
+.wsale-table tfoot td {
+  padding: 12px;
+  border-top: 2px solid var(--ink);
+  font-weight: 600;
+}
+.wsale-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --- controles ------------------------------------------------------ */
+.wsale-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 11px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper-raised);
+  transition: border-color .15s, color .15s;
+}
+.wsale-chip:hover { border-color: var(--rule-strong); color: var(--ink); }
+.wsale-chip[data-on='true'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper-raised);
+}
+
+.wsale-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 18px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border-radius: 2px;
+  background: var(--accent);
+  color: #fff;
+  transition: background .15s;
+}
+.wsale-btn:hover { background: #9c4718; }
+.wsale-btn:disabled { opacity: .5; }
+
+.wsale-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 2px;
+  border: 1px solid var(--rule-strong);
+  color: var(--ink);
+  transition: background .15s;
+}
+.wsale-btn-ghost:hover { background: rgba(16, 35, 63, 0.04); }
+
+.wsale-input {
+  height: 38px;
+  width: 100%;
+  padding: 0 10px;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  outline: none;
+  transition: border-color .15s;
+}
+.wsale-input:focus { border-color: var(--accent); }
+
+/* --- semáforos y estados -------------------------------------------- */
+.wsale-dot {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.wsale-good { color: var(--positive); }
+.wsale-warn { color: var(--caution); }
+.wsale-bad  { color: var(--alert); }
+.wsale-dot-good { background: var(--positive); }
+.wsale-dot-warn { background: var(--caution); }
+.wsale-dot-bad  { background: var(--alert); }
+
+/* --- barra de navegación -------------------------------------------- */
+.wsale-nav {
+  background: var(--navy);
+  color: #e9e5db;
+  /* Trama diagonal sutil: da textura sin ruido visual */
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255,255,255,.018) 0 1px,
+    transparent 1px 7px
+  );
+}
+.wsale-nav a { color: rgba(233, 229, 219, .72); }
+.wsale-nav a:hover { color: #fff; }
+.wsale-nav a[data-on='true'] { color: #fff; }
+
+/* --- medidor -------------------------------------------------------- */
+.wsale-meter {
+  height: 3px;
+  background: var(--rule);
+  overflow: hidden;
+}
+.wsale-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--ink);
+}

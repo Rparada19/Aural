@@ -38,21 +38,21 @@ export function ActivityTypeManager({ types }: { types: ActivityType[] }) {
   }
 
   return (
-    <div className="mt-6 pt-5 border-t border-border">
+    <div className="mt-6 pt-5 border-t border-[var(--rule)]">
       {!open ? (
         <button
           onClick={() => setOpen(true)}
-          className="text-secondary text-xs hover:text-primary transition"
+          className="text-[var(--ink-soft)] text-xs hover:text-[var(--accent)] transition"
         >
           Administrar tipos de actividad
         </button>
       ) : (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wider text-secondary">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-soft)]">
               Tipos de actividad
             </p>
-            <button onClick={() => setOpen(false)} className="text-secondary text-xs hover:text-foreground">
+            <button onClick={() => setOpen(false)} className="text-[var(--ink-soft)] text-xs hover:text-[var(--ink)]">
               Cerrar
             </button>
           </div>
@@ -60,12 +60,12 @@ export function ActivityTypeManager({ types }: { types: ActivityType[] }) {
           <ul className="space-y-1">
             {types.map((t) => (
               <li key={t.slug} className="flex items-center justify-between text-sm">
-                <span className={t.is_active ? '' : 'text-secondary line-through'}>
+                <span className={t.is_active ? '' : 'text-[var(--ink-soft)] line-through'}>
                   {t.icon} {t.label}
                 </span>
                 <button
                   onClick={() => toggle(t)}
-                  className="text-xs text-secondary hover:text-primary"
+                  className="text-xs text-[var(--ink-soft)] hover:text-[var(--accent)]"
                 >
                   {t.is_active ? 'Ocultar' : 'Activar'}
                 </button>
@@ -77,7 +77,7 @@ export function ActivityTypeManager({ types }: { types: ActivityType[] }) {
             <input
               value={form.icon}
               onChange={(e) => setForm({ ...form, icon: e.target.value })}
-              className="w-12 h-9 rounded-md border border-border px-2 text-center outline-none focus:border-primary"
+              className="w-12 h-9 rounded-[2px] border border-[var(--rule)] px-2 text-center outline-none focus:border-[var(--accent)]"
               aria-label="Ícono"
             />
             <input
@@ -85,18 +85,18 @@ export function ActivityTypeManager({ types }: { types: ActivityType[] }) {
               placeholder="Nombre del tipo"
               value={form.label}
               onChange={(e) => setForm({ ...form, label: e.target.value })}
-              className="flex-1 h-9 rounded-md border border-border px-2 text-sm outline-none focus:border-primary"
+              className="flex-1 h-9 rounded-[2px] border border-[var(--rule)] px-2 text-sm outline-none focus:border-[var(--accent)]"
             />
             <button
               type="submit"
               disabled={saving}
-              className="h-9 px-3 rounded-md bg-primary text-white text-sm font-semibold disabled:opacity-50"
+              className="h-9 px-3 rounded-[2px] bg-[var(--ink)] text-white text-sm font-semibold disabled:opacity-50"
             >
               {saving ? '…' : 'Añadir'}
             </button>
           </form>
-          {error && <p className="text-danger text-xs">{error}</p>}
-          <p className="text-secondary text-[11px]">
+          {error && <p className="wsale-bad text-xs">{error}</p>}
+          <p className="text-[var(--ink-soft)] text-[11px]">
             Ocultar un tipo lo saca de los formularios, pero conserva las actividades ya registradas.
           </p>
         </div>

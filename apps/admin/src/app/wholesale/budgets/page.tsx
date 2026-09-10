@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { WholesaleLayout } from '@/components/WholesaleLayout';
+import { WholesaleLayout, PageHead } from '@/components/WholesaleLayout';
 import { EmptyState } from '@/components/wholesale/MetricCard';
 import { requireWholesaleMe, cop } from '@/lib/wholesale';
 
@@ -14,10 +14,10 @@ const MONTH_NAMES = [
 ];
 
 function Compliance({ actual, budget }: { actual: number; budget: number }) {
-  if (budget <= 0) return <span className="text-secondary">—</span>;
+  if (budget <= 0) return <span className="text-[var(--ink-soft)]">—</span>;
   const ratio = actual / budget;
   return (
-    <span className={ratio >= 1 ? 'text-success font-semibold' : ratio >= 0.8 ? 'text-warning' : 'text-danger'}>
+    <span className={ratio >= 1 ? 'wsale-good font-semibold' : ratio >= 0.8 ? 'wsale-warn' : 'wsale-bad'}>
       {Math.round(ratio * 100)}%
     </span>
   );
@@ -179,63 +179,58 @@ export default async function WholesaleBudgetsPage({
 
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-secondary">Wholesale</p>
-          <h1 className="text-2xl font-semibold mt-1">Presupuestos {year}</h1>
-          <p className="text-secondary text-sm mt-1">
-            Por zona. Entra a una para ver sus clientes mes a mes.
-            {partialYear && ` El cumplimiento compara contra lo presupuestado hasta ${MONTH_NAMES[throughMonth - 1]}.`}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {years.map((y) => (
-            <Link
-              key={y}
-              href={`/wholesale/budgets?year=${y}`}
-              className={`h-10 leading-10 px-4 rounded-lg text-sm font-semibold transition ${
-                y === year ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
-              }`}
-            >
-              {y}
-            </Link>
-          ))}
-        </div>
-      </header>
+      <PageHead
+        overline="Presupuestos"
+        title={`Canal ${year}`}
+        subtitle={
+          partialYear
+            ? `Por zona. El cumplimiento compara contra lo presupuestado hasta ${MONTH_NAMES[throughMonth - 1]}.`
+            : 'Por zona. Entra a una para ver sus clientes mes a mes.'
+        }
+        actions={
+          <div className="flex gap-1.5">
+            {years.map((y) => (
+              <Link key={y} href={`/wholesale/budgets?year=${y}`} className="wsale-chip" data-on={y === year}>
+                {y}
+              </Link>
+            ))}
+          </div>
+        }
+      />
 
       {clientList.length > 0 && (
         <>
           <section className="grid gap-4 sm:grid-cols-3 mb-6">
-            <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wider text-secondary">
+            <div className="bg-white rounded-[3px] border border-[var(--rule)] p-5 ">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-soft)]">
                 Clientes nuevos {year}
               </p>
-              <p className="text-2xl font-semibold mt-2 text-success">{newClients.length}</p>
-              <p className="text-xs text-secondary mt-1">
+              <p className="text-2xl font-semibold mt-2 wsale-good">{newClients.length}</p>
+              <p className="text-xs text-[var(--ink-soft)] mt-1">
                 {newClients.length > 0
                   ? `${cop(newClients.reduce((a, c) => a + c.revenue, 0))} facturados`
                   : 'Ningún centro estrenó compra este año'}
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wider text-secondary">
+            <div className="bg-white rounded-[3px] border border-[var(--rule)] p-5 ">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-soft)]">
                 Dejaron de comprar
               </p>
-              <p className={`text-2xl font-semibold mt-2 ${dormantClients.length > 0 ? 'text-danger' : ''}`}>
+              <p className={`text-2xl font-semibold mt-2 ${dormantClients.length > 0 ? 'wsale-bad' : ''}`}>
                 {dormantClients.length}
               </p>
-              <p className="text-xs text-secondary mt-1">
+              <p className="text-xs text-[var(--ink-soft)] mt-1">
                 Sin comprar hace más de {CUTOFF_DAYS} días
               </p>
             </div>
 
-            <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-wider text-secondary">
+            <div className="bg-white rounded-[3px] border border-[var(--rule)] p-5 ">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-soft)]">
                 Zona con más nuevos
               </p>
               <p className="text-2xl font-semibold mt-2">{topNewZone ? topNewZone[0] : '—'}</p>
-              <p className="text-xs text-secondary mt-1">
+              <p className="text-xs text-[var(--ink-soft)] mt-1">
                 {topNewZone
                   ? `${topNewZone[1]} cliente${topNewZone[1] === 1 ? '' : 's'} nuevo${topNewZone[1] === 1 ? '' : 's'}`
                   : 'Sin clientes nuevos este año'}
@@ -246,9 +241,9 @@ export default async function WholesaleBudgetsPage({
           {(newClients.length > 0 || dormantClients.length > 0) && (
             <section className="grid gap-6 lg:grid-cols-2 mb-8">
               {newClients.length > 0 && (
-                <div className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+                <div className="wsale-panel p-6">
                   <h2 className="font-semibold">Nuevos este año</h2>
-                  <p className="text-secondary text-xs mt-1 mb-4">
+                  <p className="text-[var(--ink-soft)] text-xs mt-1 mb-4">
                     Centros cuya primera compra de la historia ocurrió en {year}.
                   </p>
                   <ul className="space-y-2">
@@ -256,7 +251,7 @@ export default async function WholesaleBudgetsPage({
                       <li key={c.id} className="flex items-center gap-3 text-sm">
                         <Link href={`/wholesale/clients/${c.id}`} className="flex-1 truncate hover:underline">
                           {c.name}
-                          <span className="text-secondary text-xs block">
+                          <span className="text-[var(--ink-soft)] text-xs block">
                             {[zoneOf(c), `desde ${c.firstSale}`].join(' · ')}
                           </span>
                         </Link>
@@ -268,9 +263,9 @@ export default async function WholesaleBudgetsPage({
               )}
 
               {dormantClients.length > 0 && (
-                <div className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+                <div className="wsale-panel p-6">
                   <h2 className="font-semibold">Compraban y dejaron de comprar</h2>
-                  <p className="text-secondary text-xs mt-1 mb-4">
+                  <p className="text-[var(--ink-soft)] text-xs mt-1 mb-4">
                     Tienen historial pero llevan más de {CUTOFF_DAYS} días sin facturar.
                   </p>
                   <ul className="space-y-2">
@@ -278,13 +273,13 @@ export default async function WholesaleBudgetsPage({
                       <li key={c.id} className="flex items-center gap-3 text-sm">
                         <Link href={`/wholesale/clients/${c.id}`} className="flex-1 truncate hover:underline">
                           {c.name}
-                          <span className="text-secondary text-xs block">
+                          <span className="text-[var(--ink-soft)] text-xs block">
                             {zoneOf(c)} · última compra {c.lastSale}
                           </span>
                         </Link>
-                        <span className="text-secondary text-xs whitespace-nowrap">
+                        <span className="text-[var(--ink-soft)] text-xs whitespace-nowrap">
                           {c.purchases} compras
-                          <span className="block text-foreground font-medium">{cop(c.lifetime)}</span>
+                          <span className="block text-[var(--ink)] font-medium">{cop(c.lifetime)}</span>
                         </span>
                       </li>
                     ))}
@@ -304,77 +299,77 @@ export default async function WholesaleBudgetsPage({
           action={
             <Link
               href="/wholesale/clients/new"
-              className="inline-block h-11 leading-[44px] px-6 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft transition"
+              className="wsale-btn"
             >
               Cargar cliente
             </Link>
           }
         />
       ) : (
-        <div className="bg-white rounded-2xl border border-border shadow-sm overflow-x-auto">
-          <table className="w-full text-sm min-w-[840px] border-collapse [&_th]:border [&_th]:border-border [&_td]:border [&_td]:border-border">
-            <thead className="bg-surface text-secondary">
-              <tr className="text-left">
-                <th className="px-5 py-3 font-semibold" rowSpan={2}>Zona</th>
-                <th className="px-3 py-3 font-semibold text-right" rowSpan={2}>Clientes</th>
-                <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Presupuesto</th>
-                <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Real</th>
-                <th className="px-3 py-2 font-semibold text-center" colSpan={2}>
+        <div className="wsale-panel overflow-x-auto">
+          <table className="wsale-table min-w-[840px]">
+            <thead>
+              <tr>
+                <th rowSpan={2}>Zona</th>
+                <th className="num" rowSpan={2}>Clientes</th>
+                <th className="text-center" colSpan={2}>Presupuesto</th>
+                <th className="text-center" colSpan={2}>Real</th>
+                <th className="text-center" colSpan={2}>
                   Cumplimiento
                   {partialYear && <span className="block text-[10px] font-normal normal-case">a {MONTH_NAMES[throughMonth - 1]}</span>}
                 </th>
               </tr>
-              <tr className="text-right text-xs">
-                <th className="px-3 pb-2 font-medium">Valor</th>
-                <th className="px-3 pb-2 font-medium">Und</th>
-                <th className="px-3 pb-2 font-medium">Valor</th>
-                <th className="px-3 pb-2 font-medium">Und</th>
-                <th className="px-3 pb-2 font-medium">Valor</th>
-                <th className="px-3 pb-2 font-medium">Und</th>
+              <tr>
+                <th className="num">Valor</th>
+                <th className="num">Und</th>
+                <th className="num">Valor</th>
+                <th className="num">Und</th>
+                <th className="num">Valor</th>
+                <th className="num">Und</th>
               </tr>
             </thead>
             <tbody>
               {zoneRows.map(([zone, z]) => (
-                <tr key={zone} className="hover:bg-surface/60 transition">
-                  <td className="px-5 py-3">
+                <tr key={zone} className="hover:bg-[rgba(180,85,31,0.04)] transition">
+                  <td >
                     <Link
                       href={`/wholesale/budgets/zona/${encodeURIComponent(zone)}?year=${year}`}
                       className="font-medium hover:underline"
                     >
                       {zone}
                     </Link>
-                    <p className="text-xs text-secondary">
+                    <p className="text-xs text-[var(--ink-soft)]">
                       {[...z.reps].map((id) => repName.get(id)).filter(Boolean).join(', ') || 'Sin comercial'}
                     </p>
                   </td>
-                  <td className="px-3 py-3 text-right">{z.clients}</td>
-                  <td className="px-3 py-3 text-right">
-                    {z.budget.amount > 0 ? cop(z.budget.amount) : <span className="text-secondary">—</span>}
+                  <td className="num">{z.clients}</td>
+                  <td className="num">
+                    {z.budget.amount > 0 ? cop(z.budget.amount) : <span className="text-[var(--ink-soft)]">—</span>}
                   </td>
-                  <td className="px-3 py-3 text-right text-secondary">{z.budget.units || '—'}</td>
-                  <td className="px-3 py-3 text-right font-medium">{cop(z.actual.amount)}</td>
-                  <td className="px-3 py-3 text-right text-secondary">{z.actual.units || '—'}</td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="num text-[var(--ink-soft)]">{z.budget.units || '—'}</td>
+                  <td className="num wsale-figure text-[13px]">{cop(z.actual.amount)}</td>
+                  <td className="num text-[var(--ink-soft)]">{z.actual.units || '—'}</td>
+                  <td className="num">
                     <Compliance actual={z.actual.amount} budget={z.ytd.amount} />
                   </td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="num">
                     <Compliance actual={z.actual.units} budget={z.ytd.units} />
                   </td>
                 </tr>
               ))}
             </tbody>
-            <tfoot className="bg-surface font-semibold">
+            <tfoot>
               <tr>
-                <td className="px-5 py-3">Total canal</td>
-                <td className="px-3 py-3 text-right">{total.clients}</td>
-                <td className="px-3 py-3 text-right">{cop(total.budgetAmount)}</td>
-                <td className="px-3 py-3 text-right">{total.budgetUnits || '—'}</td>
-                <td className="px-3 py-3 text-right">{cop(total.actualAmount)}</td>
-                <td className="px-3 py-3 text-right">{total.actualUnits || '—'}</td>
-                <td className="px-3 py-3 text-right">
+                <td >Total canal</td>
+                <td className="num">{total.clients}</td>
+                <td className="num">{cop(total.budgetAmount)}</td>
+                <td className="num">{total.budgetUnits || '—'}</td>
+                <td className="num">{cop(total.actualAmount)}</td>
+                <td className="num">{total.actualUnits || '—'}</td>
+                <td className="num">
                   <Compliance actual={total.actualAmount} budget={total.ytdAmount} />
                 </td>
-                <td className="px-3 py-3 text-right">
+                <td className="num">
                   <Compliance actual={total.actualUnits} budget={total.ytdUnits} />
                 </td>
               </tr>

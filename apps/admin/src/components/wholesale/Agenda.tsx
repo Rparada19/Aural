@@ -20,9 +20,9 @@ export interface Activity {
 }
 
 const STATUS_STYLE = {
-  planned: 'border-border',
+  planned: 'border-[var(--rule)]',
   done: 'border-success bg-success/5',
-  cancelled: 'border-border opacity-50 line-through',
+  cancelled: 'border-[var(--rule)] opacity-50 line-through',
 } as const;
 
 interface Ctx {
@@ -53,7 +53,7 @@ function DayView({ day, activities, ...ctx }: Ctx & { day: string; activities: A
       <DayTotal count={items.length} done={items.filter((a) => a.status === 'done').length} />
       <div className="space-y-2 mt-4">
         {items.length === 0 && (
-          <p className="text-secondary text-sm">Nada agendado este día.</p>
+          <p className="text-[var(--ink-soft)] text-sm">Nada agendado este día.</p>
         )}
         {items.map((a) => (
           <ActivityRow key={a.id} activity={a} {...ctx} wide />
@@ -78,19 +78,19 @@ function WeekView({ monday, activities, ...ctx }: Ctx & { monday: string; activi
         return (
           <div
             key={day}
-            className={`rounded-xl border p-2 min-h-[150px] flex flex-col ${
-              isToday ? 'border-primary bg-primary/5' : 'border-border bg-white'
+            className={`rounded-[3px] border p-2 min-h-[150px] flex flex-col ${
+              isToday ? 'border-primary bg-[rgba(180,85,31,0.05)]' : 'border-[var(--rule)] bg-white'
             }`}
           >
             <div className="flex items-baseline justify-between px-1 mb-2">
-              <span className={`text-xs font-semibold ${isToday ? 'text-primary' : 'text-secondary'}`}>
+              <span className={`text-xs font-semibold ${isToday ? 'text-[var(--accent)]' : 'text-[var(--ink-soft)]'}`}>
                 {DAY_NAMES[i].slice(0, 3)}
               </span>
               <span className="flex items-baseline gap-1">
                 {items.length > 0 && (
-                  <span className="text-[10px] text-secondary bg-surface rounded px-1">{items.length}</span>
+                  <span className="text-[10px] text-[var(--ink-soft)] bg-[var(--paper)] rounded px-1">{items.length}</span>
                 )}
-                <span className={`text-sm font-semibold ${isToday ? 'text-primary' : 'text-foreground'}`}>
+                <span className={`text-sm font-semibold ${isToday ? 'text-[var(--accent)]' : 'text-[var(--ink)]'}`}>
                   {formatDayLabel(day)}
                 </span>
               </span>
@@ -121,7 +121,7 @@ function MonthView({ anchor, activities, ...ctx }: Ctx & { anchor: string; activ
     <div>
       <div className="grid grid-cols-7 gap-2 mb-2">
         {DAY_NAMES.map((d) => (
-          <p key={d} className="text-xs font-semibold text-secondary text-center">{d.slice(0, 3)}</p>
+          <p key={d} className="text-xs font-semibold text-[var(--ink-soft)] text-center">{d.slice(0, 3)}</p>
         ))}
       </div>
       <div className="grid grid-cols-7 gap-2">
@@ -133,18 +133,18 @@ function MonthView({ anchor, activities, ...ctx }: Ctx & { anchor: string; activ
           return (
             <div
               key={day}
-              className={`rounded-lg border p-2 min-h-[92px] ${
-                isToday ? 'border-primary bg-primary/5'
-                : outside ? 'border-border/50 bg-surface/40'
-                : 'border-border bg-white'
+              className={`rounded-[2px] border p-2 min-h-[92px] ${
+                isToday ? 'border-primary bg-[rgba(180,85,31,0.05)]'
+                : outside ? 'border-[var(--rule)]/50 bg-[var(--paper)]'
+                : 'border-[var(--rule)] bg-white'
               }`}
             >
               <div className="flex items-baseline justify-between">
-                <span className={`text-xs font-semibold ${outside ? 'text-secondary/60' : isToday ? 'text-primary' : 'text-foreground'}`}>
+                <span className={`text-xs font-semibold ${outside ? 'text-[var(--ink-soft)]/60' : isToday ? 'text-[var(--accent)]' : 'text-[var(--ink)]'}`}>
                   {formatDayLabel(day)}
                 </span>
                 {items.length > 0 && (
-                  <span className="text-[10px] font-semibold text-secondary bg-surface rounded px-1">
+                  <span className="text-[10px] font-semibold text-[var(--ink-soft)] bg-[var(--paper)] rounded px-1">
                     {done}/{items.length}
                   </span>
                 )}
@@ -160,14 +160,14 @@ function MonthView({ anchor, activities, ...ctx }: Ctx & { anchor: string; activ
                   </span>
                 ))}
                 {items.length > 8 && (
-                  <span className="text-[10px] text-secondary">+{items.length - 8}</span>
+                  <span className="text-[10px] text-[var(--ink-soft)]">+{items.length - 8}</span>
                 )}
               </div>
             </div>
           );
         })}
       </div>
-      <p className="text-secondary text-xs mt-3">
+      <p className="text-[var(--ink-soft)] text-xs mt-3">
         Cada ícono es una actividad; el contador del día muestra cumplidas sobre agendadas.
         Para agendar, entra a la vista de día o semana.
       </p>
@@ -183,8 +183,8 @@ function sortByTime(items: Activity[]) {
 
 function DayTotal({ count, done }: { count: number; done: number }) {
   return (
-    <p className="text-sm text-secondary">
-      <span className="text-foreground font-semibold">{count}</span> actividad{count === 1 ? '' : 'es'}
+    <p className="text-sm text-[var(--ink-soft)]">
+      <span className="text-[var(--ink)] font-semibold">{count}</span> actividad{count === 1 ? '' : 'es'}
       {count > 0 && <> · {done} cumplida{done === 1 ? '' : 's'}</>}
     </p>
   );
@@ -204,26 +204,26 @@ function ActivityRow({
   }
 
   return (
-    <div className={`rounded-lg border p-2 ${wide ? 'text-sm' : 'text-xs'} ${STATUS_STYLE[a.status]}`}>
+    <div className={`rounded-[2px] border p-2 ${wide ? 'text-sm' : 'text-xs'} ${STATUS_STYLE[a.status]}`}>
       <div className="flex items-start gap-2">
         <span aria-hidden title={type?.label}>{type?.icon ?? FALLBACK_ICON}</span>
         <span className="flex-1 leading-snug">{a.title}</span>
-        {wide && a.starts_at && <span className="text-secondary">{a.starts_at.slice(0, 5)}</span>}
+        {wide && a.starts_at && <span className="text-[var(--ink-soft)]">{a.starts_at.slice(0, 5)}</span>}
       </div>
-      {!wide && a.starts_at && <p className="text-secondary mt-1">{a.starts_at.slice(0, 5)}</p>}
-      {clientName && <p className="text-secondary truncate">{clientName}</p>}
+      {!wide && a.starts_at && <p className="text-[var(--ink-soft)] mt-1">{a.starts_at.slice(0, 5)}</p>}
+      {clientName && <p className="text-[var(--ink-soft)] truncate">{clientName}</p>}
       <div className="flex gap-2 mt-2">
         <button
           onClick={() => run(() => setActivityStatus(a.id, repId, a.status === 'done' ? 'planned' : 'done'))}
           disabled={busy}
-          className="text-primary font-semibold hover:underline disabled:opacity-50"
+          className="text-[var(--accent)] font-medium hover:underline disabled:opacity-50"
         >
           {a.status === 'done' ? 'Deshacer' : 'Cumplida'}
         </button>
         <button
           onClick={() => run(() => deleteActivity(a.id, repId))}
           disabled={busy}
-          className="text-secondary hover:text-danger disabled:opacity-50"
+          className="text-[var(--ink-soft)] hover:wsale-bad disabled:opacity-50"
         >
           Borrar
         </button>
@@ -239,7 +239,7 @@ function AddButton({ day, repId, types, clients }: Ctx & { day: string }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="mt-2 text-xs text-secondary hover:text-primary transition"
+        className="mt-2 text-xs text-[var(--ink-soft)] hover:text-[var(--accent)] transition"
       >
         + Agendar
       </button>
@@ -293,7 +293,7 @@ function NewActivity({
     }
   }
 
-  const field = 'w-full h-8 rounded-md border border-border px-1 text-xs outline-none focus:border-primary';
+  const field = 'w-full h-8 rounded-[2px] border border-[var(--rule)] px-1 text-xs outline-none focus:border-[var(--accent)]';
 
   return (
     <form onSubmit={submit} className="mt-2 space-y-1">
@@ -315,12 +315,12 @@ function NewActivity({
         <option value="">Sin cliente</option>
         {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
       </select>
-      {error && <p className="text-danger text-[10px]">{error}</p>}
+      {error && <p className="wsale-bad text-[10px]">{error}</p>}
       <div className="flex gap-1">
-        <button type="submit" disabled={saving} className="flex-1 h-8 rounded-md bg-primary text-white text-xs font-semibold disabled:opacity-50">
+        <button type="submit" disabled={saving} className="flex-1 h-8 rounded-[2px] bg-[var(--ink)] text-white text-xs font-semibold disabled:opacity-50">
           {saving ? '…' : 'Guardar'}
         </button>
-        <button type="button" onClick={onCancel} className="h-8 px-2 rounded-md border border-border text-xs">✕</button>
+        <button type="button" onClick={onCancel} className="h-8 px-2 rounded-[2px] border border-[var(--rule)] text-xs">✕</button>
       </div>
     </form>
   );

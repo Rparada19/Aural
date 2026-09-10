@@ -14,10 +14,10 @@ const STATUS_LABEL: Record<GoalStatus, string> = {
 };
 
 const STATUS_STYLE: Record<GoalStatus, string> = {
-  pending: 'bg-surface text-secondary',
-  in_progress: 'bg-warning/10 text-warning',
-  done: 'bg-success/10 text-success',
-  dropped: 'bg-danger/10 text-danger',
+  pending: 'bg-[var(--paper)] text-[var(--ink-soft)]',
+  in_progress: 'bg-warning/10 wsale-warn',
+  done: 'bg-success/10 wsale-good',
+  dropped: 'bg-danger/10 wsale-bad',
 };
 
 export function ProgressCard({
@@ -58,40 +58,40 @@ export function ProgressCard({
   }
 
   return (
-    <div className="border border-border rounded-xl p-4">
+    <div className="border border-[var(--rule)] rounded-[3px] p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-medium truncate">{title}</p>
-          {subtitle && <p className="text-secondary text-xs mt-0.5">{subtitle}</p>}
+          {subtitle && <p className="text-[var(--ink-soft)] text-xs mt-0.5">{subtitle}</p>}
         </div>
-        <span className={`shrink-0 text-xs px-2 py-1 rounded-md font-semibold ${STATUS_STYLE[status]}`}>
+        <span className={`shrink-0 text-xs px-2 py-1 rounded-[2px] font-semibold ${STATUS_STYLE[status]}`}>
           {STATUS_LABEL[status]}
         </span>
       </div>
 
-      {meta && <p className="text-secondary text-xs mt-2">{meta}</p>}
+      {meta && <p className="text-[var(--ink-soft)] text-xs mt-2">{meta}</p>}
 
       <div className="mt-3 flex items-center gap-3">
-        <div className="flex-1 h-2 rounded-full bg-surface overflow-hidden">
+        <div className="flex-1 wsale-meter">
           <div
-            className={`h-full rounded-full ${progress >= 100 ? 'bg-success' : 'bg-primary'}`}
+            className={`h-full ${progress >= 100 ? 'bg-[var(--positive)]' : 'bg-[var(--ink)]'}`}
             style={{ width: `${progress}%` }}
           />
         </div>
         <span className="text-sm font-semibold w-10 text-right">{progress}%</span>
       </div>
 
-      {note && !open && <p className="text-secondary text-xs mt-2 italic">“{note}”</p>}
+      {note && !open && <p className="text-[var(--ink-soft)] text-xs mt-2 italic">“{note}”</p>}
 
       {!open ? (
         <button
           onClick={() => setOpen(true)}
-          className="mt-3 text-primary text-sm font-semibold hover:underline"
+          className="mt-3 text-[var(--accent)] text-sm font-semibold hover:underline"
         >
           Dar avance
         </button>
       ) : (
-        <div className="mt-4 space-y-3 border-t border-border pt-3">
+        <div className="mt-4 space-y-3 border-t border-[var(--rule)] pt-3">
           <div className="flex items-center gap-3">
             <input
               type="range"
@@ -100,7 +100,7 @@ export function ProgressCard({
               step="5"
               value={value}
               onChange={(e) => setValue(Number(e.target.value))}
-              className="flex-1 accent-[var(--primary)]"
+              className="flex-1 accent-[var(--accent)]"
             />
             <span className="text-sm font-semibold w-12 text-right">{value}%</span>
           </div>
@@ -108,7 +108,7 @@ export function ProgressCard({
           <select
             value={state}
             onChange={(e) => setState(e.target.value as GoalStatus)}
-            className="w-full h-10 rounded-lg border border-border px-2 text-sm outline-none focus:border-primary"
+            className="w-full h-10 rounded-[2px] border border-[var(--rule)] px-2 text-sm outline-none focus:border-[var(--accent)]"
           >
             {(Object.keys(STATUS_LABEL) as GoalStatus[]).map((s) => (
               <option key={s} value={s}>{STATUS_LABEL[s]}</option>
@@ -120,22 +120,22 @@ export function ProgressCard({
             onChange={(e) => setText(e.target.value)}
             rows={2}
             placeholder="¿Qué pasó desde la última vez?"
-            className="w-full rounded-lg border border-border p-2 text-sm outline-none focus:border-primary"
+            className="w-full rounded-[2px] border border-[var(--rule)] p-2 text-sm outline-none focus:border-[var(--accent)]"
           />
 
-          {error && <p className="text-danger text-xs">{error}</p>}
+          {error && <p className="wsale-bad text-xs">{error}</p>}
 
           <div className="flex gap-2">
             <button
               onClick={save}
               disabled={saving}
-              className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-soft disabled:opacity-50 transition"
+              className="wsale-btn"
             >
               {saving ? 'Guardando…' : 'Guardar avance'}
             </button>
             <button
               onClick={() => setOpen(false)}
-              className="h-10 px-4 rounded-lg border border-border text-sm hover:bg-surface transition"
+              className="wsale-btn-ghost"
             >
               Cancelar
             </button>

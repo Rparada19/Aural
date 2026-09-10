@@ -5,12 +5,12 @@ import { MARKET_URL } from '@/lib/markets';
 
 export type WholesaleRole = 'coordinator' | 'rep';
 
-const NAV: { href: string; label: string; icon: string; allowed: WholesaleRole[] }[] = [
-  { href: '/wholesale', label: 'Resumen', icon: '📊', allowed: ['coordinator', 'rep'] },
-  { href: '/wholesale/clients', label: 'Clientes', icon: '🏥', allowed: ['coordinator', 'rep'] },
-  { href: '/wholesale/sales', label: 'Ventas', icon: '💳', allowed: ['coordinator', 'rep'] },
-  { href: '/wholesale/budgets', label: 'Presupuestos', icon: '🎯', allowed: ['coordinator', 'rep'] },
-  { href: '/wholesale/reps', label: 'Comerciales', icon: '🧭', allowed: ['coordinator'] },
+const NAV: { href: string; label: string; num: string; allowed: WholesaleRole[] }[] = [
+  { href: '/wholesale', label: 'Resumen', num: '01', allowed: ['coordinator', 'rep'] },
+  { href: '/wholesale/clients', label: 'Clientes', num: '02', allowed: ['coordinator', 'rep'] },
+  { href: '/wholesale/sales', label: 'Ventas', num: '03', allowed: ['coordinator', 'rep'] },
+  { href: '/wholesale/budgets', label: 'Presupuestos', num: '04', allowed: ['coordinator', 'rep'] },
+  { href: '/wholesale/reps', label: 'Comerciales', num: '05', allowed: ['coordinator'] },
 ];
 
 export function WholesaleLayout({
@@ -21,41 +21,75 @@ export function WholesaleLayout({
   children: React.ReactNode;
 }) {
   const items = NAV.filter((n) => n.allowed.includes(role));
+
   return (
-    <div className="min-h-screen flex">
-      <aside className="w-64 bg-primary text-white p-6 flex flex-col">
-        <div className="mb-6 bg-white rounded-xl p-4 -mx-2">
-          <Image src="/logo.png" alt="Aural" width={180} height={56} className="w-full h-auto" />
-          <p className="text-xs uppercase tracking-widest text-secondary mt-2 text-center font-semibold">
+    <div className="wsale min-h-screen flex">
+      <aside className="wsale-nav w-56 shrink-0 flex flex-col">
+        <div className="px-6 pt-7 pb-6">
+          <Image src="/logo-white.png" alt="Aural" width={120} height={36} className="h-7 w-auto opacity-0 absolute" />
+          <p className="wsale-display text-[22px] text-white leading-none">Aural</p>
+          <p className="mt-2 text-[10px] font-semibold tracking-[0.22em] uppercase text-white/45">
             Wholesale
           </p>
         </div>
 
-        <nav className="flex-1 space-y-1">
+        <nav className="flex-1 px-3">
           {items.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-white/10 transition text-sm"
+              className="group flex items-baseline gap-3 px-3 py-2.5 text-[13px] transition"
             >
-              <span aria-hidden>{item.icon}</span>
-              {item.label}
+              <span className="wsale-mono text-[10px] text-white/30 group-hover:text-white/60 transition">
+                {item.num}
+              </span>
+              <span>{item.label}</span>
             </Link>
           ))}
         </nav>
 
-        <div className="text-xs opacity-70 border-t border-white/10 pt-4 space-y-1">
-          <p className="truncate">{userName}</p>
-          <p className="capitalize opacity-70">
+        <div className="px-6 py-5 border-t border-white/10">
+          <p className="text-[13px] text-white/85 truncate">{userName}</p>
+          <p className="text-[11px] text-white/40 mt-0.5">
             {role === 'coordinator' ? 'Coordinación' : 'Comercial'}
           </p>
-          <a href={MARKET_URL.vm} className="block underline opacity-80 hover:opacity-100">
-            Ir a Visita médica
-          </a>
-          <LogoutButton />
+          <div className="mt-3 flex flex-col gap-1.5 text-[11px]">
+            <a href={MARKET_URL.vm} className="text-white/50 hover:text-white transition">
+              Visita médica →
+            </a>
+            <LogoutButton />
+          </div>
         </div>
       </aside>
-      <main className="flex-1 bg-surface p-10 overflow-y-auto">{children}</main>
+
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-[1400px] mx-auto px-10 py-9">{children}</div>
+      </main>
     </div>
+  );
+}
+
+/** Cabecera editorial: overline, título en serif y una regla que cierra. */
+export function PageHead({
+  overline, title, subtitle, actions,
+}: {
+  overline?: string;
+  title: string;
+  subtitle?: React.ReactNode;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <header className="mb-7 pb-5 border-b border-[var(--rule-strong)]">
+      <div className="flex items-end justify-between gap-6 flex-wrap">
+        <div>
+          {overline && <p className="wsale-overline mb-2">{overline}</p>}
+          <h1 className="wsale-display text-[30px] leading-[1.1]">{title}</h1>
+          {subtitle && (
+            <p className="text-[13px] text-[var(--ink-soft)] mt-2 max-w-2xl">{subtitle}</p>
+          )}
+        </div>
+        {actions && <div className="flex items-center gap-2">{actions}</div>}
+      </div>
+    </header>
   );
 }

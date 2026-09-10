@@ -21,11 +21,11 @@ export default async function NewWholesaleClientPage() {
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
       <header className="mb-8">
-        <Link href="/wholesale/clients" className="text-secondary text-sm hover:underline">
+        <Link href="/wholesale/clients" className="text-[var(--ink-soft)] text-sm hover:underline">
           ← Clientes
         </Link>
         <h1 className="text-2xl font-semibold mt-2">Nuevo cliente</h1>
-        <p className="text-secondary text-sm mt-1">
+        <p className="text-[var(--ink-soft)] text-sm mt-1">
           Un centro auditivo del canal mayorista, con su comercial de zona.
         </p>
       </header>

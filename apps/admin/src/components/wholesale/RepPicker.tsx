@@ -34,7 +34,7 @@ export function RepPicker({
         value={value}
         disabled={pending}
         onChange={(e) => onChange(e.target.value)}
-        className="h-9 rounded-md border border-border bg-white px-2 text-sm outline-none focus:border-primary disabled:opacity-50"
+        className="h-9 rounded-[2px] border border-[var(--rule)] bg-white px-2 text-sm outline-none focus:border-[var(--accent)] disabled:opacity-50"
       >
         <option value="">Sin asignar</option>
         {reps.map((r) => (
@@ -43,7 +43,7 @@ export function RepPicker({
           </option>
         ))}
       </select>
-      {error && <p className="text-danger text-xs mt-1">{error}</p>}
+      {error && <p className="wsale-bad text-xs mt-1">{error}</p>}
     </div>
   );
 }

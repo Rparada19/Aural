@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { WholesaleLayout } from '@/components/WholesaleLayout';
+import { WholesaleLayout, PageHead } from '@/components/WholesaleLayout';
 import { MetricCard, EmptyState } from '@/components/wholesale/MetricCard';
 import { requireWholesaleMe, salesMetrics, cop, pct } from '@/lib/wholesale';
 import { monthStart, monthEnd } from '@/lib/activities';
@@ -93,33 +93,20 @@ export default async function WholesaleSalesPage({
 
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
-      <header className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-secondary">Wholesale</p>
-          <h1 className="text-2xl font-semibold mt-1">Ventas · {MONTHS[month - 1]} {year}</h1>
-          <p className="text-secondary text-sm mt-1">
-            {me.role === 'coordinator'
-              ? 'Todo el canal. Filtra por zona para aislar una región.'
-              : 'Tus ventas del mes.'}
-            {' '}Alimentan el presupuesto mensual de cada cliente.
-          </p>
-        </div>
-        <Link
-          href="/wholesale/sales/new"
-          className="h-11 leading-[44px] px-5 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft transition shrink-0"
-        >
-          Registrar venta
-        </Link>
-      </header>
+      <PageHead
+        overline={`Ventas · ${MONTHS[month - 1]} ${year}`}
+        title={me.role === 'coordinator' ? 'Movimiento del canal' : 'Tus ventas del mes'}
+        subtitle="Cada factura registrada alimenta el presupuesto mensual del cliente."
+        actions={<Link href="/wholesale/sales/new" className="wsale-btn">Registrar venta</Link>}
+      />
 
       <div className="flex flex-wrap items-center gap-1 mb-4">
         {MONTHS.map((label, i) => (
           <Link
             key={label}
             href={href({ month: i + 1 })}
-            className={`h-9 leading-9 px-3 rounded-lg text-xs font-semibold transition ${
-              month === i + 1 ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
-            }`}
+            className="wsale-chip"
+            data-on={month === i + 1}
           >
             {label}
           </Link>
@@ -129,9 +116,8 @@ export default async function WholesaleSalesPage({
           <Link
             key={y}
             href={href({ year: y })}
-            className={`h-9 leading-9 px-3 rounded-lg text-xs font-semibold transition ${
-              y === year ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
-            }`}
+            className="wsale-chip"
+            data-on={y === year}
           >
             {y}
           </Link>
@@ -142,9 +128,7 @@ export default async function WholesaleSalesPage({
         <div className="flex flex-wrap gap-2 mb-6">
           <Link
             href={href({ zone: null })}
-            className={`h-9 leading-9 px-4 rounded-lg text-xs font-semibold transition ${
-              zone === null ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
-            }`}
+            className="wsale-chip" data-on={zone === null}
           >
             Todas las zonas
           </Link>
@@ -152,9 +136,7 @@ export default async function WholesaleSalesPage({
             <Link
               key={z}
               href={href({ zone: z })}
-              className={`h-9 leading-9 px-4 rounded-lg text-xs font-semibold transition ${
-                zone === z ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
-              }`}
+              className="wsale-chip" data-on={zone === z}
             >
               {z}
             </Link>
@@ -170,7 +152,7 @@ export default async function WholesaleSalesPage({
           action={
             <Link
               href="/wholesale/sales/new"
-              className="inline-block h-11 leading-[44px] px-6 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft transition"
+              className="wsale-btn"
             >
               Registrar venta
             </Link>
@@ -196,7 +178,7 @@ export default async function WholesaleSalesPage({
           </section>
 
           <section className="grid gap-6 lg:grid-cols-3 mb-8">
-            <div className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+            <div className="wsale-panel p-6">
               <h2 className="font-semibold">Cliente con más ventas</h2>
               {topClient ? (
                 <>
@@ -206,25 +188,25 @@ export default async function WholesaleSalesPage({
                   >
                     {clientById.get(topClient[0])?.name ?? 'Cliente'}
                   </Link>
-                  <p className="text-secondary text-sm mt-1">
+                  <p className="text-[var(--ink-soft)] text-sm mt-1">
                     {cop(topClient[1].amount)} · {topClient[1].units} unidades
                   </p>
-                  <p className="text-secondary text-xs mt-1">
+                  <p className="text-[var(--ink-soft)] text-xs mt-1">
                     {((topClient[1].amount / stats.revenue) * 100).toFixed(0)}% de la venta del mes
                   </p>
                 </>
               ) : (
-                <p className="text-secondary text-sm mt-3">Sin datos.</p>
+                <p className="text-[var(--ink-soft)] text-sm mt-3">Sin datos.</p>
               )}
             </div>
 
-            <div className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+            <div className="wsale-panel p-6">
               <div className="flex items-baseline justify-between">
                 <h2 className="font-semibold">Cumpliendo presupuesto</h2>
-                <span className="text-success font-semibold">{meeting.length}</span>
+                <span className="wsale-good font-semibold">{meeting.length}</span>
               </div>
               {meeting.length === 0 ? (
-                <p className="text-secondary text-sm mt-3">Ninguno llegó a la meta del mes.</p>
+                <p className="text-[var(--ink-soft)] text-sm mt-3">Ninguno llegó a la meta del mes.</p>
               ) : (
                 <ul className="mt-3 space-y-2">
                   {meeting.map((c) => (
@@ -232,31 +214,31 @@ export default async function WholesaleSalesPage({
                       <Link href={`/wholesale/clients/${c.id}`} className="flex-1 truncate hover:underline">
                         {c.name}
                       </Link>
-                      <span className="text-success font-semibold">{Math.round(c.ratio * 100)}%</span>
+                      <span className="wsale-good font-semibold">{Math.round(c.ratio * 100)}%</span>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
 
-            <div className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+            <div className="wsale-panel p-6">
               <div className="flex items-baseline justify-between">
                 <h2 className="font-semibold">Por debajo del presupuesto</h2>
-                <span className="text-danger font-semibold">{missing.length}</span>
+                <span className="wsale-bad font-semibold">{missing.length}</span>
               </div>
               {missing.length === 0 ? (
-                <p className="text-secondary text-sm mt-3">Todos van al día.</p>
+                <p className="text-[var(--ink-soft)] text-sm mt-3">Todos van al día.</p>
               ) : (
                 <ul className="mt-3 space-y-2">
                   {missing.map((c) => (
                     <li key={c.id} className="flex items-center gap-2 text-sm">
                       <Link href={`/wholesale/clients/${c.id}`} className="flex-1 truncate hover:underline">
                         {c.name}
-                        <span className="text-secondary text-xs block">
+                        <span className="text-[var(--ink-soft)] text-xs block">
                           Faltan {cop(c.budget - c.actual)}
                         </span>
                       </Link>
-                      <span className={c.ratio >= 0.8 ? 'text-warning' : 'text-danger'}>
+                      <span className={c.ratio >= 0.8 ? 'wsale-warn' : 'wsale-bad'}>
                         {Math.round(c.ratio * 100)}%
                       </span>
                     </li>
@@ -266,36 +248,36 @@ export default async function WholesaleSalesPage({
             </div>
           </section>
 
-          <div className="bg-white rounded-2xl border border-border shadow-sm overflow-x-auto">
-            <table className="w-full text-sm min-w-[900px]">
-              <thead className="bg-surface text-secondary">
+          <div className="wsale-panel overflow-x-auto">
+            <table className="wsale-table min-w-[900px]">
+              <thead>
                 <tr className="text-left">
-                  <th className="px-5 py-3 font-semibold">Fecha</th>
-                  <th className="px-5 py-3 font-semibold">Cliente</th>
-                  <th className="px-5 py-3 font-semibold">Factura</th>
-                  <th className="px-5 py-3 font-semibold">Producto</th>
-                  <th className="px-5 py-3 font-semibold text-right">Lista</th>
-                  <th className="px-5 py-3 font-semibold text-right">Dcto.</th>
-                  <th className="px-5 py-3 font-semibold text-right">Neto</th>
+                  <th>Fecha</th>
+                  <th>Cliente</th>
+                  <th>Factura</th>
+                  <th>Producto</th>
+                  <th className="num">Lista</th>
+                  <th className="num">Dcto.</th>
+                  <th className="num">Neto</th>
                 </tr>
               </thead>
               <tbody>
                 {saleList.map((s) => (
-                  <tr key={s.id} className="border-t border-border hover:bg-surface/60 transition">
-                    <td className="px-5 py-3 whitespace-nowrap">{s.sold_on}</td>
-                    <td className="px-5 py-3">
+                  <tr key={s.id}>
+                    <td className="whitespace-nowrap wsale-mono text-[11px]">{s.sold_on}</td>
+                    <td >
                       <Link href={`/wholesale/clients/${s.client_id}`} className="hover:underline">
                         {clientById.get(s.client_id)?.name ?? 'Cliente'}
                       </Link>
-                      <span className="text-secondary text-xs block">{zoneOf(s.client_id)}</span>
+                      <span className="text-[var(--ink-soft)] text-xs block">{zoneOf(s.client_id)}</span>
                     </td>
-                    <td className="px-5 py-3 text-secondary">
+                    <td className="text-[var(--ink-soft)]">
                       {s.invoice_number ?? '—'}
                       {s.campaign_name && (
-                        <span className="text-xs block text-primary">{s.campaign_name}</span>
+                        <span className="text-xs block text-[var(--accent)]">{s.campaign_name}</span>
                       )}
                     </td>
-                    <td className="px-5 py-3 text-secondary text-xs">
+                    <td className="text-[var(--ink-soft)] text-[11px]">
                       {[
                         s.platform ? platformLabel.get(s.platform) : null,
                         s.tech_level,
@@ -306,16 +288,16 @@ export default async function WholesaleSalesPage({
                         {s.rechargeable ? 'recargable' : 'batería'}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-right text-secondary">{cop(Number(s.list_price))}</td>
-                    <td className="px-5 py-3 text-right text-secondary">{Number(s.discount_percent)}%</td>
-                    <td className="px-5 py-3 text-right font-semibold">{cop(Number(s.net_amount))}</td>
+                    <td className="num text-[var(--ink-soft)]">{cop(Number(s.list_price))}</td>
+                    <td className="num text-[var(--ink-soft)]">{Number(s.discount_percent)}%</td>
+                    <td className="num wsale-figure text-[13px]">{cop(Number(s.net_amount))}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-surface font-semibold">
+              <tfoot>
                 <tr>
-                  <td className="px-5 py-3" colSpan={6}>Total {MONTHS[month - 1]}</td>
-                  <td className="px-5 py-3 text-right">{cop(stats.revenue)}</td>
+                  <td  colSpan={6}>Total {MONTHS[month - 1]}</td>
+                  <td className="num wsale-figure text-[14px]">{cop(stats.revenue)}</td>
                 </tr>
               </tfoot>
             </table>

@@ -13,9 +13,9 @@ const MONTHS = [
 export interface BudgetRow { month: number; amount: number; units: number }
 
 function Ratio({ value }: { value: number | null }) {
-  if (value === null) return <span className="text-secondary">—</span>;
+  if (value === null) return <span className="text-[var(--ink-soft)]">—</span>;
   return (
-    <span className={value >= 1 ? 'text-success font-semibold' : value >= 0.8 ? 'text-warning' : 'text-danger'}>
+    <span className={value >= 1 ? 'wsale-good font-semibold' : value >= 0.8 ? 'wsale-warn' : 'wsale-bad'}>
       {Math.round(value * 100)}%
     </span>
   );
@@ -77,9 +77,9 @@ export function BudgetGrid({
   const actualUnits = actualByMonth.reduce((a, m) => a + m.units, 0);
 
   return (
-    <div className="bg-white rounded-2xl border border-border shadow-sm overflow-x-auto">
-      <table className="w-full text-sm min-w-[720px] border-collapse [&_th]:border [&_th]:border-border [&_td]:border [&_td]:border-border">
-        <thead className="bg-surface text-secondary">
+    <div className="wsale-panel overflow-x-auto">
+      <table className="w-full text-sm min-w-[720px] border-collapse [&_th]:border [&_th]:border-[var(--rule)] [&_td]:border [&_td]:border-[var(--rule)]">
+        <thead>
           <tr className="text-left">
             <th className="px-4 py-3 font-semibold" rowSpan={2}>Mes</th>
             <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Presupuesto</th>
@@ -102,7 +102,7 @@ export function BudgetGrid({
             const ratio = r.amount > 0 ? actual.amount / r.amount : null;
             const unitRatio = r.units > 0 ? actual.units / r.units : null;
             return (
-              <tr key={r.month} className="border-t border-border">
+              <tr key={r.month} className="border-t border-[var(--rule)]">
                 <td className="px-4 py-2 font-medium">{MONTHS[r.month - 1]}</td>
                 <td className="px-3 py-2">
                   <input
@@ -112,7 +112,7 @@ export function BudgetGrid({
                     value={r.amount || ''}
                     placeholder="0"
                     onChange={(e) => update(r.month, 'amount', e.target.value)}
-                    className="w-36 h-9 rounded-md border border-border px-2 outline-none focus:border-primary"
+                    className="w-36 h-9 rounded-[2px] border border-[var(--rule)] px-2 outline-none focus:border-[var(--accent)]"
                   />
                 </td>
                 <td className="px-3 py-2">
@@ -122,13 +122,13 @@ export function BudgetGrid({
                     value={r.units || ''}
                     placeholder="0"
                     onChange={(e) => update(r.month, 'units', e.target.value)}
-                    className="w-20 h-9 rounded-md border border-border px-2 outline-none focus:border-primary"
+                    className="w-20 h-9 rounded-[2px] border border-[var(--rule)] px-2 outline-none focus:border-[var(--accent)]"
                   />
                 </td>
-                <td className="px-3 py-2 text-right text-secondary">
+                <td className="px-3 py-2 text-right text-[var(--ink-soft)]">
                   {actual.amount > 0 ? cop(actual.amount) : '—'}
                 </td>
-                <td className="px-3 py-2 text-right text-secondary">{actual.units || '—'}</td>
+                <td className="px-3 py-2 text-right text-[var(--ink-soft)]">{actual.units || '—'}</td>
                 <td className="px-3 py-2 text-right"><Ratio value={ratio} /></td>
                 <td className="px-3 py-2 text-right"><Ratio value={unitRatio} /></td>
                 <td className="px-2 py-2">
@@ -137,7 +137,7 @@ export function BudgetGrid({
                       type="button"
                       onClick={() => fillDown(r.month)}
                       title="Copiar este valor a los meses siguientes"
-                      className="text-secondary hover:text-primary text-xs px-2"
+                      className="text-[var(--ink-soft)] hover:text-[var(--accent)] text-xs px-2"
                     >
                       ↓
                     </button>
@@ -147,7 +147,7 @@ export function BudgetGrid({
             );
           })}
         </tbody>
-        <tfoot className="bg-surface">
+        <tfoot>
           <tr className="font-semibold">
             <td className="px-4 py-3">Total {year}</td>
             <td className="px-3 py-3 text-right">{cop(totalAmount)}</td>
@@ -165,17 +165,17 @@ export function BudgetGrid({
         </tfoot>
       </table>
 
-      <div className="p-5 border-t border-border flex items-center gap-4">
+      <div className="p-5 border-t border-[var(--rule)] flex items-center gap-4">
         <button
           onClick={onSave}
           disabled={saving}
-          className="h-11 px-6 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft disabled:opacity-50 transition"
+          className="wsale-btn"
         >
           {saving ? 'Guardando…' : 'Guardar presupuesto'}
         </button>
-        {saved && <span className="text-success text-sm">Guardado ✓</span>}
-        {error && <span className="text-danger text-sm">{error}</span>}
-        <span className="text-secondary text-xs ml-auto">
+        {saved && <span className="wsale-good text-sm">Guardado ✓</span>}
+        {error && <span className="wsale-bad text-sm">{error}</span>}
+        <span className="text-[var(--ink-soft)] text-xs ml-auto">
           La flecha ↓ copia el valor del mes a los siguientes.
         </span>
       </div>

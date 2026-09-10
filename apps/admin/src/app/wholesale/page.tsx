@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { WholesaleLayout } from '@/components/WholesaleLayout';
-import { MetricCard, EmptyState } from '@/components/wholesale/MetricCard';
+import { WholesaleLayout, PageHead } from '@/components/WholesaleLayout';
+import { MetricCard, EmptyState, Meter } from '@/components/wholesale/MetricCard';
 import { requireWholesaleMe, salesMetrics, cop, pct } from '@/lib/wholesale';
 import { LoanLight } from '@/components/wholesale/Loans';
 import { daysLeft, type Loan } from '@/lib/loans';
@@ -111,192 +111,183 @@ export default async function WholesaleDashboard() {
     // Primero los que más pesan: quien más compra es quien más duele perder
     .sort((a, b) => b.lifetime - a.lifetime);
 
+  const MONTHS_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
-      <header className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-widest text-secondary">Wholesale</p>
-        <h1 className="text-2xl font-semibold mt-1">
-          {me.role === 'coordinator' ? 'Resumen del canal' : `Tu zona, ${me.full_name.split(' ')[0]}`}
-        </h1>
-        <p className="text-secondary text-sm mt-1">
-          {MONTHS[now.getMonth()]} {now.getFullYear()} · {clientList.length} cliente
-          {clientList.length === 1 ? '' : 's'} activo{clientList.length === 1 ? '' : 's'}
-        </p>
-      </header>
+      <PageHead
+        overline={`${MONTHS_FULL[now.getMonth()]} ${now.getFullYear()}`}
+        title={me.role === 'coordinator' ? 'Resumen del canal' : `Tu zona, ${me.full_name.split(' ')[0]}`}
+        subtitle={`${clientList.length} cliente${clientList.length === 1 ? '' : 's'} activo${clientList.length === 1 ? '' : 's'} · ${openLoans.length} equipo${openLoans.length === 1 ? '' : 's'} prestado${openLoans.length === 1 ? '' : 's'}`}
+        actions={
+          <Link href="/wholesale/sales/new" className="wsale-btn">Registrar venta</Link>
+        }
+      />
 
       {clientList.length === 0 ? (
         <EmptyState
-          emoji="🗺️"
           title="Todavía no hay clientes en el canal"
-          description="Empieza cargando los centros auditivos y asignando cada uno a su comercial de zona. Las métricas aparecen solas apenas registres la primera venta."
-          action={
-            <Link
-              href="/wholesale/clients/new"
-              className="inline-block h-11 leading-[44px] px-6 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft transition"
-            >
-              Cargar el primer cliente
-            </Link>
-          }
+          description="Empieza cargando los centros auditivos y asignando cada uno a su comercial de zona. Las cifras aparecen solas apenas registres la primera venta."
+          action={<Link href="/wholesale/clients/new" className="wsale-btn">Cargar el primer cliente</Link>}
         />
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <MetricCard
-              label="Ventas del mes"
+              label="Venta del mes"
               value={cop(month.revenue)}
               hint={
                 monthRatio === null
                   ? `${month.units} unidad${month.units === 1 ? '' : 'es'}`
-                  : `${Math.round(monthRatio * 100)}% del presupuesto`
+                  : `${Math.round(monthRatio * 100)}% del presupuesto · ${month.units} und`
               }
               tone={monthRatio === null ? 'neutral' : monthRatio >= 1 ? 'success' : 'warning'}
             />
+            <MetricCard label="ASP" value={month.asp > 0 ? cop(month.asp) : '—'} hint="Precio promedio por unidad" />
             <MetricCard
-              label="ASP"
-              value={month.asp > 0 ? cop(month.asp) : '—'}
-              hint="Precio promedio por unidad"
-            />
-            <MetricCard
-              label="Binaurales"
+              label="Binauralidad"
               value={month.count > 0 ? pct(month.binauralRate) : '—'}
-              hint="De las ventas del mes"
+              hint={month.count > 0 ? `${pct(1 - month.binauralRate)} unilateral` : 'Sin ventas aún'}
               tone={month.binauralRate >= 0.5 ? 'success' : 'warning'}
             />
             <MetricCard
-              label="Recargables"
+              label="Recargabilidad"
               value={month.count > 0 ? pct(month.rechargeableRate) : '—'}
-              hint="De las ventas del mes"
+              hint={month.count > 0 ? `${pct(1 - month.rechargeableRate)} batería` : 'Sin ventas aún'}
               tone={month.rechargeableRate >= 0.5 ? 'success' : 'warning'}
             />
           </section>
 
-          {openLoans.length > 0 && (
-            <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
-              <div className="flex items-baseline justify-between gap-4">
-                <div>
-                  <h2 className="font-semibold">Audífonos prestados</h2>
-                  <p className="text-secondary text-xs mt-1">
-                    {openLoans.length} equipo{openLoans.length === 1 ? '' : 's'} en la calle
-                    {overdueLoans.length > 0 && ` · ${overdueLoans.length} sin devolver a tiempo`}
-                  </p>
-                </div>
-                {overdueLoans.length > 0 && (
-                  <p className="text-2xl font-semibold text-danger">{overdueLoans.length}</p>
-                )}
-              </div>
-
-              <ul className="mt-4 divide-y divide-border">
-                {openLoans.map((l) => (
-                  <li key={l.id} className="flex items-center gap-4 py-2.5">
-                    <div className="flex-1 min-w-0">
-                      <Link href={`/wholesale/clients/${l.client_id}`} className="hover:underline">
-                        {clientNameById.get(l.client_id) ?? 'Cliente'}
-                      </Link>
-                      <p className="text-secondary text-xs">
-                        {l.serials.join(', ')}
-                        {l.patient_name && ` · ${l.patient_name}`}
-                      </p>
-                    </div>
-                    <span className="text-secondary text-xs text-right whitespace-nowrap">
-                      {l.rep_id ? repNameById.get(l.rep_id) : 'Sin comercial'}
-                      <span className="block">Prestado {l.loaned_on}</span>
-                    </span>
-                    <LoanLight dueOn={l.due_on} />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {pending.length > 0 && (
-            <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
-              <div className="flex items-baseline justify-between gap-4">
-                <div>
-                  <h2 className="font-semibold">Sin compra en {MONTHS[now.getMonth()]}</h2>
-                  <p className="text-secondary text-xs mt-1">
-                    {pending.length} de {clientList.length} clientes. Ordenados por lo que suelen pesar.
-                  </p>
-                </div>
-                <p className="text-2xl font-semibold text-warning">{pending.length}</p>
-              </div>
-
-              <ul className="mt-4 divide-y divide-border">
-                {pending.map((c) => (
-                  <li key={c.id} className="flex items-center gap-4 py-2.5">
-                    <Link href={`/wholesale/clients/${c.id}`} className="flex-1 min-w-0 hover:underline">
-                      <span className="block truncate">{c.name}</span>
-                      <span className="text-secondary text-xs">
-                        {[c.city, c.zone].filter(Boolean).join(' · ')}
-                      </span>
-                    </Link>
-
-                    <span className="text-xs text-right whitespace-nowrap">
-                      {c.last === null ? (
-                        <span className="text-secondary">Nunca ha comprado</span>
-                      ) : (
-                        <>
-                          <span className={c.days! > 90 ? 'text-danger font-semibold' : c.days! > 45 ? 'text-warning' : 'text-secondary'}>
-                            {c.days} días sin comprar
-                          </span>
-                          <span className="block text-secondary">Última: {c.last}</span>
-                        </>
-                      )}
-                    </span>
-
-                    <span className="w-32 text-right text-sm">
-                      {c.lifetime > 0 ? cop(c.lifetime) : '—'}
-                      <span className="block text-secondary text-xs">histórico</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
-            <div className="flex items-baseline justify-between">
-              <h2 className="font-semibold">Año en curso</h2>
-              <p className="text-secondary text-sm">
-                {cop(year.revenue)} acumulado
-                {yearBudget > 0 && ` · ${Math.round((year.revenue / yearBudget) * 100)}% del presupuesto`}
+          {/* Tendencia del año: columnas finas, el mes en curso en cobre */}
+          <section className="wsale-panel mt-8 p-6">
+            <div className="flex items-baseline justify-between gap-4 pb-4 border-b border-[var(--rule)]">
+              <h2 className="wsale-display text-[17px]">Año en curso</h2>
+              <p className="text-[12px] text-[var(--ink-soft)]">
+                <span className="wsale-figure text-[15px]">{cop(year.revenue)}</span> acumulado
+                {yearBudget > 0 && ` · ${Math.round((year.revenue / yearBudget) * 100)}% del presupuesto anual`}
               </p>
             </div>
-            <div className="mt-6 flex items-end gap-2 h-40">
+            <div className="mt-6 flex items-end gap-3 h-36">
               {byMonth.map((amount, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2">
+                <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
+                  <span className="text-[10px] text-[var(--ink-faint)] opacity-0 group-hover:opacity-100 transition wsale-mono">
+                    {amount > 0 ? `${Math.round(amount / 1_000_000)}M` : ''}
+                  </span>
                   <div
-                    className={`w-full rounded-t-md transition-all ${
-                      i === now.getMonth() ? 'bg-primary' : 'bg-primary/25'
-                    }`}
-                    style={{ height: `${Math.max((amount / peak) * 100, 2)}%` }}
+                    className="w-full transition-all"
+                    style={{
+                      height: `${Math.max((amount / peak) * 100, 1.5)}%`,
+                      background: i === now.getMonth() ? 'var(--accent)' : 'var(--ink)',
+                      opacity: i === now.getMonth() ? 1 : i > now.getMonth() ? 0.12 : 0.42,
+                    }}
                     title={`${MONTHS[i]}: ${cop(amount)}`}
                   />
-                  <span className="text-[10px] text-secondary">{MONTHS[i]}</span>
+                  <span className={`text-[10px] ${i === now.getMonth() ? 'text-[var(--accent)] font-semibold' : 'text-[var(--ink-faint)]'}`}>
+                    {MONTHS[i]}
+                  </span>
                 </div>
               ))}
             </div>
           </section>
 
+          <div className="grid gap-6 lg:grid-cols-2 mt-8 items-start">
+            {openLoans.length > 0 && (
+              <section className="wsale-panel p-6">
+                <div className="flex items-baseline justify-between gap-4 pb-3 border-b border-[var(--rule)]">
+                  <div>
+                    <h2 className="wsale-display text-[17px]">Audífonos prestados</h2>
+                    <p className="text-[11px] text-[var(--ink-faint)] mt-1">
+                      {openLoans.length} en la calle
+                      {overdueLoans.length > 0 && ` · ${overdueLoans.length} fuera de plazo`}
+                    </p>
+                  </div>
+                  {overdueLoans.length > 0 && (
+                    <span className="wsale-figure text-[24px] wsale-bad">{overdueLoans.length}</span>
+                  )}
+                </div>
+                <ul>
+                  {openLoans.map((l) => (
+                    <li key={l.id} className="flex items-center gap-3 py-2.5 border-b border-[var(--rule)] last:border-0">
+                      <div className="flex-1 min-w-0">
+                        <Link href={`/wholesale/clients/${l.client_id}`} className="text-[13px] hover:text-[var(--accent)] transition">
+                          {clientNameById.get(l.client_id) ?? 'Cliente'}
+                        </Link>
+                        <p className="wsale-mono text-[10px] text-[var(--ink-faint)] mt-0.5 truncate">
+                          {l.serials.join(' · ')}
+                        </p>
+                      </div>
+                      <span className="text-[11px] text-[var(--ink-faint)] text-right whitespace-nowrap">
+                        {l.rep_id ? repNameById.get(l.rep_id) : '—'}
+                      </span>
+                      <LoanLight dueOn={l.due_on} />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {pending.length > 0 && (
+              <section className="wsale-panel p-6">
+                <div className="flex items-baseline justify-between gap-4 pb-3 border-b border-[var(--rule)]">
+                  <div>
+                    <h2 className="wsale-display text-[17px]">Sin compra en {MONTHS_FULL[now.getMonth()]}</h2>
+                    <p className="text-[11px] text-[var(--ink-faint)] mt-1">
+                      {pending.length} de {clientList.length}, por peso histórico
+                    </p>
+                  </div>
+                  <span className="wsale-figure text-[24px] wsale-warn">{pending.length}</span>
+                </div>
+                <ul>
+                  {pending.map((c) => (
+                    <li key={c.id} className="flex items-center gap-3 py-2.5 border-b border-[var(--rule)] last:border-0">
+                      <div className="flex-1 min-w-0">
+                        <Link href={`/wholesale/clients/${c.id}`} className="text-[13px] hover:text-[var(--accent)] transition">
+                          {c.name}
+                        </Link>
+                        <p className="text-[11px] text-[var(--ink-faint)]">
+                          {[c.city, c.zone].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                      <span className="text-[11px] text-right whitespace-nowrap">
+                        {c.last === null ? (
+                          <span className="text-[var(--ink-faint)]">Nunca compró</span>
+                        ) : (
+                          <span className={c.days! > 90 ? 'wsale-bad font-medium' : c.days! > 45 ? 'wsale-warn' : 'text-[var(--ink-faint)]'}>
+                            {c.days} días
+                          </span>
+                        )}
+                      </span>
+                      <span className="wsale-figure text-[13px] w-28 text-right">
+                        {c.lifetime > 0 ? cop(c.lifetime) : '—'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </div>
+
           {top.length > 0 && (
-            <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
-              <h2 className="font-semibold">Clientes que más pesan</h2>
-              <ul className="mt-4 space-y-3">
+            <section className="wsale-panel mt-8 p-6">
+              <h2 className="wsale-display text-[17px] pb-3 border-b border-[var(--rule)]">
+                Clientes que más pesan
+              </h2>
+              <ul className="mt-1">
                 {top.map(([clientId, amount], i) => (
-                  <li key={clientId} className="flex items-center gap-4">
-                    <span className="w-6 text-secondary text-sm font-semibold">{i + 1}</span>
-                    <Link
-                      href={`/wholesale/clients/${clientId}`}
-                      className="flex-1 truncate hover:underline"
-                    >
+                  <li key={clientId} className="flex items-center gap-4 py-3 border-b border-[var(--rule)] last:border-0">
+                    <span className="wsale-mono text-[11px] text-[var(--ink-faint)] w-5">
+                      {String(i + 1).padStart(2, '0')}
+                    </span>
+                    <Link href={`/wholesale/clients/${clientId}`} className="flex-1 truncate text-[13px] hover:text-[var(--accent)] transition">
                       {nameById.get(clientId) ?? 'Cliente'}
                     </Link>
-                    <div className="w-40 h-2 rounded-full bg-surface overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full"
-                        style={{ width: `${(amount / top[0][1]) * 100}%` }}
-                      />
+                    <div className="w-48 hidden sm:block">
+                      <Meter value={amount} max={top[0][1]} />
                     </div>
-                    <span className="w-32 text-right text-sm font-semibold">{cop(amount)}</span>
+                    <span className="wsale-figure text-[14px] w-32 text-right">{cop(amount)}</span>
+                    <span className="text-[11px] text-[var(--ink-faint)] w-12 text-right">
+                      {Math.round((amount / year.revenue) * 100)}%
+                    </span>
                   </li>
                 ))}
               </ul>

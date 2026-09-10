@@ -61,21 +61,21 @@ export function ActivityTargets({
                   min="0"
                   value={values[k.slug] ?? 0}
                   onChange={(e) => setValues({ ...values, [k.slug]: Number(e.target.value) })}
-                  className="w-16 h-8 rounded-md border border-border px-2 text-sm text-right outline-none focus:border-primary"
+                  className="w-16 h-8 rounded-[2px] border border-[var(--rule)] px-2 text-sm text-right outline-none focus:border-[var(--accent)]"
                 />
               ) : (
-                <span className="text-secondary text-xs">
-                  <span className="text-foreground font-semibold">{row.doneCount}</span>
+                <span className="text-[var(--ink-soft)] text-xs">
+                  <span className="text-[var(--ink)] font-semibold">{row.doneCount}</span>
                   {row.target > 0 ? ` / ${row.target}` : ''}
                   {row.plannedCount > 0 && ` · ${row.plannedCount} por hacer`}
                 </span>
               )}
             </div>
             {!editing && (
-              <div className="mt-1 h-2 rounded-full bg-surface overflow-hidden">
+              <div className="mt-1 wsale-meter">
                 <div
-                  className={`h-full rounded-full ${
-                    ratio === null ? 'bg-border' : ratio >= 1 ? 'bg-success' : 'bg-primary'
+                  className={`h-full ${
+                    ratio === null ? 'bg-[var(--rule)]' : ratio >= 1 ? 'bg-[var(--positive)]' : 'bg-[var(--ink)]'
                   }`}
                   style={{ width: `${width}%` }}
                 />
@@ -85,7 +85,7 @@ export function ActivityTargets({
         );
       })}
 
-      {error && <p className="text-danger text-xs">{error}</p>}
+      {error && <p className="wsale-bad text-xs">{error}</p>}
 
       {canEdit && (
         editing ? (
@@ -93,13 +93,13 @@ export function ActivityTargets({
             <button
               onClick={save}
               disabled={saving}
-              className="h-9 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-soft disabled:opacity-50 transition"
+              className="h-9 px-4 rounded-[2px] bg-[var(--ink)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition"
             >
               {saving ? 'Guardando…' : 'Guardar metas'}
             </button>
             <button
               onClick={() => setEditing(false)}
-              className="h-9 px-4 rounded-lg border border-border text-sm hover:bg-surface transition"
+              className="h-9 px-4 rounded-[2px] border border-[var(--rule)] text-sm hover:bg-[rgba(16,35,63,0.04)] transition"
             >
               Cancelar
             </button>
@@ -107,7 +107,7 @@ export function ActivityTargets({
         ) : (
           <button
             onClick={() => setEditing(true)}
-            className="text-primary text-sm font-semibold hover:underline pt-1"
+            className="text-[var(--accent)] text-sm font-semibold hover:underline pt-1"
           >
             Definir metas del mes
           </button>

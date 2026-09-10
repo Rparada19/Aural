@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { WholesaleLayout } from '@/components/WholesaleLayout';
+import { WholesaleLayout, PageHead } from '@/components/WholesaleLayout';
 import { EmptyState } from '@/components/wholesale/MetricCard';
 import { RepPicker } from '@/components/wholesale/RepPicker';
 import { requireWholesaleMe, cop } from '@/lib/wholesale';
@@ -42,25 +42,20 @@ export default async function WholesaleClientsPage() {
 
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-secondary">Wholesale</p>
-          <h1 className="text-2xl font-semibold mt-1">Clientes</h1>
-          <p className="text-secondary text-sm mt-1">
-            {me.role === 'coordinator'
-              ? 'Centros auditivos del canal y su comercial asignado.'
-              : 'Los centros auditivos de tu zona.'}
-          </p>
-        </div>
-        {me.role === 'coordinator' && (
-          <Link
-            href="/wholesale/clients/new"
-            className="h-11 leading-[44px] px-5 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft transition"
-          >
-            Nuevo cliente
-          </Link>
-        )}
-      </header>
+      <PageHead
+        overline="Wholesale"
+        title="Clientes"
+        subtitle={
+          me.role === 'coordinator'
+            ? 'Centros auditivos del canal, su comercial asignado y cuánto pesa cada uno.'
+            : 'Los centros auditivos de tu zona.'
+        }
+        actions={
+          me.role === 'coordinator' ? (
+            <Link href="/wholesale/clients/new" className="wsale-btn">Nuevo cliente</Link>
+          ) : undefined
+        }
+      />
 
       {clientList.length === 0 ? (
         <EmptyState
@@ -75,7 +70,7 @@ export default async function WholesaleClientsPage() {
             me.role === 'coordinator' ? (
               <Link
                 href="/wholesale/clients/new"
-                className="inline-block h-11 leading-[44px] px-6 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft transition"
+                className="wsale-btn"
               >
                 Nuevo cliente
               </Link>
@@ -83,52 +78,52 @@ export default async function WholesaleClientsPage() {
           }
         />
       ) : (
-        <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-surface text-secondary">
+        <div className="wsale-panel overflow-hidden">
+          <table className="wsale-table">
+            <thead>
               <tr className="text-left">
-                <th className="px-5 py-3 font-semibold">Cliente</th>
-                <th className="px-5 py-3 font-semibold">Ciudad</th>
-                <th className="px-5 py-3 font-semibold">Comercial</th>
-                <th className="px-5 py-3 font-semibold text-right">Acumulado</th>
-                <th className="px-5 py-3 font-semibold text-right">Inversión</th>
-                <th className="px-5 py-3 font-semibold">Última venta</th>
+                <th>Cliente</th>
+                <th>Ciudad</th>
+                <th>Comercial</th>
+                <th className="num">Acumulado</th>
+                <th className="num">Inversión</th>
+                <th>Última venta</th>
               </tr>
             </thead>
             <tbody>
               {clientList.map((c) => (
-                <tr key={c.id} className="border-t border-border hover:bg-surface/60 transition">
-                  <td className="px-5 py-3">
+                <tr key={c.id}>
+                  <td >
                     <Link href={`/wholesale/clients/${c.id}`} className="font-medium hover:underline">
                       {c.name}
                     </Link>
-                    {c.nit && <p className="text-xs text-secondary">NIT {c.nit}</p>}
+                    {c.nit && <p className="text-xs text-[var(--ink-soft)]">NIT {c.nit}</p>}
                   </td>
-                  <td className="px-5 py-3 text-secondary">
+                  <td className="text-[var(--ink-soft)]">
                     {c.city ?? '—'}
                     {c.zone && <span className="text-xs block">{c.zone}</span>}
                   </td>
-                  <td className="px-5 py-3">
+                  <td >
                     {me.role === 'coordinator' ? (
                       <RepPicker clientId={c.id} repId={c.rep_id} reps={repList} />
                     ) : (
                       (c.rep_id && repName.get(c.rep_id)) || 'Sin asignar'
                     )}
                   </td>
-                  <td className="px-5 py-3 text-right font-semibold">
+                  <td className="num wsale-figure text-[13px]">
                     {cop(revenueByClient.get(c.id) ?? 0)}
                   </td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="num">
                     {(() => {
                       const inv = investByClient.get(c.id) ?? 0;
                       const rev = revenueByClient.get(c.id) ?? 0;
-                      if (inv === 0) return <span className="text-secondary">—</span>;
+                      if (inv === 0) return <span className="text-[var(--ink-soft)]">—</span>;
                       const share = rev > 0 ? inv / rev : null;
                       return (
-                        <span className={share !== null && share > 0.15 ? 'text-warning' : ''}>
+                        <span className={share !== null && share > 0.15 ? 'wsale-warn' : ''}>
                           {cop(inv)}
                           {share !== null && (
-                            <span className="text-secondary text-xs block">
+                            <span className="text-[var(--ink-soft)] text-xs block">
                               {(share * 100).toFixed(1)}% de la venta
                             </span>
                           )}
@@ -136,7 +131,7 @@ export default async function WholesaleClientsPage() {
                       );
                     })()}
                   </td>
-                  <td className="px-5 py-3 text-secondary">
+                  <td className="text-[var(--ink-soft)]">
                     {lastSaleByClient.get(c.id) ?? 'Sin ventas'}
                   </td>
                 </tr>

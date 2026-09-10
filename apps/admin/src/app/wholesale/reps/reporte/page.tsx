@@ -16,8 +16,8 @@ const MONTHS = [
 function Bar({ value, max }: { value: number; max: number }) {
   const width = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div className="h-2 w-full rounded-full bg-surface overflow-hidden">
-      <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+    <div className="h-2 w-full rounded-full bg-[var(--rule)] overflow-hidden">
+      <div className="h-full bg-[var(--ink)]" style={{ width: `${width}%` }} />
     </div>
   );
 }
@@ -88,15 +88,15 @@ export default async function ChannelReport({
   const period = month ? `${MONTHS[month - 1]} ${year}` : `Año ${year}`;
 
   return (
-    <main className="min-h-screen bg-white text-foreground">
+    <main className="wsale min-h-screen" style={{ background: '#fff' }}>
       <div className="max-w-4xl mx-auto px-8 py-10">
         <div className="no-print flex items-center justify-between gap-4 mb-8">
-          <Link href="/wholesale/reps" className="text-secondary text-sm hover:underline">← Volver</Link>
+          <Link href="/wholesale/reps" className="text-[var(--ink-soft)] text-sm hover:underline">← Volver</Link>
           <div className="flex gap-2 items-center">
             <Link
               href={`/wholesale/reps/reporte?year=${year}`}
-              className={`h-9 px-3 leading-9 rounded-lg text-sm border transition ${
-                month === null ? 'bg-primary text-white border-primary' : 'border-border hover:border-primary'
+              className={`h-9 px-3 leading-9 rounded-[2px] text-sm border transition ${
+                month === null ? 'bg-[var(--ink)] text-white border-primary' : 'border-[var(--rule)] hover:border-[var(--rule-strong)]'
               }`}
             >
               Año
@@ -105,8 +105,8 @@ export default async function ChannelReport({
               <Link
                 key={m}
                 href={`/wholesale/reps/reporte?year=${year}&month=${i + 1}`}
-                className={`h-9 px-2 leading-9 rounded-lg text-xs border transition ${
-                  month === i + 1 ? 'bg-primary text-white border-primary' : 'border-border hover:border-primary'
+                className={`h-9 px-2 leading-9 rounded-[2px] text-xs border transition ${
+                  month === i + 1 ? 'bg-[var(--ink)] text-white border-primary' : 'border-[var(--rule)] hover:border-[var(--rule-strong)]'
                 }`}
               >
                 {m.slice(0, 3)}
@@ -116,20 +116,20 @@ export default async function ChannelReport({
           </div>
         </div>
 
-        <header className="flex items-start justify-between gap-6 border-b border-border pb-6">
+        <header className="flex items-start justify-between gap-6 border-b border-[var(--rule)] pb-6">
           <div>
             <Image src="/logo.png" alt="Aural" width={150} height={46} className="h-auto" priority />
-            <p className="text-xs uppercase tracking-widest text-secondary font-semibold mt-3">
+            <p className="text-xs uppercase tracking-widest text-[var(--ink-soft)] font-semibold mt-3">
               Wholesale · Reporte del canal
             </p>
-            <h1 className="text-2xl font-semibold mt-1">Todos los comerciales</h1>
+            <h1 className="wsale-display text-[26px] mt-1">Todos los comerciales</h1>
           </div>
           <div className="text-right text-sm">
             <p className="font-semibold">{period}</p>
-            <p className="text-secondary">
+            <p className="text-[var(--ink-soft)]">
               Generado el {now.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
-            <p className="text-secondary">{total.clients} clientes · {repList.length} comerciales</p>
+            <p className="text-[var(--ink-soft)]">{total.clients} clientes · {repList.length} comerciales</p>
           </div>
         </header>
 
@@ -142,21 +142,21 @@ export default async function ChannelReport({
             ['Inversión', cop(total.invested),
               total.revenue > 0 ? `${((total.invested / total.revenue) * 100).toFixed(1)}% de la venta` : ''],
           ].map(([label, value, hint]) => (
-            <div key={label} className="border border-border rounded-xl p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-secondary">{label}</p>
-              <p className="text-lg font-semibold mt-1">{value}</p>
-              {hint && <p className="text-xs text-secondary mt-0.5">{hint}</p>}
+            <div key={label} className="border border-[var(--rule)] rounded-[3px] p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-soft)]">{label}</p>
+              <p className="wsale-figure text-[19px] mt-1">{value}</p>
+              {hint && <p className="text-xs text-[var(--ink-soft)] mt-0.5">{hint}</p>}
             </div>
           ))}
         </section>
 
         <section className="mt-8 print-page">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-secondary border-b border-border pb-2 mb-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--ink-soft)] border-b border-[var(--rule)] pb-2 mb-4">
             Por comercial
           </h2>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-secondary text-xs uppercase tracking-wider">
+              <tr className="text-left text-[var(--ink-soft)] text-xs uppercase tracking-wider">
                 <th className="pb-2 font-semibold">Comercial</th>
                 <th className="pb-2 font-semibold text-right">Ppto.</th>
                 <th className="pb-2 font-semibold text-right">Venta</th>
@@ -169,22 +169,22 @@ export default async function ChannelReport({
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-t border-border print-row">
+                <tr key={r.id} className="border-t border-[var(--rule)] print-row">
                   <td className="py-2">
                     {r.name}
-                    {r.zone && <span className="text-secondary text-xs block">{r.zone}</span>}
+                    {r.zone && <span className="text-[var(--ink-soft)] text-xs block">{r.zone}</span>}
                   </td>
-                  <td className="py-2 text-right text-secondary">{r.budget > 0 ? cop(r.budget) : '—'}</td>
+                  <td className="py-2 text-right text-[var(--ink-soft)]">{r.budget > 0 ? cop(r.budget) : '—'}</td>
                   <td className="py-2 text-right font-medium">{cop(r.revenue)}</td>
                   <td className="py-2 text-right">
                     {r.budget > 0 ? `${Math.round((r.revenue / r.budget) * 100)}%` : '—'}
                   </td>
-                  <td className="py-2 text-right text-secondary">{r.units || '—'}</td>
-                  <td className="py-2 text-right text-secondary">{r.asp > 0 ? cop(r.asp) : '—'}</td>
+                  <td className="py-2 text-right text-[var(--ink-soft)]">{r.units || '—'}</td>
+                  <td className="py-2 text-right text-[var(--ink-soft)]">{r.asp > 0 ? cop(r.asp) : '—'}</td>
                   <td className="py-2 text-right">
                     {r.invested > 0 ? cop(r.invested) : '—'}
                     {r.invested > 0 && r.revenue > 0 && (
-                      <span className="text-secondary text-xs block">
+                      <span className="text-[var(--ink-soft)] text-xs block">
                         {((r.invested / r.revenue) * 100).toFixed(1)}%
                       </span>
                     )}
@@ -192,7 +192,7 @@ export default async function ChannelReport({
                   <td className="py-2"><Bar value={r.revenue} max={maxRevenue} /></td>
                 </tr>
               ))}
-              <tr className="border-t-2 border-border font-semibold">
+              <tr className="border-t-2 border-[var(--rule)] font-semibold">
                 <td className="py-2">Total canal</td>
                 <td className="py-2 text-right">{cop(total.budget)}</td>
                 <td className="py-2 text-right">{cop(total.revenue)}</td>
@@ -211,12 +211,12 @@ export default async function ChannelReport({
         </section>
 
         <section className="mt-8 print-page">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-secondary border-b border-border pb-2 mb-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--ink-soft)] border-b border-[var(--rule)] pb-2 mb-4">
             Mix de producto
           </h2>
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-secondary text-xs uppercase tracking-wider">
+              <tr className="text-left text-[var(--ink-soft)] text-xs uppercase tracking-wider">
                 <th className="pb-2 font-semibold">Comercial</th>
                 <th className="pb-2 font-semibold text-right">Binaurales</th>
                 <th className="pb-2 font-semibold text-right">Recargables</th>
@@ -225,18 +225,18 @@ export default async function ChannelReport({
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-t border-border print-row">
+                <tr key={r.id} className="border-t border-[var(--rule)] print-row">
                   <td className="py-2">{r.name}</td>
                   <td className="py-2 text-right">{(r.binaural * 100).toFixed(0)}%</td>
                   <td className="py-2 text-right">{(r.rechargeable * 100).toFixed(0)}%</td>
-                  <td className="py-2 text-right text-secondary">{r.clients}</td>
+                  <td className="py-2 text-right text-[var(--ink-soft)]">{r.clients}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </section>
 
-        <footer className="mt-10 pt-4 border-t border-border text-xs text-secondary flex justify-between">
+        <footer className="mt-10 pt-4 border-t border-[var(--rule)] text-xs text-[var(--ink-soft)] flex justify-between">
           <span>Aural · Wholesale</span>
           <span>Canal completo · {period}</span>
         </footer>

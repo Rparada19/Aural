@@ -79,9 +79,9 @@ export function NewSaleForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="bg-white rounded-2xl border border-border p-6 shadow-sm max-w-2xl space-y-5">
+    <form onSubmit={onSubmit} className="wsale-panel p-6 max-w-2xl space-y-5">
       <Field label="Cliente">
-        <select required value={form.client_id} onChange={set('client_id')} className={inputClass}>
+        <select required value={form.client_id} onChange={set('client_id')} className="wsale-input">
           <option value="">Selecciona un cliente</option>
           {clients.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
@@ -91,10 +91,10 @@ export function NewSaleForm({
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Fecha de venta">
-          <input required type="date" value={form.sold_on} onChange={set('sold_on')} className={inputClass} />
+          <input required type="date" value={form.sold_on} onChange={set('sold_on')} className="wsale-input" />
         </Field>
         <Field label="Número de factura">
-          <input value={form.invoice_number} onChange={set('invoice_number')} className={inputClass} />
+          <input value={form.invoice_number} onChange={set('invoice_number')} className="wsale-input" />
         </Field>
         <Field label="Campaña" hint="Si la venta salió de una campaña, escribe su nombre.">
           <input
@@ -102,41 +102,41 @@ export function NewSaleForm({
             onChange={set('campaign_name')}
             list="campanas-wholesale"
             placeholder="Ej. Jornada octubre"
-            className={inputClass}
+            className="wsale-input"
           />
           <datalist id="campanas-wholesale">
             {campaigns.map((c) => <option key={c} value={c} />)}
           </datalist>
         </Field>
         <Field label="Paciente" hint="Del centro auditivo, para el recordatorio de garantía.">
-          <input value={form.patient_name} onChange={set('patient_name')} className={inputClass} />
+          <input value={form.patient_name} onChange={set('patient_name')} className="wsale-input" />
         </Field>
         <Field label="Cédula">
-          <input value={form.patient_document} onChange={set('patient_document')} className={inputClass} />
+          <input value={form.patient_document} onChange={set('patient_document')} className="wsale-input" />
         </Field>
       </div>
 
       <div className="grid gap-5 sm:grid-cols-3">
         <Field label="Unidades">
-          <input required type="number" min="1" value={form.units} onChange={set('units')} className={inputClass} />
+          <input required type="number" min="1" value={form.units} onChange={set('units')} className="wsale-input" />
         </Field>
         <Field label="Precio de lista" hint="Por unidad.">
-          <input required type="number" min="0" step="1000" value={form.list_price} onChange={set('list_price')} className={inputClass} />
+          <input required type="number" min="0" step="1000" value={form.list_price} onChange={set('list_price')} className="wsale-input" />
         </Field>
         <Field label="Descuento %">
-          <input type="number" min="0" max="100" step="0.5" value={form.discount_percent} onChange={set('discount_percent')} className={inputClass} />
+          <input type="number" min="0" max="100" step="0.5" value={form.discount_percent} onChange={set('discount_percent')} className="wsale-input" />
         </Field>
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Plataforma">
-          <select required value={form.platform} onChange={set('platform')} className={inputClass}>
+          <select required value={form.platform} onChange={set('platform')} className="wsale-input">
             <option value="">Selecciona…</option>
             {platforms.map((p) => <option key={p.slug} value={p.slug}>{p.label}</option>)}
           </select>
         </Field>
         <Field label="Tecnología">
-          <select required value={form.tech_level} onChange={set('tech_level')} className={inputClass}>
+          <select required value={form.tech_level} onChange={set('tech_level')} className="wsale-input">
             <option value="">Selecciona…</option>
             {techLevels.map((t) => <option key={t.slug} value={t.slug}>{t.label}</option>)}
           </select>
@@ -170,17 +170,17 @@ export function NewSaleForm({
         />
       </div>
 
-      <div className="bg-surface rounded-xl px-5 py-4 flex items-baseline justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Neto</span>
+      <div className="bg-[var(--paper)] rounded-[3px] px-5 py-4 flex items-baseline justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-soft)]">Neto</span>
         <span className="text-xl font-semibold">{cop(net)}</span>
       </div>
 
-      {error && <p className="text-danger text-sm bg-danger/10 px-3 py-2 rounded-md">{error}</p>}
+      {error && <p className="wsale-bad text-sm bg-danger/10 px-3 py-2 rounded-[2px]">{error}</p>}
 
       <button
         type="submit"
         disabled={loading}
-        className="h-12 px-6 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft disabled:opacity-50 transition"
+        className="wsale-btn"
       >
         {loading ? 'Guardando…' : 'Registrar venta'}
       </button>
@@ -199,8 +199,8 @@ function Choice({
 }) {
   return (
     <div>
-      <span className="text-xs font-semibold uppercase tracking-wider text-secondary">{label}</span>
-      <div className="mt-1 flex rounded-lg border border-border overflow-hidden">
+      <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-soft)]">{label}</span>
+      <div className="mt-1 flex rounded-[2px] border border-[var(--rule)] overflow-hidden">
         {options.map((o) => (
           <button
             key={o.value}
@@ -208,7 +208,7 @@ function Choice({
             title={o.hint ?? undefined}
             onClick={() => onChange(o.value)}
             className={`flex-1 h-11 text-sm font-medium transition ${
-              value === o.value ? 'bg-primary text-white' : 'bg-white hover:bg-surface'
+              value === o.value ? 'bg-[var(--ink)] text-white' : 'bg-white hover:bg-[rgba(16,35,63,.05)]'
             }`}
           >
             {o.label}

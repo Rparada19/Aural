@@ -30,31 +30,31 @@ export function NewRepForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="bg-white rounded-2xl border border-border p-6 shadow-sm space-y-4">
+    <form onSubmit={onSubmit} className="wsale-panel p-6 space-y-4">
       <h2 className="font-semibold">Nuevo comercial</h2>
       <Field label="Nombre">
-        <input required value={form.name} onChange={set('name')} className={inputClass} />
+        <input required value={form.name} onChange={set('name')} className="wsale-input" />
       </Field>
       <Field label="Zona" hint="Ej. Costa, Antioquia, Bogotá.">
-        <input value={form.zone} onChange={set('zone')} className={inputClass} />
+        <input value={form.zone} onChange={set('zone')} className="wsale-input" />
       </Field>
       <Field label="Teléfono">
-        <input value={form.phone} onChange={set('phone')} className={inputClass} />
+        <input value={form.phone} onChange={set('phone')} className="wsale-input" />
       </Field>
       <Field label="Correo">
-        <input type="email" value={form.email} onChange={set('email')} className={inputClass} />
+        <input type="email" value={form.email} onChange={set('email')} className="wsale-input" />
       </Field>
 
-      {error && <p className="text-danger text-sm bg-danger/10 px-3 py-2 rounded-md">{error}</p>}
+      {error && <p className="wsale-bad text-sm bg-danger/10 px-3 py-2 rounded-[2px]">{error}</p>}
 
       <button
         type="submit"
         disabled={loading}
-        className="w-full h-11 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft disabled:opacity-50 transition"
+        className="w-full h-11 rounded-[2px] bg-[var(--ink)] text-white font-semibold hover:opacity-90 disabled:opacity-50 transition"
       >
         {loading ? 'Guardando…' : 'Crear comercial'}
       </button>
-      <p className="text-xs text-secondary">
+      <p className="text-xs text-[var(--ink-soft)]">
         Esto crea la ficha del comercial. Para darle acceso a la app, luego se vincula desde Equipo Aural.
       </p>
     </form>

@@ -7,9 +7,10 @@ import {
 import { cop } from '@/lib/format';
 
 // Slots 1-3 de la paleta categórica, validados para daltonismo y contraste.
-const SERIES = ['#2a78d6', '#eb6834', '#1baf7a'];
-const BUDGET = '#eb6834';
-const ACTUAL = '#2a78d6';
+// Paleta validada para daltonismo y contraste, afinada al papel cálido.
+const SERIES = ['#1b4f8a', '#b4551f', '#1baf7a'];
+const BUDGET = '#c9c2b4';
+const ACTUAL = '#10233f';
 
 export interface RepChartRow {
   name: string;
@@ -42,14 +43,16 @@ const MONEY_TICK = (n: number) =>
   : n >= 1_000_000 ? `$${Math.round(n / 1_000_000)}M`
   : `$${n}`;
 
-const AXIS = { fontSize: 11, fill: '#706F6F' };
-const GRID = '#E5E7EB';
+const AXIS = { fontSize: 10, fill: '#8b93a4' };
+const GRID = '#ddd8cd';
 
 function Card({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
-    <section className="bg-white rounded-2xl border border-border p-6 shadow-sm">
-      <h2 className="font-semibold">{title}</h2>
-      <p className="text-secondary text-xs mt-1 mb-4">{hint}</p>
+    <section className="wsale-panel p-6">
+      <h2 className="wsale-display text-[17px]">{title}</h2>
+      <p className="text-[var(--ink-faint)] text-[11px] mt-1 mb-5 pb-3 border-b border-[var(--rule)]">
+        {hint}
+      </p>
       {children}
     </section>
   );
@@ -65,10 +68,10 @@ function Box({ children, height = 260 }: { children: React.ReactElement; height?
 
 function TipShell({ label, rows, footer }: { label?: string; rows: React.ReactNode; footer?: React.ReactNode }) {
   return (
-    <div className="bg-white border border-border rounded-lg shadow-sm px-3 py-2 text-xs">
-      {label && <p className="font-semibold text-foreground mb-1">{label}</p>}
+    <div className="bg-white border border-[var(--rule)] rounded-[2px] px-3 py-2 text-xs">
+      {label && <p className="font-semibold text-[var(--ink)] mb-1">{label}</p>}
       {rows}
-      {footer && <p className="mt-1 pt-1 border-t border-border text-secondary">{footer}</p>}
+      {footer && <p className="mt-1 pt-1 border-t border-[var(--rule)] text-[var(--ink-soft)]">{footer}</p>}
     </div>
   );
 }
@@ -88,14 +91,14 @@ function makeTooltip(fmt: (v: number) => string, withCompliance = false) {
       <TipShell
         label={label}
         rows={payload.map((p) => (
-          <p key={p.name} className="flex items-center gap-2 text-secondary">
+          <p key={p.name} className="flex items-center gap-2 text-[var(--ink-soft)]">
             <span className="w-2 h-2 rounded-sm" style={{ background: p.color }} />
-            {p.name}: <span className="text-foreground font-medium">{fmt(p.value)}</span>
+            {p.name}: <span className="text-[var(--ink)] font-medium">{fmt(p.value)}</span>
           </p>
         ))}
         footer={
           withCompliance && budget > 0 ? (
-            <>Cumplimiento: <span className="text-foreground font-semibold">{Math.round((actual / budget) * 100)}%</span></>
+            <>Cumplimiento: <span className="text-[var(--ink)] font-semibold">{Math.round((actual / budget) * 100)}%</span></>
           ) : undefined
         }
       />
@@ -127,11 +130,11 @@ function Comparison({
           axisLine={false}
           tickLine={false}
         />
-        <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 12, fill: '#041E42' }} axisLine={false} tickLine={false} />
-        <Tooltip content={unit === 'cop' ? <TipCop /> : <TipUnits />} cursor={{ fill: 'rgba(4, 30, 66, 0.04)' }} />
+        <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 11, fill: '#10233f' }} axisLine={false} tickLine={false} />
+        <Tooltip content={unit === 'cop' ? <TipCop /> : <TipUnits />} cursor={{ fill: 'rgba(180, 85, 31, 0.06)' }} />
         <Legend wrapperStyle={{ fontSize: 12 }} iconType="square" />
-        <Bar dataKey={budgetKey} name="Presupuesto" fill={BUDGET} radius={[0, 4, 4, 0]} barSize={14} />
-        <Bar dataKey={actualKey} name="Real" fill={ACTUAL} radius={[0, 4, 4, 0]} barSize={14} />
+        <Bar dataKey={budgetKey} name="Presupuesto" fill={BUDGET} radius={[0, 1, 1, 0]} barSize={14} />
+        <Bar dataKey={actualKey} name="Real" fill={ACTUAL} radius={[0, 1, 1, 0]} barSize={14} />
       </BarChart>
     </Box>
   );
@@ -151,12 +154,12 @@ function SingleBar({
       <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 4 }}>
         <CartesianGrid horizontal={false} stroke={GRID} strokeDasharray="3 3" />
         <XAxis type="number" tick={AXIS} tickFormatter={fmt} axisLine={false} tickLine={false} />
-        <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 12, fill: '#041E42' }} axisLine={false} tickLine={false} />
-        <Tooltip content={tip} cursor={{ fill: 'rgba(4, 30, 66, 0.04)' }} />
+        <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 11, fill: '#10233f' }} axisLine={false} tickLine={false} />
+        <Tooltip content={tip} cursor={{ fill: 'rgba(180, 85, 31, 0.06)' }} />
         <Bar
           dataKey={dataKey}
           fill={color}
-          radius={[0, 4, 4, 0]}
+          radius={[0, 1, 1, 0]}
           barSize={18}
           name={
             dataKey === 'asp' ? 'ASP'
@@ -200,7 +203,7 @@ export function RepCharts({
             <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
             <XAxis dataKey="month" tick={AXIS} axisLine={false} tickLine={false} />
             <YAxis tick={AXIS} tickFormatter={MONEY_TICK} axisLine={false} tickLine={false} />
-            <Tooltip content={<TipCopPlain />} cursor={{ stroke: '#041E42', strokeOpacity: 0.15 }} />
+            <Tooltip content={<TipCopPlain />} cursor={{ stroke: '#10233f', strokeOpacity: 0.2 }} />
             <Legend wrapperStyle={{ fontSize: 12 }} iconType="square" />
             {repNames.map((name, i) => (
               <Line
@@ -225,7 +228,7 @@ export function RepCharts({
               <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
               <XAxis dataKey="month" tick={AXIS} axisLine={false} tickLine={false} />
               <YAxis tick={AXIS} tickFormatter={MONEY_TICK} axisLine={false} tickLine={false} />
-              <Tooltip content={<TipCopPlain />} cursor={{ stroke: '#041E42', strokeOpacity: 0.15 }} />
+              <Tooltip content={<TipCopPlain />} cursor={{ stroke: '#10233f', strokeOpacity: 0.2 }} />
               <Legend wrapperStyle={{ fontSize: 12 }} iconType="square" />
               <Line type="monotone" dataKey="presupuesto" name="Presupuesto" stroke={BUDGET} strokeWidth={2} strokeDasharray="5 4" dot={false} />
               <Line type="monotone" dataKey="real" name="Real" stroke={ACTUAL} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
@@ -237,12 +240,12 @@ export function RepCharts({
           <Box>
             <BarChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 4 }} barGap={2}>
               <CartesianGrid vertical={false} stroke={GRID} strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#706F6F' }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8b93a4' }} axisLine={false} tickLine={false} />
               <YAxis tick={AXIS} tickFormatter={(v) => `${v}%`} domain={[0, 100]} axisLine={false} tickLine={false} />
-              <Tooltip content={<TipPct />} cursor={{ fill: 'rgba(4, 30, 66, 0.04)' }} />
+              <Tooltip content={<TipPct />} cursor={{ fill: 'rgba(180, 85, 31, 0.06)' }} />
               <Legend wrapperStyle={{ fontSize: 12 }} iconType="square" />
-              <Bar dataKey="binauralRate" name="Binaural" fill={SERIES[0]} radius={[4, 4, 0, 0]} barSize={22} />
-              <Bar dataKey="rechargeableRate" name="Recargable" fill={SERIES[2]} radius={[4, 4, 0, 0]} barSize={22} />
+              <Bar dataKey="binauralRate" name="Binaural" fill={SERIES[0]} radius={[1, 1, 0, 0]} barSize={22} />
+              <Bar dataKey="rechargeableRate" name="Recargable" fill={SERIES[2]} radius={[1, 1, 0, 0]} barSize={22} />
             </BarChart>
           </Box>
         </Card>
@@ -254,7 +257,7 @@ export function RepCharts({
             <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
             <XAxis dataKey="month" tick={AXIS} axisLine={false} tickLine={false} />
             <YAxis tick={AXIS} tickFormatter={MONEY_TICK} axisLine={false} tickLine={false} />
-            <Tooltip content={<TipCopPlain />} cursor={{ stroke: '#041E42', strokeOpacity: 0.15 }} />
+            <Tooltip content={<TipCopPlain />} cursor={{ stroke: '#10233f', strokeOpacity: 0.2 }} />
             <Legend wrapperStyle={{ fontSize: 12 }} iconType="square" />
             {repNames.map((name, i) => (
               <Line
@@ -277,9 +280,9 @@ export function RepCharts({
           <Box>
             <BarChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
               <CartesianGrid vertical={false} stroke={GRID} strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#706F6F' }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8b93a4' }} axisLine={false} tickLine={false} />
               <YAxis tick={AXIS} tickFormatter={(v) => `${v}%`} domain={[0, 100]} axisLine={false} tickLine={false} />
-              <Tooltip content={<TipPct />} cursor={{ fill: 'rgba(4, 30, 66, 0.04)' }} />
+              <Tooltip content={<TipPct />} cursor={{ fill: 'rgba(180, 85, 31, 0.06)' }} />
               <Legend wrapperStyle={{ fontSize: 12 }} iconType="square" />
               {styleKeys.map((k, i) => (
                 <Bar

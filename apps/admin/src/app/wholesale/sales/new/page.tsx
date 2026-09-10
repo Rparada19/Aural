@@ -45,11 +45,11 @@ export default async function NewWholesaleSalePage({
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
       <header className="mb-8">
-        <Link href="/wholesale/sales" className="text-secondary text-sm hover:underline">
+        <Link href="/wholesale/sales" className="text-[var(--ink-soft)] text-sm hover:underline">
           ← Ventas
         </Link>
         <h1 className="text-2xl font-semibold mt-2">Registrar venta</h1>
-        <p className="text-secondary text-sm mt-1">Una factura por venta, con su descuento y detalle.</p>
+        <p className="text-[var(--ink-soft)] text-sm mt-1">Una factura por venta, con su descuento y detalle.</p>
       </header>
 
       {clientList.length === 0 ? (

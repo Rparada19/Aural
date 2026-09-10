@@ -8,10 +8,10 @@ import { requireWholesaleMe, cop } from '@/lib/wholesale';
 export const dynamic = 'force-dynamic';
 
 function YearRatio({ actual, budget }: { actual: number; budget: number }) {
-  if (budget <= 0) return <span className="text-secondary">—</span>;
+  if (budget <= 0) return <span className="text-[var(--ink-soft)]">—</span>;
   const ratio = actual / budget;
   return (
-    <span className={ratio >= 1 ? 'text-success font-semibold' : ratio >= 0.8 ? 'text-warning' : 'text-danger'}>
+    <span className={ratio >= 1 ? 'wsale-good font-semibold' : ratio >= 0.8 ? 'wsale-warn' : 'wsale-bad'}>
       {Math.round(ratio * 100)}%
     </span>
   );
@@ -98,12 +98,12 @@ export default async function WholesaleBudgetDetail({
               ? `/wholesale/budgets/zona/${encodeURIComponent(client.zone)}?year=${year}`
               : `/wholesale/budgets?year=${year}`
           }
-          className="text-secondary text-sm hover:underline"
+          className="text-[var(--ink-soft)] text-sm hover:underline"
         >
           ← {client.zone || 'Presupuestos'}
         </Link>
         <h1 className="text-2xl font-semibold mt-2">{client.name}</h1>
-        <p className="text-secondary text-sm mt-1">
+        <p className="text-[var(--ink-soft)] text-sm mt-1">
           {[client.city, client.zone].filter(Boolean).join(' · ')} · presupuesto mes a mes
         </p>
 
@@ -112,9 +112,7 @@ export default async function WholesaleBudgetDetail({
             <Link
               key={y}
               href={`/wholesale/budgets/${clientId}?year=${y}`}
-              className={`h-9 leading-9 px-4 rounded-lg text-sm font-semibold transition ${
-                y === year ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
-              }`}
+              className="wsale-chip" data-on={y === year}
             >
               {y}
             </Link>
@@ -134,15 +132,15 @@ export default async function WholesaleBudgetDetail({
       />
 
       {history.length > 0 && (
-        <section className="mt-8 bg-white rounded-2xl border border-border shadow-sm overflow-x-auto">
+        <section className="mt-8 wsale-panel overflow-x-auto">
           <div className="px-5 pt-5">
             <h2 className="font-semibold">Histórico</h2>
-            <p className="text-secondary text-xs mt-1">
+            <p className="text-[var(--ink-soft)] text-xs mt-1">
               Todos los años registrados de este cliente, con su acumulado.
             </p>
           </div>
-          <table className="w-full text-sm mt-4 min-w-[640px] border-collapse [&_th]:border [&_th]:border-border [&_td]:border [&_td]:border-border">
-            <thead className="bg-surface text-secondary">
+          <table className="w-full text-sm mt-4 min-w-[640px] border-collapse [&_th]:border [&_th]:border-[var(--rule)] [&_td]:border [&_td]:border-[var(--rule)]">
+            <thead>
               <tr className="text-left">
                 <th className="px-5 py-3 font-semibold" rowSpan={2}>Año</th>
                 <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Presupuesto</th>
@@ -160,16 +158,16 @@ export default async function WholesaleBudgetDetail({
             </thead>
             <tbody>
               {history.map(([y, r]) => (
-                <tr key={y} className={y === year ? 'bg-primary/5' : ''}>
+                <tr key={y} className={y === year ? 'bg-[rgba(180,85,31,0.05)]' : ''}>
                   <td className="px-5 py-3">
                     <Link href={`/wholesale/budgets/${clientId}?year=${y}`} className="font-medium hover:underline">
                       {y}
                     </Link>
                   </td>
                   <td className="px-3 py-3 text-right">{r.budgetAmount > 0 ? cop(r.budgetAmount) : '—'}</td>
-                  <td className="px-3 py-3 text-right text-secondary">{r.budgetUnits || '—'}</td>
+                  <td className="px-3 py-3 text-right text-[var(--ink-soft)]">{r.budgetUnits || '—'}</td>
                   <td className="px-3 py-3 text-right font-medium">{cop(r.actualAmount)}</td>
-                  <td className="px-3 py-3 text-right text-secondary">{r.actualUnits || '—'}</td>
+                  <td className="px-3 py-3 text-right text-[var(--ink-soft)]">{r.actualUnits || '—'}</td>
                   <td className="px-3 py-3 text-right">
                     <YearRatio actual={r.actualAmount} budget={r.budgetAmount} />
                   </td>
@@ -179,7 +177,7 @@ export default async function WholesaleBudgetDetail({
                 </tr>
               ))}
             </tbody>
-            <tfoot className="bg-surface font-semibold">
+            <tfoot>
               <tr>
                 <td className="px-5 py-3">Acumulado</td>
                 <td className="px-3 py-3 text-right">{cop(lifetime.budgetAmount)}</td>

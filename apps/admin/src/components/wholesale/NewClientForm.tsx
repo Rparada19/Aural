@@ -32,34 +32,34 @@ export function NewClientForm({ reps }: { reps: { id: string; name: string; zone
   }
 
   return (
-    <form onSubmit={onSubmit} className="bg-white rounded-2xl border border-border p-6 shadow-sm max-w-2xl space-y-5">
+    <form onSubmit={onSubmit} className="wsale-panel p-6 max-w-2xl space-y-5">
       <Field label="Nombre del centro">
-        <input required value={form.name} onChange={set('name')} className={inputClass} />
+        <input required value={form.name} onChange={set('name')} className="wsale-input" />
       </Field>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="NIT">
-          <input value={form.nit} onChange={set('nit')} className={inputClass} />
+          <input value={form.nit} onChange={set('nit')} className="wsale-input" />
         </Field>
         <Field label="Contacto">
-          <input value={form.contact_name} onChange={set('contact_name')} className={inputClass} />
+          <input value={form.contact_name} onChange={set('contact_name')} className="wsale-input" />
         </Field>
         <Field label="Teléfono">
-          <input value={form.phone} onChange={set('phone')} className={inputClass} />
+          <input value={form.phone} onChange={set('phone')} className="wsale-input" />
         </Field>
         <Field label="Correo" hint="Aquí llegarán los recordatorios de garantía.">
-          <input type="email" value={form.email} onChange={set('email')} className={inputClass} />
+          <input type="email" value={form.email} onChange={set('email')} className="wsale-input" />
         </Field>
         <Field label="Ciudad">
-          <input value={form.city} onChange={set('city')} className={inputClass} />
+          <input value={form.city} onChange={set('city')} className="wsale-input" />
         </Field>
         <Field label="Zona">
-          <input value={form.zone} onChange={set('zone')} className={inputClass} />
+          <input value={form.zone} onChange={set('zone')} className="wsale-input" />
         </Field>
       </div>
 
       <Field label="Comercial asignado">
-        <select value={form.rep_id} onChange={set('rep_id')} className={inputClass}>
+        <select value={form.rep_id} onChange={set('rep_id')} className="wsale-input">
           <option value="">Sin asignar</option>
           {reps.map((r) => (
             <option key={r.id} value={r.id}>{r.name}{r.zone ? ` · ${r.zone}` : ''}</option>
@@ -72,16 +72,16 @@ export function NewClientForm({ reps }: { reps: { id: string; name: string; zone
           value={form.notes}
           onChange={set('notes')}
           rows={3}
-          className="mt-1 w-full rounded-lg border border-border bg-white p-3 outline-none focus:border-primary"
+          className="mt-1 w-full rounded-[2px] border border-[var(--rule)] bg-white p-3 outline-none focus:border-[var(--accent)]"
         />
       </Field>
 
-      {error && <p className="text-danger text-sm bg-danger/10 px-3 py-2 rounded-md">{error}</p>}
+      {error && <p className="wsale-bad text-sm bg-danger/10 px-3 py-2 rounded-[2px]">{error}</p>}
 
       <button
         type="submit"
         disabled={loading}
-        className="h-12 px-6 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft disabled:opacity-50 transition"
+        className="wsale-btn"
       >
         {loading ? 'Guardando…' : 'Guardar cliente'}
       </button>

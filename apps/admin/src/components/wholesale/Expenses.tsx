@@ -63,7 +63,7 @@ export function Expenses({
       <div className="flex items-baseline justify-between gap-4 mb-4">
         <div>
           <h2 className="font-semibold">Gastos de {monthLabel}</h2>
-          <p className="text-secondary text-xs mt-1">
+          <p className="text-[var(--ink-soft)] text-xs mt-1">
             Cada gasto se imputa al cliente con el que se hizo.
           </p>
         </div>
@@ -76,11 +76,11 @@ export function Expenses({
             <li key={key} className="flex items-center gap-3 text-sm">
               <span className="flex-1 truncate">
                 {key === '__none__'
-                  ? <span className="text-secondary">Sin cliente asignado</span>
+                  ? <span className="text-[var(--ink-soft)]">Sin cliente asignado</span>
                   : clientName.get(key) ?? 'Cliente'}
               </span>
-              <div className="w-28 h-2 rounded-full bg-surface overflow-hidden">
-                <div className="h-full bg-primary rounded-full" style={{ width: `${(amount / ranked[0][1]) * 100}%` }} />
+              <div className="w-28 h-2 rounded-full bg-[var(--rule)] overflow-hidden">
+                <div className="h-full bg-[var(--ink)]" style={{ width: `${(amount / ranked[0][1]) * 100}%` }} />
               </div>
               <span className="w-28 text-right font-medium">{cop(amount)}</span>
             </li>
@@ -90,18 +90,18 @@ export function Expenses({
 
       <div className="space-y-2">
         {expenses.length === 0 && (
-          <p className="text-secondary text-sm">Sin gastos cargados este mes.</p>
+          <p className="text-[var(--ink-soft)] text-sm">Sin gastos cargados este mes.</p>
         )}
         {expenses.map((e) => {
           const cat = catBySlug.get(e.category);
           return (
-            <div key={e.id} className="flex items-start gap-3 border border-border rounded-lg p-3 text-sm">
+            <div key={e.id} className="flex items-start gap-3 border border-[var(--rule)] rounded-[2px] p-3 text-sm">
               <span aria-hidden title={cat?.label}>{cat?.icon ?? '💸'}</span>
               <div className="flex-1 min-w-0">
                 <p className="truncate">
                   {e.description || cat?.label || 'Gasto'}
                 </p>
-                <p className="text-secondary text-xs">
+                <p className="text-[var(--ink-soft)] text-xs">
                   {e.spent_on}
                   {e.client_id && ` · ${clientName.get(e.client_id) ?? 'Cliente'}`}
                 </p>
@@ -110,7 +110,7 @@ export function Expenses({
               <button
                 onClick={() => remove(e.id)}
                 disabled={busy === e.id}
-                className="text-secondary hover:text-danger text-xs disabled:opacity-50"
+                className="text-[var(--ink-soft)] hover:wsale-bad text-xs disabled:opacity-50"
               >
                 ✕
               </button>
@@ -132,7 +132,7 @@ export function Expenses({
         ) : (
           <button
             onClick={() => setOpen(true)}
-            className="w-full h-11 rounded-lg border border-dashed border-border text-secondary text-sm hover:border-primary hover:text-primary transition"
+            className="w-full h-11 rounded-[2px] border border-dashed border-[var(--rule)] text-[var(--ink-soft)] text-sm hover:border-[var(--rule-strong)] hover:text-[var(--accent)] transition"
           >
             + Cargar gasto
           </button>
@@ -182,35 +182,35 @@ function NewExpense({
     }
   }
 
-  const field = 'w-full h-10 rounded-lg border border-border px-2 text-sm outline-none focus:border-primary';
+  const field = 'w-full h-10 rounded-[2px] border border-[var(--rule)] px-2 text-sm outline-none focus:border-[var(--accent)]';
 
   return (
-    <form onSubmit={submit} className="border border-border rounded-xl p-4 space-y-3">
+    <form onSubmit={submit} className="border border-[var(--rule)] rounded-[3px] p-4 space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Categoría</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-soft)]">Categoría</span>
           <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={field}>
             {categories.map((c) => <option key={c.slug} value={c.slug}>{c.icon} {c.label}</option>)}
           </select>
         </label>
         <label className="block">
-          <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Fecha</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-soft)]">Fecha</span>
           <input type="date" required value={form.spent_on} onChange={(e) => setForm({ ...form, spent_on: e.target.value })} className={field} />
         </label>
         <label className="block">
-          <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Cliente</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-soft)]">Cliente</span>
           <select value={form.client_id} onChange={(e) => setForm({ ...form, client_id: e.target.value })} className={field}>
             <option value="">Sin cliente</option>
             {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </label>
         <label className="block">
-          <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Valor</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-soft)]">Valor</span>
           <input type="number" required min="0" step="1000" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className={field} />
         </label>
       </div>
       <label className="block">
-        <span className="text-xs font-semibold uppercase tracking-wider text-secondary">Detalle</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-soft)]">Detalle</span>
         <input
           placeholder="¿En qué se gastó?"
           value={form.description}
@@ -218,12 +218,12 @@ function NewExpense({
           className={field}
         />
       </label>
-      {error && <p className="text-danger text-xs">{error}</p>}
+      {error && <p className="wsale-bad text-xs">{error}</p>}
       <div className="flex gap-2">
-        <button type="submit" disabled={saving} className="h-10 px-4 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary-soft disabled:opacity-50 transition">
+        <button type="submit" disabled={saving} className="wsale-btn">
           {saving ? 'Guardando…' : 'Guardar gasto'}
         </button>
-        <button type="button" onClick={onCancel} className="h-10 px-4 rounded-lg border border-border text-sm hover:bg-surface transition">
+        <button type="button" onClick={onCancel} className="wsale-btn-ghost">
           Cancelar
         </button>
       </div>

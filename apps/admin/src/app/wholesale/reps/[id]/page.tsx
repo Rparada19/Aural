@@ -195,23 +195,23 @@ export default async function WholesaleRepDetail({
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
       <header className="mb-8">
-        <Link href="/wholesale/reps" className="text-secondary text-sm hover:underline">
+        <Link href="/wholesale/reps" className="text-[var(--ink-soft)] text-sm hover:underline">
           ← Comerciales
         </Link>
         <div className="flex items-start justify-between gap-4 mt-2">
           <div>
             <h1 className="text-2xl font-semibold">{rep.name}</h1>
-            <p className="text-secondary text-sm mt-1">
+            <p className="text-[var(--ink-soft)] text-sm mt-1">
               {[rep.zone, rep.email, rep.phone].filter(Boolean).join(' · ') || 'Sin datos de contacto'}
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <p className="text-secondary text-sm">
+            <p className="text-[var(--ink-soft)] text-sm">
               {clientList.length} cliente{clientList.length === 1 ? '' : 's'} en cartera
             </p>
             <Link
               href={`/wholesale/reps/${id}/reporte?year=${year}&month=${month}`}
-              className="h-10 leading-10 px-4 rounded-lg border border-border text-sm font-semibold hover:border-primary transition"
+              className="wsale-btn-ghost"
             >
               Reporte PDF
             </Link>
@@ -224,9 +224,7 @@ export default async function WholesaleRepDetail({
           <Link
             key={m}
             href={`/wholesale/reps/${id}?year=${year}&month=${m}`}
-            className={`h-9 leading-9 px-3 rounded-lg text-xs font-semibold transition ${
-              m === month ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
-            }`}
+            className="wsale-chip" data-on={m === month}
           >
             {MONTHS[m - 1].slice(0, 3)}
           </Link>
@@ -260,11 +258,11 @@ export default async function WholesaleRepDetail({
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px] mt-8 items-start">
-        <section className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+        <section className="wsale-panel p-6">
           <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
             <div>
               <h2 className="font-semibold">Agenda</h2>
-              <p className="text-secondary text-xs mt-1">
+              <p className="text-[var(--ink-soft)] text-xs mt-1">
                 {rangeLabel} · {(weekActs ?? []).length} actividad
                 {(weekActs ?? []).length === 1 ? '' : 'es'}, {agendaDone} cumplida
                 {agendaDone === 1 ? '' : 's'}
@@ -272,13 +270,13 @@ export default async function WholesaleRepDetail({
             </div>
 
             <div className="flex gap-2 items-center">
-              <div className="flex rounded-lg border border-border overflow-hidden">
+              <div className="flex rounded-[2px] border border-[var(--rule)] overflow-hidden">
                 {([['day', 'Día'], ['week', 'Semana'], ['month', 'Mes']] as const).map(([v, label]) => (
                   <Link
                     key={v}
                     href={agendaHref(v, v === 'week' ? mondayOf(new Date(`${anchor}T00:00:00Z`)) : anchor)}
                     className={`h-9 px-3 leading-9 text-sm transition ${
-                      view === v ? 'bg-primary text-white' : 'bg-white hover:bg-surface'
+                      view === v ? 'bg-[var(--ink)] text-white' : 'bg-white hover:bg-[rgba(16,35,63,.05)]'
                     }`}
                   >
                     {label}
@@ -286,11 +284,11 @@ export default async function WholesaleRepDetail({
                 ))}
               </div>
               <Link href={agendaHref(view, shiftAnchor(view, anchor, -1))}
-                className="h-9 px-3 leading-9 rounded-lg border border-border text-sm hover:border-primary transition">←</Link>
+                className="h-9 px-3 leading-9 rounded-[2px] border border-[var(--rule)] text-sm hover:border-[var(--rule-strong)] transition">←</Link>
               <Link href={agendaHref(view, view === 'week' ? mondayOf(now) : today)}
-                className="h-9 px-3 leading-9 rounded-lg border border-border text-sm hover:border-primary transition">Hoy</Link>
+                className="h-9 px-3 leading-9 rounded-[2px] border border-[var(--rule)] text-sm hover:border-[var(--rule-strong)] transition">Hoy</Link>
               <Link href={agendaHref(view, shiftAnchor(view, anchor, 1))}
-                className="h-9 px-3 leading-9 rounded-lg border border-border text-sm hover:border-primary transition">→</Link>
+                className="h-9 px-3 leading-9 rounded-[2px] border border-[var(--rule)] text-sm hover:border-[var(--rule-strong)] transition">→</Link>
             </div>
           </div>
 
@@ -305,9 +303,9 @@ export default async function WholesaleRepDetail({
           />
         </section>
 
-        <section className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+        <section className="wsale-panel p-6">
           <h2 className="font-semibold">Actividad de {MONTHS[month - 1]}</h2>
-          <p className="text-secondary text-xs mt-1 mb-4">
+          <p className="text-[var(--ink-soft)] text-xs mt-1 mb-4">
             Cumplidas contra la meta que fija coordinación.
           </p>
           <ActivityTargets
@@ -325,15 +323,15 @@ export default async function WholesaleRepDetail({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2 mt-6 items-start">
-        <section className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+        <section className="wsale-panel p-6">
           <h2 className="font-semibold">Objetivos de {MONTHS[month - 1]}</h2>
-          <p className="text-secondary text-xs mt-1 mb-4">
+          <p className="text-[var(--ink-soft)] text-xs mt-1 mb-4">
             Los define coordinación; el avance lo reporta quien ejecuta.
           </p>
 
           <div className="space-y-3">
             {monthGoals.length === 0 && (
-              <p className="text-secondary text-sm">Todavía no hay objetivos para este mes.</p>
+              <p className="text-[var(--ink-soft)] text-sm">Todavía no hay objetivos para este mes.</p>
             )}
             {monthGoals.map((g) => (
               <ProgressCard
@@ -354,7 +352,7 @@ export default async function WholesaleRepDetail({
 
           {otherGoals.length > 0 && (
             <details className="mt-5">
-              <summary className="text-secondary text-sm cursor-pointer hover:text-foreground">
+              <summary className="text-[var(--ink-soft)] text-sm cursor-pointer hover:text-[var(--ink)]">
                 Otros objetivos del año ({otherGoals.length})
               </summary>
               <div className="space-y-3 mt-3">
@@ -377,15 +375,15 @@ export default async function WholesaleRepDetail({
           )}
         </section>
 
-        <section className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+        <section className="wsale-panel p-6">
           <h2 className="font-semibold">Proyectos</h2>
-          <p className="text-secondary text-xs mt-1 mb-4">
+          <p className="text-[var(--ink-soft)] text-xs mt-1 mb-4">
             Eventos, campañas y capacitaciones trabajados con coordinación.
           </p>
 
           <div className="space-y-3">
             {(projects ?? []).length === 0 && (
-              <p className="text-secondary text-sm">Sin proyectos registrados.</p>
+              <p className="text-[var(--ink-soft)] text-sm">Sin proyectos registrados.</p>
             )}
             {(projects ?? []).map((p) => (
               <ProgressCard
@@ -415,9 +413,9 @@ export default async function WholesaleRepDetail({
       {/* Gestión de accesos: lista pero apagada hasta que se decida abrir
           el sistema a los comerciales. Poner SHOW_ACCESS en true la revive. */}
       {SHOW_ACCESS && me.role === 'coordinator' && (
-        <section className="mt-6 bg-white rounded-2xl border border-border p-6 shadow-sm">
+        <section className="mt-6 wsale-panel p-6">
           <h2 className="font-semibold">Acceso al sistema</h2>
-          <p className="text-secondary text-xs mt-1 mb-4">
+          <p className="text-[var(--ink-soft)] text-xs mt-1 mb-4">
             Con usuario propio, el comercial entra a wholesale y ve solo lo suyo.
           </p>
           <RepAccess
@@ -430,7 +428,7 @@ export default async function WholesaleRepDetail({
         </section>
       )}
 
-      <section className="mt-6 bg-white rounded-2xl border border-border p-6 shadow-sm">
+      <section className="mt-6 wsale-panel p-6">
         <Loans
           loans={(loans ?? []) as Loan[]}
           clients={clientList}
@@ -444,7 +442,7 @@ export default async function WholesaleRepDetail({
         />
       </section>
 
-      <section className="mt-6 bg-white rounded-2xl border border-border p-6 shadow-sm">
+      <section className="mt-6 wsale-panel p-6">
         <Expenses
           repId={id}
           expenses={(expenses ?? []) as Expense[]}
@@ -456,17 +454,17 @@ export default async function WholesaleRepDetail({
       </section>
 
       {clientList.length > 0 && (
-        <section className="mt-6 bg-white rounded-2xl border border-border p-6 shadow-sm">
+        <section className="mt-6 wsale-panel p-6">
           <h2 className="font-semibold mb-4">Cartera</h2>
           <div className="flex flex-wrap gap-2">
             {clientList.map((c) => (
               <Link
                 key={c.id}
                 href={`/wholesale/clients/${c.id}`}
-                className="px-3 py-2 rounded-lg border border-border text-sm hover:border-primary transition"
+                className="px-3 py-2 rounded-[2px] border border-[var(--rule)] text-sm hover:border-[var(--rule-strong)] transition"
               >
                 {c.name}
-                {c.city && <span className="text-secondary text-xs"> · {c.city}</span>}
+                {c.city && <span className="text-[var(--ink-soft)] text-xs"> · {c.city}</span>}
               </Link>
             ))}
           </div>

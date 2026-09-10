@@ -20,8 +20,8 @@ const STATUS_LABEL: Record<string, string> = {
 function Bar({ value, max }: { value: number; max: number }) {
   const width = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div className="h-2 w-full rounded-full bg-surface overflow-hidden">
-      <div className="h-full rounded-full bg-primary" style={{ width: `${width}%` }} />
+    <div className="h-2 w-full rounded-full bg-[var(--rule)] overflow-hidden">
+      <div className="h-full bg-[var(--ink)]" style={{ width: `${width}%` }} />
     </div>
   );
 }
@@ -29,7 +29,7 @@ function Bar({ value, max }: { value: number; max: number }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-8 print-page">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-secondary border-b border-border pb-2 mb-4">
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-[var(--ink-soft)] border-b border-[var(--rule)] pb-2 mb-4">
         {title}
       </h2>
       {children}
@@ -132,17 +132,17 @@ export default async function RepReport({
   const investRatio = stats.revenue > 0 ? invested / stats.revenue : null;
 
   return (
-    <main className="min-h-screen bg-white text-foreground">
+    <main className="wsale min-h-screen" style={{ background: '#fff' }}>
       <div className="max-w-4xl mx-auto px-8 py-10">
         <div className="no-print flex items-center justify-between gap-4 mb-8">
-          <Link href={`/wholesale/reps/${id}`} className="text-secondary text-sm hover:underline">
+          <Link href={`/wholesale/reps/${id}`} className="text-[var(--ink-soft)] text-sm hover:underline">
             ← Volver
           </Link>
           <div className="flex gap-2 items-center">
             <Link
               href={`/wholesale/reps/${id}/reporte?year=${year}`}
-              className={`h-9 px-3 leading-9 rounded-lg text-sm border transition ${
-                month === null ? 'bg-primary text-white border-primary' : 'border-border hover:border-primary'
+              className={`h-9 px-3 leading-9 rounded-[2px] text-sm border transition ${
+                month === null ? 'bg-[var(--ink)] text-white border-primary' : 'border-[var(--rule)] hover:border-[var(--rule-strong)]'
               }`}
             >
               Año
@@ -151,8 +151,8 @@ export default async function RepReport({
               <Link
                 key={m}
                 href={`/wholesale/reps/${id}/reporte?year=${year}&month=${i + 1}`}
-                className={`h-9 px-2 leading-9 rounded-lg text-xs border transition ${
-                  month === i + 1 ? 'bg-primary text-white border-primary' : 'border-border hover:border-primary'
+                className={`h-9 px-2 leading-9 rounded-[2px] text-xs border transition ${
+                  month === i + 1 ? 'bg-[var(--ink)] text-white border-primary' : 'border-[var(--rule)] hover:border-[var(--rule-strong)]'
                 }`}
               >
                 {m.slice(0, 3)}
@@ -163,23 +163,23 @@ export default async function RepReport({
         </div>
 
         {/* Encabezado del reporte */}
-        <header className="flex items-start justify-between gap-6 border-b border-border pb-6">
+        <header className="flex items-start justify-between gap-6 border-b border-[var(--rule)] pb-6">
           <div>
             <Image src="/logo.png" alt="Aural" width={150} height={46} className="h-auto" priority />
-            <p className="text-xs uppercase tracking-widest text-secondary font-semibold mt-3">
+            <p className="text-xs uppercase tracking-widest text-[var(--ink-soft)] font-semibold mt-3">
               Wholesale · Reporte comercial
             </p>
-            <h1 className="text-2xl font-semibold mt-1">{rep.name}</h1>
-            <p className="text-secondary text-sm">
+            <h1 className="wsale-display text-[26px] mt-1">{rep.name}</h1>
+            <p className="text-[var(--ink-soft)] text-sm">
               {[rep.zone, rep.email, rep.phone].filter(Boolean).join(' · ')}
             </p>
           </div>
           <div className="text-right text-sm">
             <p className="font-semibold">{period}</p>
-            <p className="text-secondary">
+            <p className="text-[var(--ink-soft)]">
               Generado el {now.toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
-            <p className="text-secondary">{clientList.length} clientes en cartera</p>
+            <p className="text-[var(--ink-soft)]">{clientList.length} clientes en cartera</p>
           </div>
         </header>
 
@@ -193,37 +193,37 @@ export default async function RepReport({
                 budgetUnits > 0 ? `Unidades ${Math.round((stats.units / budgetUnits) * 100)}%` : ''],
               ['Inversión', cop(invested), investRatio === null ? '' : `${(investRatio * 100).toFixed(1)}% de la venta`],
             ].map(([label, value, hint]) => (
-              <div key={label} className="border border-border rounded-xl p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-secondary">{label}</p>
-                <p className="text-lg font-semibold mt-1">{value}</p>
-                {hint && <p className="text-xs text-secondary mt-0.5">{hint}</p>}
+              <div key={label} className="border border-[var(--rule)] rounded-[3px] p-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink-soft)]">{label}</p>
+                <p className="wsale-figure text-[19px] mt-1">{value}</p>
+                {hint && <p className="text-xs text-[var(--ink-soft)] mt-0.5">{hint}</p>}
               </div>
             ))}
           </div>
 
           <div className="grid grid-cols-3 gap-4 mt-4 text-sm">
-            <p className="border border-border rounded-xl p-4">
-              <span className="text-secondary text-xs block">ASP</span>
+            <p className="border border-[var(--rule)] rounded-[3px] p-4">
+              <span className="text-[var(--ink-soft)] text-xs block">ASP</span>
               <span className="font-semibold">{stats.asp > 0 ? cop(stats.asp) : '—'}</span>
             </p>
-            <p className="border border-border rounded-xl p-4">
-              <span className="text-secondary text-xs block">Adaptación</span>
+            <p className="border border-[var(--rule)] rounded-[3px] p-4">
+              <span className="text-[var(--ink-soft)] text-xs block">Adaptación</span>
               <span className="font-semibold">
                 {stats.count > 0 ? `${pct(stats.binauralRate)} binaural` : '—'}
               </span>
               {stats.count > 0 && (
-                <span className="text-secondary text-xs block">
+                <span className="text-[var(--ink-soft)] text-xs block">
                   {pct(1 - stats.binauralRate)} unilateral
                 </span>
               )}
             </p>
-            <p className="border border-border rounded-xl p-4">
-              <span className="text-secondary text-xs block">Alimentación</span>
+            <p className="border border-[var(--rule)] rounded-[3px] p-4">
+              <span className="text-[var(--ink-soft)] text-xs block">Alimentación</span>
               <span className="font-semibold">
                 {stats.count > 0 ? `${pct(stats.rechargeableRate)} recargable` : '—'}
               </span>
               {stats.count > 0 && (
-                <span className="text-secondary text-xs block">
+                <span className="text-[var(--ink-soft)] text-xs block">
                   {pct(1 - stats.rechargeableRate)} batería
                 </span>
               )}
@@ -233,8 +233,8 @@ export default async function RepReport({
           {Object.keys(mix).length > 0 && (
             <div className="grid grid-cols-3 gap-4 mt-4 text-sm">
               {(pStyles ?? []).map((st) => (
-                <p key={st.slug} className="border border-border rounded-xl p-4">
-                  <span className="text-secondary text-xs block">{st.label}</span>
+                <p key={st.slug} className="border border-[var(--rule)] rounded-[3px] p-4">
+                  <span className="text-[var(--ink-soft)] text-xs block">{st.label}</span>
                   <span className="font-semibold">{(mix[st.slug] ?? 0).toFixed(1)}%</span>
                 </p>
               ))}
@@ -246,7 +246,7 @@ export default async function RepReport({
         <Section title="Desempeño por cliente">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-secondary text-xs uppercase tracking-wider">
+              <tr className="text-left text-[var(--ink-soft)] text-xs uppercase tracking-wider">
                 <th className="pb-2 font-semibold">Cliente</th>
                 <th className="pb-2 font-semibold text-right">Presupuesto</th>
                 <th className="pb-2 font-semibold text-right">Venta</th>
@@ -257,18 +257,18 @@ export default async function RepReport({
             </thead>
             <tbody>
               {perClient.map((c) => (
-                <tr key={c.id} className="border-t border-border print-row">
+                <tr key={c.id} className="border-t border-[var(--rule)] print-row">
                   <td className="py-2">
                     {c.name}
-                    {c.city && <span className="text-secondary text-xs block">{c.city}</span>}
+                    {c.city && <span className="text-[var(--ink-soft)] text-xs block">{c.city}</span>}
                   </td>
-                  <td className="py-2 text-right text-secondary">{c.budget > 0 ? cop(c.budget) : '—'}</td>
+                  <td className="py-2 text-right text-[var(--ink-soft)]">{c.budget > 0 ? cop(c.budget) : '—'}</td>
                   <td className="py-2 text-right font-medium">{cop(c.revenue)}</td>
-                  <td className="py-2 text-right text-secondary">{c.units || '—'}</td>
+                  <td className="py-2 text-right text-[var(--ink-soft)]">{c.units || '—'}</td>
                   <td className="py-2 text-right">
                     {c.invested > 0 ? cop(c.invested) : '—'}
                     {c.invested > 0 && c.revenue > 0 && (
-                      <span className="text-secondary text-xs block">
+                      <span className="text-[var(--ink-soft)] text-xs block">
                         {((c.invested / c.revenue) * 100).toFixed(1)}%
                       </span>
                     )}
@@ -276,7 +276,7 @@ export default async function RepReport({
                   <td className="py-2"><Bar value={c.revenue} max={maxRevenue} /></td>
                 </tr>
               ))}
-              <tr className="border-t-2 border-border font-semibold">
+              <tr className="border-t-2 border-[var(--rule)] font-semibold">
                 <td className="py-2">Total</td>
                 <td className="py-2 text-right">{cop(budgetAmount)}</td>
                 <td className="py-2 text-right">{cop(stats.revenue)}</td>
@@ -293,7 +293,7 @@ export default async function RepReport({
           <Section title="Actividad">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-secondary text-xs uppercase tracking-wider">
+                <tr className="text-left text-[var(--ink-soft)] text-xs uppercase tracking-wider">
                   <th className="pb-2 font-semibold">Tipo</th>
                   <th className="pb-2 font-semibold text-right">Cumplidas</th>
                   <th className="pb-2 font-semibold text-right">Por hacer</th>
@@ -303,11 +303,11 @@ export default async function RepReport({
               </thead>
               <tbody>
                 {activityRows.map((r) => (
-                  <tr key={r.label} className="border-t border-border print-row">
+                  <tr key={r.label} className="border-t border-[var(--rule)] print-row">
                     <td className="py-2">{r.label}</td>
                     <td className="py-2 text-right font-medium">{r.done}</td>
-                    <td className="py-2 text-right text-secondary">{r.planned || '—'}</td>
-                    <td className="py-2 text-right text-secondary">{r.target || '—'}</td>
+                    <td className="py-2 text-right text-[var(--ink-soft)]">{r.planned || '—'}</td>
+                    <td className="py-2 text-right text-[var(--ink-soft)]">{r.target || '—'}</td>
                     <td className="py-2">{r.target > 0 && <Bar value={r.done} max={r.target} />}</td>
                   </tr>
                 ))}
@@ -321,18 +321,18 @@ export default async function RepReport({
           <Section title="Objetivos">
             <div className="space-y-3">
               {goalList.map((g, i) => (
-                <div key={i} className="border border-border rounded-xl p-3 print-row">
+                <div key={i} className="border border-[var(--rule)] rounded-[3px] p-3 print-row">
                   <div className="flex items-start justify-between gap-3">
                     <p className="font-medium text-sm">
                       {g.title}
-                      <span className="text-secondary font-normal"> · {MONTHS[g.month - 1]}</span>
+                      <span className="text-[var(--ink-soft)] font-normal"> · {MONTHS[g.month - 1]}</span>
                     </p>
-                    <span className="text-xs text-secondary whitespace-nowrap">
+                    <span className="text-xs text-[var(--ink-soft)] whitespace-nowrap">
                       {STATUS_LABEL[g.status] ?? g.status} · {g.progress_percent}%
                     </span>
                   </div>
                   <div className="mt-2"><Bar value={g.progress_percent} max={100} /></div>
-                  {g.progress_note && <p className="text-secondary text-xs mt-2 italic">“{g.progress_note}”</p>}
+                  {g.progress_note && <p className="text-[var(--ink-soft)] text-xs mt-2 italic">“{g.progress_note}”</p>}
                 </div>
               ))}
             </div>
@@ -344,7 +344,7 @@ export default async function RepReport({
           <Section title="Proyectos">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-secondary text-xs uppercase tracking-wider">
+                <tr className="text-left text-[var(--ink-soft)] text-xs uppercase tracking-wider">
                   <th className="pb-2 font-semibold">Proyecto</th>
                   <th className="pb-2 font-semibold">Cliente</th>
                   <th className="pb-2 font-semibold">Fechas</th>
@@ -354,10 +354,10 @@ export default async function RepReport({
               </thead>
               <tbody>
                 {(projects ?? []).map((p, i) => (
-                  <tr key={i} className="border-t border-border print-row">
+                  <tr key={i} className="border-t border-[var(--rule)] print-row">
                     <td className="py-2">{p.title}</td>
-                    <td className="py-2 text-secondary">{p.client_id ? clientName.get(p.client_id) ?? '—' : '—'}</td>
-                    <td className="py-2 text-secondary text-xs">
+                    <td className="py-2 text-[var(--ink-soft)]">{p.client_id ? clientName.get(p.client_id) ?? '—' : '—'}</td>
+                    <td className="py-2 text-[var(--ink-soft)] text-xs">
                       {[p.starts_on, p.ends_on].filter(Boolean).join(' → ') || '—'}
                     </td>
                     <td className="py-2 text-right">{p.budget_amount ? cop(Number(p.budget_amount)) : '—'}</td>
@@ -374,7 +374,7 @@ export default async function RepReport({
           <Section title="Detalle de gastos">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-secondary text-xs uppercase tracking-wider">
+                <tr className="text-left text-[var(--ink-soft)] text-xs uppercase tracking-wider">
                   <th className="pb-2 font-semibold">Fecha</th>
                   <th className="pb-2 font-semibold">Categoría</th>
                   <th className="pb-2 font-semibold">Detalle</th>
@@ -384,15 +384,15 @@ export default async function RepReport({
               </thead>
               <tbody>
                 {expenseList.map((e, i) => (
-                  <tr key={i} className="border-t border-border print-row">
-                    <td className="py-2 text-secondary">{e.spent_on}</td>
+                  <tr key={i} className="border-t border-[var(--rule)] print-row">
+                    <td className="py-2 text-[var(--ink-soft)]">{e.spent_on}</td>
                     <td className="py-2">{catLabel.get(e.category) ?? e.category}</td>
-                    <td className="py-2 text-secondary">{e.description ?? '—'}</td>
-                    <td className="py-2 text-secondary">{e.client_id ? clientName.get(e.client_id) ?? '—' : '—'}</td>
+                    <td className="py-2 text-[var(--ink-soft)]">{e.description ?? '—'}</td>
+                    <td className="py-2 text-[var(--ink-soft)]">{e.client_id ? clientName.get(e.client_id) ?? '—' : '—'}</td>
                     <td className="py-2 text-right font-medium">{cop(Number(e.amount))}</td>
                   </tr>
                 ))}
-                <tr className="border-t-2 border-border font-semibold">
+                <tr className="border-t-2 border-[var(--rule)] font-semibold">
                   <td className="py-2" colSpan={4}>Total invertido</td>
                   <td className="py-2 text-right">{cop(invested)}</td>
                 </tr>
@@ -401,7 +401,7 @@ export default async function RepReport({
           </Section>
         )}
 
-        <footer className="mt-10 pt-4 border-t border-border text-xs text-secondary flex justify-between">
+        <footer className="mt-10 pt-4 border-t border-[var(--rule)] text-xs text-[var(--ink-soft)] flex justify-between">
           <span>Aural · Wholesale</span>
           <span>{rep.name} · {period}</span>
         </footer>

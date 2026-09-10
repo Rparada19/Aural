@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { WholesaleLayout } from '@/components/WholesaleLayout';
+import { WholesaleLayout, PageHead } from '@/components/WholesaleLayout';
 import { EmptyState } from '@/components/wholesale/MetricCard';
 import { requireWholesaleMe, cop } from '@/lib/wholesale';
 
@@ -9,10 +9,10 @@ export const dynamic = 'force-dynamic';
 const SIN_ZONA = 'Sin zona';
 
 function Compliance({ actual, budget }: { actual: number; budget: number }) {
-  if (budget <= 0) return <span className="text-secondary">—</span>;
+  if (budget <= 0) return <span className="text-[var(--ink-soft)]">—</span>;
   const ratio = actual / budget;
   return (
-    <span className={ratio >= 1 ? 'text-success font-semibold' : ratio >= 0.8 ? 'text-warning' : 'text-danger'}>
+    <span className={ratio >= 1 ? 'wsale-good font-semibold' : ratio >= 0.8 ? 'wsale-warn' : 'wsale-bad'}>
       {Math.round(ratio * 100)}%
     </span>
   );
@@ -84,17 +84,16 @@ export default async function ZoneBudgetPage({
 
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <Link href={`/wholesale/budgets?year=${year}`} className="text-secondary text-sm hover:underline">
-            ← Zonas
+      <PageHead
+        overline={`Presupuesto ${year}`}
+        title={zone}
+        subtitle={`${rows.length} cliente${rows.length === 1 ? '' : 's'} en la zona`}
+        actions={
+          <Link href={`/wholesale/budgets?year=${year}`} className="wsale-btn-ghost">
+            Todas las zonas
           </Link>
-          <h1 className="text-2xl font-semibold mt-2">{zone}</h1>
-          <p className="text-secondary text-sm mt-1">
-            {rows.length} cliente{rows.length === 1 ? '' : 's'} · presupuesto {year}
-          </p>
-        </div>
-      </header>
+        }
+      />
 
       {rows.length === 0 ? (
         <EmptyState
@@ -103,53 +102,53 @@ export default async function ZoneBudgetPage({
           description="Asigna centros auditivos a esta zona desde la ficha de cada cliente."
         />
       ) : (
-        <div className="bg-white rounded-2xl border border-border shadow-sm overflow-x-auto">
-          <table className="w-full text-sm min-w-[840px] border-collapse [&_th]:border [&_th]:border-border [&_td]:border [&_td]:border-border">
-            <thead className="bg-surface text-secondary">
-              <tr className="text-left">
-                <th className="px-5 py-3 font-semibold" rowSpan={2}>Cliente</th>
-                <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Presupuesto</th>
-                <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Real</th>
-                <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Cumplimiento</th>
+        <div className="wsale-panel overflow-x-auto">
+          <table className="wsale-table min-w-[840px]">
+            <thead>
+              <tr>
+                <th rowSpan={2}>Cliente</th>
+                <th className="text-center" colSpan={2}>Presupuesto</th>
+                <th className="text-center" colSpan={2}>Real</th>
+                <th className="text-center" colSpan={2}>Cumplimiento</th>
                 <th className="px-3 py-3 font-semibold" rowSpan={2} />
               </tr>
-              <tr className="text-right text-xs">
-                <th className="px-3 pb-2 font-medium">Valor</th>
-                <th className="px-3 pb-2 font-medium">Und</th>
-                <th className="px-3 pb-2 font-medium">Valor</th>
-                <th className="px-3 pb-2 font-medium">Und</th>
-                <th className="px-3 pb-2 font-medium">Valor</th>
-                <th className="px-3 pb-2 font-medium">Und</th>
+              <tr>
+                <th className="num">Valor</th>
+                <th className="num">Und</th>
+                <th className="num">Valor</th>
+                <th className="num">Und</th>
+                <th className="num">Valor</th>
+                <th className="num">Und</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((c) => (
-                <tr key={c.id} className="hover:bg-surface/60 transition">
-                  <td className="px-5 py-3">
+                <tr key={c.id} className="hover:bg-[rgba(180,85,31,0.04)] transition">
+                  <td >
                     <Link href={`/wholesale/budgets/${c.id}?year=${year}`} className="font-medium hover:underline">
                       {c.name}
                     </Link>
-                    <p className="text-xs text-secondary">
+                    <p className="text-xs text-[var(--ink-soft)]">
                       {[c.city, c.rep_id ? repName.get(c.rep_id) : null].filter(Boolean).join(' · ')}
                     </p>
                   </td>
-                  <td className="px-3 py-3 text-right">
-                    {c.budget.amount > 0 ? cop(c.budget.amount) : <span className="text-secondary">Sin definir</span>}
+                  <td className="num">
+                    {c.budget.amount > 0 ? cop(c.budget.amount) : <span className="text-[var(--ink-soft)]">Sin definir</span>}
                   </td>
-                  <td className="px-3 py-3 text-right text-secondary">{c.budget.units || '—'}</td>
-                  <td className="px-3 py-3 text-right font-medium">{cop(c.actual.amount)}</td>
-                  <td className="px-3 py-3 text-right text-secondary">{c.actual.units || '—'}</td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="num text-[var(--ink-soft)]">{c.budget.units || '—'}</td>
+                  <td className="num wsale-figure text-[13px]">{cop(c.actual.amount)}</td>
+                  <td className="num text-[var(--ink-soft)]">{c.actual.units || '—'}</td>
+                  <td className="num">
                     <Compliance actual={c.actual.amount} budget={c.budget.amount} />
                   </td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="num">
                     <Compliance actual={c.actual.units} budget={c.budget.units} />
                   </td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="num">
                     {me.role === 'coordinator' && (
                       <Link
                         href={`/wholesale/budgets/${c.id}?year=${year}`}
-                        className="text-primary font-semibold hover:underline whitespace-nowrap"
+                        className="text-[var(--accent)] font-medium hover:underline whitespace-nowrap"
                       >
                         Editar
                       </Link>
@@ -158,17 +157,17 @@ export default async function ZoneBudgetPage({
                 </tr>
               ))}
             </tbody>
-            <tfoot className="bg-surface font-semibold">
+            <tfoot>
               <tr>
-                <td className="px-5 py-3">Total zona</td>
-                <td className="px-3 py-3 text-right">{cop(total.budgetAmount)}</td>
-                <td className="px-3 py-3 text-right">{total.budgetUnits || '—'}</td>
-                <td className="px-3 py-3 text-right">{cop(total.actualAmount)}</td>
-                <td className="px-3 py-3 text-right">{total.actualUnits || '—'}</td>
-                <td className="px-3 py-3 text-right">
+                <td >Total zona</td>
+                <td className="num">{cop(total.budgetAmount)}</td>
+                <td className="num">{total.budgetUnits || '—'}</td>
+                <td className="num">{cop(total.actualAmount)}</td>
+                <td className="num">{total.actualUnits || '—'}</td>
+                <td className="num">
                   <Compliance actual={total.actualAmount} budget={total.budgetAmount} />
                 </td>
-                <td className="px-3 py-3 text-right">
+                <td className="num">
                   <Compliance actual={total.actualUnits} budget={total.budgetUnits} />
                 </td>
                 <td />
