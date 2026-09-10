@@ -109,7 +109,7 @@ export default async function WholesaleRepsPage({
             />
           ) : (
             <div className="bg-white rounded-2xl border border-border shadow-sm overflow-x-auto">
-              <table className="w-full text-sm min-w-[880px]">
+              <table className="w-full text-sm min-w-[880px] border-collapse [&_th]:border [&_th]:border-border [&_td]:border [&_td]:border-border">
                 <thead className="bg-surface text-secondary">
                   <tr className="text-left">
                     <th className="px-5 py-3 font-semibold" rowSpan={2}>Comercial</th>
