@@ -1,23 +1,14 @@
-export type ActivityKind =
-  | 'presencial' | 'virtual' | 'viaje' | 'capacitacion' | 'jornada' | 'llamada' | 'whatsapp';
+export interface ActivityType {
+  slug: string;
+  label: string;
+  icon: string;
+  sort_order: number;
+  is_active: boolean;
+}
 
-export const ACTIVITY_KINDS: { kind: ActivityKind; label: string; short: string; icon: string }[] = [
-  { kind: 'presencial',   label: 'Visita presencial', short: 'Presencial',   icon: '🤝' },
-  { kind: 'virtual',      label: 'Visita virtual',    short: 'Virtual',      icon: '💻' },
-  { kind: 'viaje',        label: 'Viaje',             short: 'Viajes',       icon: '✈️' },
-  { kind: 'capacitacion', label: 'Capacitación',      short: 'Capacitación', icon: '🎓' },
-  { kind: 'jornada',      label: 'Jornada',           short: 'Jornadas',     icon: '📣' },
-  { kind: 'llamada',      label: 'Llamada',           short: 'Llamadas',     icon: '📞' },
-  { kind: 'whatsapp',     label: 'WhatsApp',          short: 'WhatsApp',     icon: '💬' },
-];
-
-export const KIND_LABEL = Object.fromEntries(
-  ACTIVITY_KINDS.map((k) => [k.kind, k.label]),
-) as Record<ActivityKind, string>;
-
-export const KIND_ICON = Object.fromEntries(
-  ACTIVITY_KINDS.map((k) => [k.kind, k.icon]),
-) as Record<ActivityKind, string>;
+/** Ícono por defecto cuando un tipo se borró del catálogo pero quedan
+ *  actividades viejas apuntando a él. */
+export const FALLBACK_ICON = '📌';
 
 const DAY_MS = 86_400_000;
 
@@ -41,4 +32,41 @@ export const DAY_NAMES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 
 
 export function formatDayLabel(iso: string): string {
   return String(Number(iso.slice(8, 10)));
+}
+
+/** Rango de fechas que cubre cada vista de la agenda. */
+export type AgendaView = 'day' | 'week' | 'month';
+
+export function agendaRange(view: AgendaView, anchor: string): { from: string; to: string } {
+  if (view === 'day') return { from: anchor, to: anchor };
+  if (view === 'week') {
+    const from = mondayOf(new Date(`${anchor}T00:00:00Z`));
+    return { from, to: addDays(from, 6) };
+  }
+  const [y, m] = anchor.split('-').map(Number);
+  const from = `${y}-${String(m).padStart(2, '0')}-01`;
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from, to: `${y}-${String(m).padStart(2, '0')}-${last}` };
+}
+
+/** Días de la grilla mensual: semanas completas de lunes a domingo. */
+export function monthGrid(anchor: string): string[] {
+  const { from, to } = agendaRange('month', anchor);
+  const start = mondayOf(new Date(`${from}T00:00:00Z`));
+  const days: string[] = [];
+  let cursor = start;
+  while (cursor <= to || days.length % 7 !== 0) {
+    days.push(cursor);
+    cursor = addDays(cursor, 1);
+    if (days.length > 42) break;
+  }
+  return days;
+}
+
+export function shiftAnchor(view: AgendaView, anchor: string, dir: 1 | -1): string {
+  if (view === 'day') return addDays(anchor, dir);
+  if (view === 'week') return addDays(anchor, 7 * dir);
+  const [y, m] = anchor.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + dir, 1));
+  return d.toISOString().slice(0, 10);
 }

@@ -3,17 +3,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { saveActivityTargets } from '@/app/actions/wholesale';
-import { ACTIVITY_KINDS, type ActivityKind } from '@/lib/activities';
+import { type ActivityType } from '@/lib/activities';
 
-export interface KindCount { kind: ActivityKind; target: number; doneCount: number; plannedCount: number }
+export interface KindCount { kind: string; target: number; doneCount: number; plannedCount: number }
 
 export function ActivityTargets({
-  repId, year, month, rows, canEdit,
+  repId, year, month, rows, types, canEdit,
 }: {
   repId: string;
   year: number;
   month: number;
   rows: KindCount[];
+  types: ActivityType[];
   canEdit: boolean;
 }) {
   const router = useRouter();
@@ -30,7 +31,7 @@ export function ActivityTargets({
     try {
       await saveActivityTargets(
         repId, year, month,
-        ACTIVITY_KINDS.map((k) => ({ kind: k.kind, target: Number(values[k.kind]) || 0 })),
+        types.map((t) => ({ kind: t.slug, target: Number(values[t.slug]) || 0 })),
       );
       setEditing(false);
       router.refresh();
@@ -43,23 +44,23 @@ export function ActivityTargets({
 
   return (
     <div className="space-y-3">
-      {ACTIVITY_KINDS.map((k) => {
-        const row = rows.find((r) => r.kind === k.kind) ?? { target: 0, doneCount: 0, plannedCount: 0 };
+      {types.map((k) => {
+        const row = rows.find((r) => r.kind === k.slug) ?? { target: 0, doneCount: 0, plannedCount: 0 };
         const ratio = row.target > 0 ? row.doneCount / row.target : null;
         const width = row.target > 0 ? Math.min((row.doneCount / row.target) * 100, 100) : 0;
         return (
-          <div key={k.kind}>
+          <div key={k.slug}>
             <div className="flex items-baseline justify-between text-sm">
               <span className="flex items-center gap-2">
                 <span aria-hidden>{k.icon}</span>
-                {k.short}
+                {k.label}
               </span>
               {editing ? (
                 <input
                   type="number"
                   min="0"
-                  value={values[k.kind] ?? 0}
-                  onChange={(e) => setValues({ ...values, [k.kind]: Number(e.target.value) })}
+                  value={values[k.slug] ?? 0}
+                  onChange={(e) => setValues({ ...values, [k.slug]: Number(e.target.value) })}
                   className="w-16 h-8 rounded-md border border-border px-2 text-sm text-right outline-none focus:border-primary"
                 />
               ) : (

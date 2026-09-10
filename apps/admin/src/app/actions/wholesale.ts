@@ -236,8 +236,9 @@ export async function updateProjectProgress(
   revalidatePath(`/wholesale/reps/${repId}`);
 }
 
-export type ActivityKind =
-  | 'presencial' | 'virtual' | 'viaje' | 'capacitacion' | 'jornada' | 'llamada' | 'whatsapp';
+/** Los tipos viven en wholesale_activity_types, así que aquí es texto libre
+ *  validado por la llave foránea. */
+export type ActivityKind = string;
 export type ActivityStatus = 'planned' | 'done' | 'cancelled';
 
 export async function createActivity(input: {
@@ -300,4 +301,37 @@ export async function saveActivityTargets(
   );
   if (error) throw error;
   revalidatePath(`/wholesale/reps/${repId}`);
+}
+
+export async function createActivityType(input: {
+  slug: string;
+  label: string;
+  icon?: string;
+  sort_order?: number;
+}) {
+  const { supabase } = await ensureCoordinator();
+  const slug = input.slug
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+  if (!slug) throw new Error('Nombre inválido');
+  const { error } = await supabase.from('wholesale_activity_types').insert({
+    slug,
+    label: input.label,
+    icon: input.icon || '📌',
+    sort_order: input.sort_order ?? 100,
+  });
+  if (error) throw error;
+  revalidatePath('/wholesale', 'layout');
+}
+
+export async function setActivityTypeActive(slug: string, isActive: boolean) {
+  const { supabase } = await ensureCoordinator();
+  const { error } = await supabase
+    .from('wholesale_activity_types')
+    .update({ is_active: isActive })
+    .eq('slug', slug);
+  if (error) throw error;
+  revalidatePath('/wholesale', 'layout');
 }
