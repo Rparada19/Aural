@@ -16,7 +16,7 @@ export default async function WholesaleClientDetail({
   const me = await requireWholesaleMe();
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: client }, { data: sales }, { data: reps }] = await Promise.all([
+  const [{ data: client }, { data: sales }, { data: reps }, { data: expenses }, { data: expenseCats }] = await Promise.all([
     supabase
       .from('wholesale_clients')
       .select('id, name, nit, contact_name, phone, email, city, zone, rep_id, notes')
@@ -30,6 +30,13 @@ export default async function WholesaleClientDetail({
       .is('deleted_at', null)
       .order('sold_on', { ascending: false }),
     supabase.from('wholesale_reps').select('id, name').eq('is_active', true),
+    supabase
+      .from('wholesale_expenses')
+      .select('id, category, spent_on, amount, description')
+      .eq('client_id', id)
+      .is('deleted_at', null)
+      .order('spent_on', { ascending: false }),
+    supabase.from('wholesale_expense_categories').select('slug, label, icon'),
   ]);
 
   if (!client) notFound();
@@ -37,6 +44,12 @@ export default async function WholesaleClientDetail({
   const saleList = sales ?? [];
   const all = salesMetrics(saleList);
   const repName = (reps ?? []).find((r) => r.id === client.rep_id)?.name;
+
+  const expenseList = expenses ?? [];
+  const invested = expenseList.reduce((a, e) => a + Number(e.amount ?? 0), 0);
+  const catIcon = new Map((expenseCats ?? []).map((c) => [c.slug, c.icon]));
+  const catLabel = new Map((expenseCats ?? []).map((c) => [c.slug, c.label]));
+  const investRatio = all.revenue > 0 ? invested / all.revenue : null;
 
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
@@ -73,7 +86,36 @@ export default async function WholesaleClientDetail({
           value={all.count > 0 ? pct(all.rechargeableRate) : '—'}
           tone={all.rechargeableRate >= 0.5 ? 'success' : 'warning'}
         />
+        <MetricCard
+          label="Inversión"
+          value={cop(invested)}
+          hint={
+            investRatio === null
+              ? 'Gastos imputados a este cliente'
+              : `${(investRatio * 100).toFixed(1)}% de lo vendido`
+          }
+          tone={investRatio !== null && investRatio > 0.15 ? 'warning' : 'neutral'}
+        />
       </section>
+
+      {expenseList.length > 0 && (
+        <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
+          <div className="flex items-baseline justify-between mb-4">
+            <h2 className="font-semibold">Inversión en este cliente</h2>
+            <p className="text-secondary text-sm">{cop(invested)} en {expenseList.length} gasto{expenseList.length === 1 ? '' : 's'}</p>
+          </div>
+          <div className="space-y-2">
+            {expenseList.slice(0, 12).map((e) => (
+              <div key={e.id} className="flex items-center gap-3 text-sm border-b border-border pb-2 last:border-0">
+                <span aria-hidden title={catLabel.get(e.category)}>{catIcon.get(e.category) ?? '💸'}</span>
+                <span className="flex-1 truncate">{e.description || catLabel.get(e.category) || 'Gasto'}</span>
+                <span className="text-secondary text-xs">{e.spent_on}</span>
+                <span className="font-medium w-28 text-right">{cop(Number(e.amount))}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {(client.contact_name || client.phone || client.email || client.notes) && (
         <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">

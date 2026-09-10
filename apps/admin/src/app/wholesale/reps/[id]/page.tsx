@@ -8,6 +8,7 @@ import { NewGoalForm, NewProjectForm } from '@/components/wholesale/NewGoalForm'
 import { Agenda, type Activity } from '@/components/wholesale/Agenda';
 import { ActivityTargets } from '@/components/wholesale/ActivityTargets';
 import { ActivityTypeManager } from '@/components/wholesale/ActivityTypeManager';
+import { Expenses, type Expense, type ExpenseCategory } from '@/components/wholesale/Expenses';
 import {
   agendaRange, shiftAnchor, mondayOf, type ActivityType, type AgendaView,
 } from '@/lib/activities';
@@ -53,7 +54,8 @@ export default async function WholesaleRepDetail({
   const supabase = await createSupabaseServerClient();
 
   const [{ data: rep }, { data: clients }, { data: sales }, { data: budgets }, { data: goals }, { data: projects },
-         { data: weekActs }, { data: monthActs }, { data: actTargets }, { data: types }] =
+         { data: weekActs }, { data: monthActs }, { data: actTargets }, { data: types },
+         { data: expenses }, { data: expenseCats }] =
     await Promise.all([
       supabase.from('wholesale_reps').select('id, name, zone, phone, email').eq('id', id).is('deleted_at', null).maybeSingle(),
       supabase.from('wholesale_clients').select('id, name, city').eq('rep_id', id).is('deleted_at', null).order('name'),
@@ -101,6 +103,18 @@ export default async function WholesaleRepDetail({
       supabase
         .from('wholesale_activity_types')
         .select('slug, label, icon, sort_order, is_active')
+        .order('sort_order'),
+      supabase
+        .from('wholesale_expenses')
+        .select('id, client_id, category, spent_on, amount, description')
+        .eq('rep_id', id)
+        .is('deleted_at', null)
+        .gte('spent_on', monthFrom)
+        .lte('spent_on', monthTo)
+        .order('spent_on', { ascending: false }),
+      supabase
+        .from('wholesale_expense_categories')
+        .select('slug, label, icon, is_active')
         .order('sort_order'),
     ]);
 
@@ -362,8 +376,19 @@ export default async function WholesaleRepDetail({
         </section>
       </div>
 
+      <section className="mt-6 bg-white rounded-2xl border border-border p-6 shadow-sm">
+        <Expenses
+          repId={id}
+          expenses={(expenses ?? []) as Expense[]}
+          categories={(expenseCats ?? []) as ExpenseCategory[]}
+          clients={clientList}
+          monthLabel={MONTHS[month - 1]}
+          defaultDate={month === now.getMonth() + 1 && year === now.getFullYear() ? today : monthFrom}
+        />
+      </section>
+
       {clientList.length > 0 && (
-        <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
+        <section className="mt-6 bg-white rounded-2xl border border-border p-6 shadow-sm">
           <h2 className="font-semibold mb-4">Cartera</h2>
           <div className="flex flex-wrap gap-2">
             {clientList.map((c) => (

@@ -335,3 +335,41 @@ export async function setActivityTypeActive(slug: string, isActive: boolean) {
   if (error) throw error;
   revalidatePath('/wholesale', 'layout');
 }
+
+export async function createExpense(input: {
+  rep_id: string;
+  client_id?: string | null;
+  category: string;
+  spent_on: string;
+  amount: number;
+  description?: string;
+}) {
+  const { supabase, me } = await ensureMember();
+  if (me.role === 'rep' && input.rep_id !== me.repId) {
+    throw new Error('Solo puedes cargar gastos de tu zona');
+  }
+  const { error } = await supabase.from('wholesale_expenses').insert({
+    rep_id: input.rep_id,
+    client_id: input.client_id || null,
+    category: input.category,
+    spent_on: input.spent_on,
+    amount: input.amount,
+    description: input.description || null,
+    created_by: me.id,
+  });
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${input.rep_id}`);
+  if (input.client_id) revalidatePath(`/wholesale/clients/${input.client_id}`);
+  revalidatePath('/wholesale/clients');
+}
+
+export async function deleteExpense(expenseId: string, repId: string) {
+  const { supabase } = await ensureMember();
+  const { error } = await supabase
+    .from('wholesale_expenses')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', expenseId);
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${repId}`);
+  revalidatePath('/wholesale/clients');
+}

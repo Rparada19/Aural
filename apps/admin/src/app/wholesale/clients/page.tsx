@@ -11,7 +11,7 @@ export default async function WholesaleClientsPage() {
   const me = await requireWholesaleMe();
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: clients }, { data: reps }, { data: sales }] = await Promise.all([
+  const [{ data: clients }, { data: reps }, { data: sales }, { data: expenses }] = await Promise.all([
     supabase
       .from('wholesale_clients')
       .select('id, name, nit, city, zone, rep_id, is_active')
@@ -19,6 +19,7 @@ export default async function WholesaleClientsPage() {
       .order('name'),
     supabase.from('wholesale_reps').select('id, name, zone').eq('is_active', true).order('name'),
     supabase.from('wholesale_sales').select('client_id, net_amount, sold_on').is('deleted_at', null),
+    supabase.from('wholesale_expenses').select('client_id, amount').is('deleted_at', null),
   ]);
 
   const clientList = clients ?? [];
@@ -31,6 +32,12 @@ export default async function WholesaleClientsPage() {
     revenueByClient.set(s.client_id, (revenueByClient.get(s.client_id) ?? 0) + Number(s.net_amount ?? 0));
     const prev = lastSaleByClient.get(s.client_id);
     if (!prev || s.sold_on > prev) lastSaleByClient.set(s.client_id, s.sold_on);
+  }
+
+  const investByClient = new Map<string, number>();
+  for (const e of expenses ?? []) {
+    if (!e.client_id) continue;
+    investByClient.set(e.client_id, (investByClient.get(e.client_id) ?? 0) + Number(e.amount ?? 0));
   }
 
   return (
@@ -84,6 +91,7 @@ export default async function WholesaleClientsPage() {
                 <th className="px-5 py-3 font-semibold">Ciudad</th>
                 <th className="px-5 py-3 font-semibold">Comercial</th>
                 <th className="px-5 py-3 font-semibold text-right">Acumulado</th>
+                <th className="px-5 py-3 font-semibold text-right">Inversión</th>
                 <th className="px-5 py-3 font-semibold">Última venta</th>
               </tr>
             </thead>
@@ -109,6 +117,24 @@ export default async function WholesaleClientsPage() {
                   </td>
                   <td className="px-5 py-3 text-right font-semibold">
                     {cop(revenueByClient.get(c.id) ?? 0)}
+                  </td>
+                  <td className="px-5 py-3 text-right">
+                    {(() => {
+                      const inv = investByClient.get(c.id) ?? 0;
+                      const rev = revenueByClient.get(c.id) ?? 0;
+                      if (inv === 0) return <span className="text-secondary">—</span>;
+                      const share = rev > 0 ? inv / rev : null;
+                      return (
+                        <span className={share !== null && share > 0.15 ? 'text-warning' : ''}>
+                          {cop(inv)}
+                          {share !== null && (
+                            <span className="text-secondary text-xs block">
+                              {(share * 100).toFixed(1)}% de la venta
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="px-5 py-3 text-secondary">
                     {lastSaleByClient.get(c.id) ?? 'Sin ventas'}
