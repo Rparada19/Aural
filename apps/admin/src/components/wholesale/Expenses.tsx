@@ -79,7 +79,7 @@ export function Expenses({
                   ? <span className="text-[var(--ink-soft)]">Sin cliente asignado</span>
                   : clientName.get(key) ?? 'Cliente'}
               </span>
-              <div className="w-28 h-2 rounded-full bg-[var(--rule)] overflow-hidden">
+              <div className="wsale-meter w-28">
                 <div className="h-full bg-[var(--ink)]" style={{ width: `${(amount / ranked[0][1]) * 100}%` }} />
               </div>
               <span className="w-28 text-right font-medium">{cop(amount)}</span>

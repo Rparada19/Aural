@@ -71,15 +71,15 @@ function DayView({ day, activities, ...ctx }: Ctx & { day: string; activities: A
 function WeekView({ monday, activities, ...ctx }: Ctx & { monday: string; activities: Activity[] }) {
   const days = weekDays(monday);
   return (
-    <div className="grid gap-3 md:grid-cols-7">
+    <div className="grid gap-2 md:grid-cols-7">
       {days.map((day, i) => {
         const items = sortByTime(activities.filter((a) => a.scheduled_on === day));
         const isToday = day === ctx.today;
         return (
           <div
             key={day}
-            className={`rounded-[3px] border p-2 min-h-[150px] flex flex-col ${
-              isToday ? 'border-primary bg-[rgba(180,85,31,0.05)]' : 'border-[var(--rule)] bg-white'
+            className={`rounded-[3px] border p-2 min-h-[150px] min-w-0 flex flex-col ${
+              isToday ? 'border-[var(--accent)] bg-[rgba(180,85,31,0.05)]' : 'border-[var(--rule)] bg-white'
             }`}
           >
             <div className="flex items-baseline justify-between px-1 mb-2">
@@ -134,7 +134,7 @@ function MonthView({ anchor, activities, ...ctx }: Ctx & { anchor: string; activ
             <div
               key={day}
               className={`rounded-[2px] border p-2 min-h-[92px] ${
-                isToday ? 'border-primary bg-[rgba(180,85,31,0.05)]'
+                isToday ? 'border-[var(--accent)] bg-[rgba(180,85,31,0.05)]'
                 : outside ? 'border-[var(--rule)]/50 bg-[var(--paper)]'
                 : 'border-[var(--rule)] bg-white'
               }`}
@@ -204,26 +204,30 @@ function ActivityRow({
   }
 
   return (
-    <div className={`rounded-[2px] border p-2 ${wide ? 'text-sm' : 'text-xs'} ${STATUS_STYLE[a.status]}`}>
-      <div className="flex items-start gap-2">
-        <span aria-hidden title={type?.label}>{type?.icon ?? FALLBACK_ICON}</span>
-        <span className="flex-1 leading-snug">{a.title}</span>
-        {wide && a.starts_at && <span className="text-[var(--ink-soft)]">{a.starts_at.slice(0, 5)}</span>}
+    <div className={`rounded-[2px] border p-2 overflow-hidden ${wide ? 'text-sm' : 'text-[11px]'} ${STATUS_STYLE[a.status]}`}>
+      <div className="flex items-start gap-1.5 min-w-0">
+        <span aria-hidden title={type?.label} className="shrink-0">{type?.icon ?? FALLBACK_ICON}</span>
+        <span className="flex-1 min-w-0 leading-snug break-words hyphens-auto">{a.title}</span>
+        {wide && a.starts_at && (
+          <span className="wsale-mono text-[var(--ink-faint)] shrink-0">{a.starts_at.slice(0, 5)}</span>
+        )}
       </div>
-      {!wide && a.starts_at && <p className="text-[var(--ink-soft)] mt-1">{a.starts_at.slice(0, 5)}</p>}
-      {clientName && <p className="text-[var(--ink-soft)] truncate">{clientName}</p>}
-      <div className="flex gap-2 mt-2">
+      {!wide && a.starts_at && (
+        <p className="wsale-mono text-[var(--ink-faint)] mt-1">{a.starts_at.slice(0, 5)}</p>
+      )}
+      {clientName && <p className="text-[var(--ink-faint)] truncate mt-0.5">{clientName}</p>}
+      <div className="flex flex-wrap gap-x-2 gap-y-1 mt-2">
         <button
           onClick={() => run(() => setActivityStatus(a.id, repId, a.status === 'done' ? 'planned' : 'done'))}
           disabled={busy}
-          className="text-[var(--accent)] font-medium hover:underline disabled:opacity-50"
+          className="text-[var(--accent)] font-medium hover:underline disabled:opacity-50 whitespace-nowrap"
         >
           {a.status === 'done' ? 'Deshacer' : 'Cumplida'}
         </button>
         <button
           onClick={() => run(() => deleteActivity(a.id, repId))}
           disabled={busy}
-          className="text-[var(--ink-soft)] hover:wsale-bad disabled:opacity-50"
+          className="text-[var(--ink-faint)] hover:text-[var(--alert)] disabled:opacity-50 whitespace-nowrap"
         >
           Borrar
         </button>

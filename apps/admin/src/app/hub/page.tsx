@@ -27,7 +27,7 @@ export default async function HubPage() {
     <main className="min-h-screen grid place-items-center bg-surface px-4 py-12">
       <div className="w-full max-w-3xl">
         <div className="mb-10 text-center">
-          <Image src="/logo.png" alt="Aural" width={260} height={80} className="mx-auto h-auto" priority />
+          <Image src="/logo-aural.png" alt="Aural" width={4191} height={1432} className="mx-auto w-[200px] h-auto" priority />
           <p className="text-secondary text-xs uppercase tracking-widest font-semibold mt-4">
             Selecciona un mercado
           </p>

@@ -47,7 +47,7 @@ export default function LoginPage() {
     <main className="min-h-screen grid place-items-center bg-surface px-4">
       <div className="w-full max-w-md bg-white rounded-2xl border border-border p-8 shadow-sm">
         <div className="mb-8 text-center">
-          <Image src="/logo.png" alt="Aural" width={260} height={80} className="mx-auto h-auto" priority />
+          <Image src="/logo-aural.png" alt="Aural" width={4191} height={1432} className="mx-auto w-[210px] h-auto" priority />
           <p className="text-secondary text-xs uppercase tracking-widest font-semibold mt-4">Portal administrativo</p>
         </div>
 

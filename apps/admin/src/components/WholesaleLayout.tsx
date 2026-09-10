@@ -25,10 +25,16 @@ export function WholesaleLayout({
   return (
     <div className="wsale min-h-screen flex">
       <aside className="wsale-nav w-56 shrink-0 flex flex-col">
-        <div className="px-6 pt-7 pb-6">
-          <Image src="/logo-white.png" alt="Aural" width={120} height={36} className="h-7 w-auto opacity-0 absolute" />
-          <p className="wsale-display text-[22px] text-white leading-none">Aural</p>
-          <p className="mt-2 text-[10px] font-semibold tracking-[0.22em] uppercase text-white/45">
+        <div className="px-6 pt-7 pb-7">
+          <Image
+            src="/logo-aural-marca-blanco.png"
+            alt="Aural"
+            width={4191}
+            height={915}
+            priority
+            className="w-[104px] h-auto"
+          />
+          <p className="mt-3 text-[9.5px] font-medium tracking-[0.24em] uppercase text-white/40">
             Wholesale
           </p>
         </div>

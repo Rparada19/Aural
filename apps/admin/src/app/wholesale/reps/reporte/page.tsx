@@ -16,8 +16,8 @@ const MONTHS = [
 function Bar({ value, max }: { value: number; max: number }) {
   const width = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
-    <div className="h-2 w-full rounded-full bg-[var(--rule)] overflow-hidden">
-      <div className="h-full bg-[var(--ink)]" style={{ width: `${width}%` }} />
+    <div className="wsale-meter">
+      <span style={{ width: `${width}%` }} />
     </div>
   );
 }
@@ -118,7 +118,7 @@ export default async function ChannelReport({
 
         <header className="flex items-start justify-between gap-6 border-b border-[var(--rule)] pb-6">
           <div>
-            <Image src="/logo.png" alt="Aural" width={150} height={46} className="h-auto" priority />
+            <Image src="/logo-aural.png" alt="Aural" width={4191} height={1432} className="w-[150px] h-auto" priority />
             <p className="text-xs uppercase tracking-widest text-[var(--ink-soft)] font-semibold mt-3">
               Wholesale · Reporte del canal
             </p>

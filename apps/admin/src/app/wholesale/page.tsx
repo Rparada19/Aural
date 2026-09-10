@@ -167,26 +167,43 @@ export default async function WholesaleDashboard() {
                 {yearBudget > 0 && ` · ${Math.round((year.revenue / yearBudget) * 100)}% del presupuesto anual`}
               </p>
             </div>
-            <div className="mt-6 flex items-end gap-3 h-36">
-              {byMonth.map((amount, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-                  <span className="text-[10px] text-[var(--ink-faint)] opacity-0 group-hover:opacity-100 transition wsale-mono">
-                    {amount > 0 ? `${Math.round(amount / 1_000_000)}M` : ''}
+            {/* Las barras miden en % de una altura fija: si la columna no
+                la define, el porcentaje no tiene contra qué calcularse. */}
+            <div className="mt-6">
+              <div className="flex items-end gap-2 h-32">
+                {byMonth.map((amount, i) => (
+                  <div key={i} className="flex-1 h-full flex items-end group relative">
+                    <div
+                      className="w-full transition-all"
+                      style={{
+                        height: `${Math.max((amount / peak) * 100, 1.5)}%`,
+                        background: i === now.getMonth() ? 'var(--accent)' : 'var(--ink)',
+                        opacity: i === now.getMonth() ? 1 : i > now.getMonth() ? 0.1 : 0.4,
+                      }}
+                      title={`${MONTHS[i]}: ${cop(amount)}`}
+                    />
+                    {amount > 0 && (
+                      <span className="wsale-mono absolute -top-4 left-0 right-0 text-center text-[9px] text-[var(--ink-faint)] opacity-0 group-hover:opacity-100 transition">
+                        {Math.round(amount / 1_000_000)}M
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-2">
+                {MONTHS.map((m, i) => (
+                  <span
+                    key={m}
+                    className={`flex-1 text-center text-[10px] ${
+                      i === now.getMonth()
+                        ? 'text-[var(--accent)] font-medium'
+                        : 'text-[var(--ink-faint)]'
+                    }`}
+                  >
+                    {m}
                   </span>
-                  <div
-                    className="w-full transition-all"
-                    style={{
-                      height: `${Math.max((amount / peak) * 100, 1.5)}%`,
-                      background: i === now.getMonth() ? 'var(--accent)' : 'var(--ink)',
-                      opacity: i === now.getMonth() ? 1 : i > now.getMonth() ? 0.12 : 0.42,
-                    }}
-                    title={`${MONTHS[i]}: ${cop(amount)}`}
-                  />
-                  <span className={`text-[10px] ${i === now.getMonth() ? 'text-[var(--accent)] font-semibold' : 'text-[var(--ink-faint)]'}`}>
-                    {MONTHS[i]}
-                  </span>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </section>
 
