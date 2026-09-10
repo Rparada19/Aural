@@ -1,7 +1,9 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { marketFromHost } from '@/lib/markets';
+import { withCookieDomain } from '@/lib/supabase/cookie-options';
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   let response = NextResponse.next({ request: req });
 
   const supabase = createServerClient(
@@ -16,7 +18,7 @@ export async function middleware(req: NextRequest) {
           cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
           response = NextResponse.next({ request: req });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
+            response.cookies.set(name, value, withCookieDomain(options, req.headers.get('host'))),
           );
         },
       },
@@ -40,6 +42,26 @@ export async function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.pathname = '/';
     return NextResponse.redirect(url);
+  }
+
+  // Cada subdominio sirve solo su mercado. Las rutas de auth son comunes
+  // porque los enlaces de correo viejos apuntan a admin.
+  if (!isLogin && !isAuthCallback && !isPublicAuth) {
+    const market = marketFromHost(req.headers.get('host'));
+    const isHub = path === '/hub' || path.startsWith('/hub/');
+    const isWholesale = path === '/wholesale' || path.startsWith('/wholesale/');
+
+    const target =
+      market === 'hub' && !isHub ? '/hub'
+      : market === 'wholesale' && !isWholesale ? '/wholesale'
+      : market === 'vm' && (isHub || isWholesale) ? '/'
+      : null;
+
+    if (target) {
+      const url = req.nextUrl.clone();
+      url.pathname = target;
+      return NextResponse.redirect(url);
+    }
   }
 
   return response;

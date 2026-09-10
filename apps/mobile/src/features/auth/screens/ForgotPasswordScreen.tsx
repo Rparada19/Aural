@@ -24,7 +24,7 @@ export function ForgotPasswordScreen({ navigation }: Props) {
     }
     setLoading(true);
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: 'https://admin.auralbusinessintelligence.com/reset-password',
+      redirectTo: 'https://vm.auralbusinessintelligence.com/reset-password',
     });
     setLoading(false);
     if (error) {
