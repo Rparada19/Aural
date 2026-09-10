@@ -1,0 +1,147 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { WholesaleLayout } from '@/components/WholesaleLayout';
+import { MetricCard, EmptyState } from '@/components/wholesale/MetricCard';
+import { requireWholesaleMe, salesMetrics, cop, pct } from '@/lib/wholesale';
+
+export const dynamic = 'force-dynamic';
+
+export default async function WholesaleClientDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const me = await requireWholesaleMe();
+  const supabase = await createSupabaseServerClient();
+
+  const [{ data: client }, { data: sales }, { data: reps }] = await Promise.all([
+    supabase
+      .from('wholesale_clients')
+      .select('id, name, nit, contact_name, phone, email, city, zone, rep_id, notes')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .maybeSingle(),
+    supabase
+      .from('wholesale_sales')
+      .select('id, sold_on, invoice_number, patient_name, units, binaural, rechargeable, discount_percent, net_amount')
+      .eq('client_id', id)
+      .is('deleted_at', null)
+      .order('sold_on', { ascending: false }),
+    supabase.from('wholesale_reps').select('id, name').eq('is_active', true),
+  ]);
+
+  if (!client) notFound();
+
+  const saleList = sales ?? [];
+  const all = salesMetrics(saleList);
+  const repName = (reps ?? []).find((r) => r.id === client.rep_id)?.name;
+
+  return (
+    <WholesaleLayout userName={me.full_name} role={me.role}>
+      <header className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <Link href="/wholesale/clients" className="text-secondary text-sm hover:underline">
+            ← Clientes
+          </Link>
+          <h1 className="text-2xl font-semibold mt-2">{client.name}</h1>
+          <p className="text-secondary text-sm mt-1">
+            {[client.city, client.zone, repName && `Comercial: ${repName}`]
+              .filter(Boolean)
+              .join(' · ') || 'Sin datos de zona'}
+          </p>
+        </div>
+        <Link
+          href={`/wholesale/sales/new?client=${client.id}`}
+          className="h-11 leading-[44px] px-5 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft transition"
+        >
+          Registrar venta
+        </Link>
+      </header>
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard label="Acumulado" value={cop(all.revenue)} hint={`${all.count} venta${all.count === 1 ? '' : 's'}`} />
+        <MetricCard label="ASP" value={all.asp > 0 ? cop(all.asp) : '—'} hint={`${all.units} unidades`} />
+        <MetricCard
+          label="Binaurales"
+          value={all.count > 0 ? pct(all.binauralRate) : '—'}
+          tone={all.binauralRate >= 0.5 ? 'success' : 'warning'}
+        />
+        <MetricCard
+          label="Recargables"
+          value={all.count > 0 ? pct(all.rechargeableRate) : '—'}
+          tone={all.rechargeableRate >= 0.5 ? 'success' : 'warning'}
+        />
+      </section>
+
+      {(client.contact_name || client.phone || client.email || client.notes) && (
+        <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
+          <h2 className="font-semibold">Contacto</h2>
+          <dl className="mt-4 grid gap-4 sm:grid-cols-3 text-sm">
+            {client.contact_name && (
+              <div><dt className="text-secondary text-xs uppercase tracking-wider">Persona</dt><dd>{client.contact_name}</dd></div>
+            )}
+            {client.phone && (
+              <div><dt className="text-secondary text-xs uppercase tracking-wider">Teléfono</dt><dd>{client.phone}</dd></div>
+            )}
+            {client.email && (
+              <div><dt className="text-secondary text-xs uppercase tracking-wider">Correo</dt><dd className="truncate">{client.email}</dd></div>
+            )}
+          </dl>
+          {client.notes && <p className="text-secondary text-sm mt-4">{client.notes}</p>}
+        </section>
+      )}
+
+      <section className="mt-8">
+        <h2 className="font-semibold mb-4">Ventas</h2>
+        {saleList.length === 0 ? (
+          <EmptyState
+            emoji="💳"
+            title="Sin ventas registradas"
+            description="Cuando cargues la primera factura de este cliente, aquí verás su histórico y sus indicadores."
+            action={
+              <Link
+                href={`/wholesale/sales/new?client=${client.id}`}
+                className="inline-block h-11 leading-[44px] px-6 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft transition"
+              >
+                Registrar venta
+              </Link>
+            }
+          />
+        ) : (
+          <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-surface text-secondary">
+                <tr className="text-left">
+                  <th className="px-5 py-3 font-semibold">Fecha</th>
+                  <th className="px-5 py-3 font-semibold">Factura</th>
+                  <th className="px-5 py-3 font-semibold">Paciente</th>
+                  <th className="px-5 py-3 font-semibold">Detalle</th>
+                  <th className="px-5 py-3 font-semibold text-right">Dcto.</th>
+                  <th className="px-5 py-3 font-semibold text-right">Neto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {saleList.map((s) => (
+                  <tr key={s.id} className="border-t border-border">
+                    <td className="px-5 py-3">{s.sold_on}</td>
+                    <td className="px-5 py-3 text-secondary">{s.invoice_number ?? '—'}</td>
+                    <td className="px-5 py-3">{s.patient_name ?? '—'}</td>
+                    <td className="px-5 py-3 text-secondary">
+                      {s.units} und
+                      {s.binaural && ' · binaural'}
+                      {s.rechargeable && ' · recargable'}
+                    </td>
+                    <td className="px-5 py-3 text-right text-secondary">{Number(s.discount_percent)}%</td>
+                    <td className="px-5 py-3 text-right font-semibold">{cop(Number(s.net_amount))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </WholesaleLayout>
+  );
+}
