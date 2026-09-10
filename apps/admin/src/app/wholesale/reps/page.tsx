@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { WholesaleLayout } from '@/components/WholesaleLayout';
 import { EmptyState } from '@/components/wholesale/MetricCard';
 import { NewRepForm } from '@/components/wholesale/NewRepForm';
+import { RepCharts } from '@/components/wholesale/RepCharts';
 import { requireWholesaleMe, cop } from '@/lib/wholesale';
 
 export const dynamic = 'force-dynamic';
@@ -72,6 +73,16 @@ export default async function WholesaleRepsPage({
     });
   }
 
+  const chartData = repList.map((r) => {
+    const b = budgetByRep.get(r.id) ?? { amount: 0, units: 0 };
+    const a = actualByRep.get(r.id) ?? { amount: 0, units: 0 };
+    return {
+      name: r.name,
+      budgetAmount: b.amount, actualAmount: a.amount,
+      budgetUnits: b.units, actualUnits: a.units,
+    };
+  });
+
   const years = [year - 1, year, year + 1];
 
   return (
@@ -98,6 +109,12 @@ export default async function WholesaleRepsPage({
           ))}
         </div>
       </header>
+
+      {repList.length > 0 && (
+        <div className="mb-8">
+          <RepCharts data={chartData} />
+        </div>
+      )}
 
       <div className="grid gap-8 lg:grid-cols-[1fr_340px] items-start">
         <div>
