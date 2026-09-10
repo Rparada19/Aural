@@ -145,3 +145,93 @@ export async function saveWholesaleBudgets(
   revalidatePath(`/wholesale/budgets/${clientId}`);
   revalidatePath('/wholesale');
 }
+
+type GoalStatus = 'pending' | 'in_progress' | 'done' | 'dropped';
+
+export async function createWholesaleGoal(input: {
+  rep_id: string;
+  year: number;
+  month: number;
+  title: string;
+  description?: string;
+  target_value?: number | null;
+}) {
+  const { supabase, me } = await ensureCoordinator();
+  const { error } = await supabase.from('wholesale_goals').insert({
+    rep_id: input.rep_id,
+    year: input.year,
+    month: input.month,
+    title: input.title,
+    description: input.description || null,
+    target_value: input.target_value ?? null,
+    created_by: me.id,
+  });
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${input.rep_id}`);
+}
+
+/** El avance lo reporta quien ejecuta: coordinación o el propio comercial. */
+export async function updateGoalProgress(
+  goalId: string,
+  repId: string,
+  patch: { progress_percent: number; status: GoalStatus; progress_note?: string },
+) {
+  const { supabase } = await ensureMember();
+  const { error } = await supabase
+    .from('wholesale_goals')
+    .update({
+      progress_percent: patch.progress_percent,
+      status: patch.status,
+      progress_note: patch.progress_note ?? null,
+    })
+    .eq('id', goalId);
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${repId}`);
+}
+
+export async function createWholesaleProject(input: {
+  rep_id: string;
+  client_id?: string | null;
+  title: string;
+  kind: 'evento' | 'campana' | 'capacitacion' | 'otro';
+  description?: string;
+  starts_on?: string | null;
+  ends_on?: string | null;
+  budget_amount?: number | null;
+}) {
+  const { supabase, me } = await ensureMember();
+  if (me.role === 'rep' && input.rep_id !== me.repId) {
+    throw new Error('Solo puedes crear proyectos de tu zona');
+  }
+  const { error } = await supabase.from('wholesale_projects').insert({
+    rep_id: input.rep_id,
+    client_id: input.client_id || null,
+    title: input.title,
+    kind: input.kind,
+    description: input.description || null,
+    starts_on: input.starts_on || null,
+    ends_on: input.ends_on || null,
+    budget_amount: input.budget_amount ?? null,
+    created_by: me.id,
+  });
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${input.rep_id}`);
+}
+
+export async function updateProjectProgress(
+  projectId: string,
+  repId: string,
+  patch: { progress_percent: number; status: GoalStatus; progress_note?: string },
+) {
+  const { supabase } = await ensureMember();
+  const { error } = await supabase
+    .from('wholesale_projects')
+    .update({
+      progress_percent: patch.progress_percent,
+      status: patch.status,
+      progress_note: patch.progress_note ?? null,
+    })
+    .eq('id', projectId);
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${repId}`);
+}

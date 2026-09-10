@@ -209,7 +209,9 @@ export default async function WholesaleRepsPage({
                     return (
                       <tr key={r.id} className="border-t border-border hover:bg-surface/60 transition">
                         <td className="px-5 py-3">
-                          <p className="font-medium">{r.name}</p>
+                          <Link href={`/wholesale/reps/${r.id}`} className="font-medium hover:underline">
+                            {r.name}
+                          </Link>
                           <p className="text-xs text-secondary">{r.zone ?? 'Sin zona'}</p>
                         </td>
                         <td className="px-3 py-3 text-right">{clientsByRep.get(r.id) ?? 0}</td>
