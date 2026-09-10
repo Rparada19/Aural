@@ -7,11 +7,6 @@
     "icon": "./assets/icon.png",
     "scheme": "aural",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "co.aural.app",
@@ -45,6 +40,16 @@
             "./assets/fonts/Gotham-Bold.ttf",
             "./assets/fonts/Gotham-Black.ttf"
           ]
+        }
+      ],
+      "expo-sharing",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF"
         }
       ]
     ],

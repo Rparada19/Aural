@@ -3,9 +3,21 @@
   "compilerOptions": {
     "strict": true,
     "paths": {
-      "@aural/shared": ["../../packages/shared/src"],
-      "@aural/shared/*": ["../../packages/shared/src/*"]
-    }
+      "@aural/shared": [
+        "../../packages/shared/src"
+      ],
+      "@aural/shared/*": [
+        "../../packages/shared/src/*"
+      ]
+    },
+    "types": [
+      "node",
+      "react"
+    ]
   },
-  "include": ["**/*.ts", "**/*.tsx", "../../packages/shared/src/**/*"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../../packages/shared/src/**/*"
+  ]
 }
