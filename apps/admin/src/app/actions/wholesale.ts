@@ -736,7 +736,18 @@ export async function addProjectNote(formData: FormData) {
 }
 
 export async function deleteProjectNote(noteId: string, projectId: string) {
-  const { supabase } = await ensureMember();
+  const { supabase, me } = await ensureMember();
+
+  // Cada quien borra lo suyo. La RLS lo impone igual; esto da el mensaje.
+  const { data: note } = await supabase
+    .from('wholesale_project_notes')
+    .select('author_id')
+    .eq('id', noteId)
+    .single();
+  if (note && note.author_id !== me.id) {
+    throw new Error('Solo puedes borrar tus propios mensajes');
+  }
+
   const { error } = await supabase
     .from('wholesale_project_notes')
     .update({ deleted_at: new Date().toISOString() })

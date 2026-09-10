@@ -33,7 +33,7 @@ export default async function ProjectDetail({
       .maybeSingle(),
     supabase
       .from('wholesale_project_notes')
-      .select('id, author_name, author_role, body, file_path, file_name, file_size, progress_percent, created_at')
+      .select('id, author_id, author_name, author_role, body, file_path, file_name, file_size, progress_percent, created_at')
       .eq('project_id', id)
       .is('deleted_at', null)
       .order('created_at'),
@@ -74,6 +74,7 @@ export default async function ProjectDetail({
             notes={(notes ?? []) as Note[]}
             progress={project.progress_percent}
             myRole={me.role}
+            myId={me.id}
           />
         </section>
 

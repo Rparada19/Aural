@@ -6,6 +6,7 @@ import { addProjectNote, deleteProjectNote, getDownloadUrl } from '@/app/actions
 
 export interface Note {
   id: string;
+  author_id: string | null;
   author_name: string | null;
   author_role: string | null;
   body: string | null;
@@ -26,12 +27,13 @@ function when(iso: string) {
 }
 
 export function ProjectThread({
-  projectId, notes, progress, myRole,
+  projectId, notes, progress, myRole, myId,
 }: {
   projectId: string;
   notes: Note[];
   progress: number;
   myRole: 'admin' | 'coordinator' | 'rep';
+  myId: string;
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -85,13 +87,15 @@ export function ProjectThread({
         )}
 
         {notes.map((n) => {
-          const mine = n.author_role === (myRole === 'rep' ? 'Comercial' : 'Coordinación');
+          const fromMySide = n.author_role === (myRole === 'rep' ? 'Comercial' : 'Coordinación');
+          // Solo se borra lo propio: lo que escribió otro queda como quedó
+          const isMine = n.author_id === myId;
           return (
             <li key={n.id} className="relative pl-5 pb-5 border-l border-[var(--rule)] last:border-transparent">
               {/* El punto ancla el mensaje en la línea de tiempo */}
               <span
                 className="absolute -left-[3.5px] top-1.5 w-[7px] h-[7px] rounded-full"
-                style={{ background: mine ? 'var(--accent)' : 'var(--ink)' }}
+                style={{ background: fromMySide ? 'var(--accent)' : 'var(--ink)' }}
               />
 
               <div className="flex items-baseline gap-2 flex-wrap">
@@ -124,13 +128,15 @@ export function ProjectThread({
                 </button>
               )}
 
-              <button
-                onClick={async () => { setBusy(n.id); await deleteProjectNote(n.id, projectId); router.refresh(); setBusy(null); }}
-                disabled={busy === n.id}
-                className="block mt-2 text-[11px] text-[var(--ink-faint)] hover:text-[var(--alert)] disabled:opacity-50"
-              >
-                Borrar
-              </button>
+              {isMine && (
+                <button
+                  onClick={async () => { setBusy(n.id); await deleteProjectNote(n.id, projectId); router.refresh(); setBusy(null); }}
+                  disabled={busy === n.id}
+                  className="block mt-2 text-[11px] text-[var(--ink-faint)] hover:text-[var(--alert)] disabled:opacity-50"
+                >
+                  Borrar
+                </button>
+              )}
             </li>
           );
         })}
