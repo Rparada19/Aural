@@ -450,6 +450,7 @@ export default async function WholesaleRepDetail({
           clients={clientList}
           monthLabel={MONTHS[month - 1]}
           defaultDate={month === now.getMonth() + 1 && year === now.getFullYear() ? today : monthFrom}
+          sheetHref={`/wholesale/reps/${id}/gastos?year=${year}&month=${month}`}
         />
       </section>
 

@@ -22,7 +22,7 @@ export interface Expense {
 }
 
 export function Expenses({
-  repId, expenses, categories, clients, monthLabel, defaultDate,
+  repId, expenses, categories, clients, monthLabel, defaultDate, sheetHref,
 }: {
   repId: string;
   expenses: Expense[];
@@ -30,6 +30,7 @@ export function Expenses({
   clients: { id: string; name: string }[];
   monthLabel: string;
   defaultDate: string;
+  sheetHref?: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -62,12 +63,19 @@ export function Expenses({
     <div>
       <div className="flex items-baseline justify-between gap-4 mb-4">
         <div>
-          <h2 className="font-semibold">Gastos de {monthLabel}</h2>
+          <h2 className="wsale-display text-[17px]">Gastos de {monthLabel}</h2>
           <p className="text-[var(--ink-soft)] text-xs mt-1">
             Cada gasto se imputa al cliente con el que se hizo.
           </p>
         </div>
-        <p className="text-lg font-semibold">{cop(total)}</p>
+        <div className="flex items-center gap-4">
+          {sheetHref && expenses.length > 0 && (
+            <a href={sheetHref} className="wsale-btn-ghost text-[12px] h-9">
+              Hoja de legalización
+            </a>
+          )}
+          <p className="wsale-figure text-[20px]">{cop(total)}</p>
+        </div>
       </div>
 
       {ranked.length > 0 && (
