@@ -18,12 +18,15 @@ function Compliance({ actual, budget }: { actual: number; budget: number }) {
   );
 }
 
-export default async function WholesaleBudgetsPage({
-  searchParams,
+export default async function ZoneBudgetPage({
+  params, searchParams,
 }: {
+  params: Promise<{ zone: string }>;
   searchParams: Promise<{ year?: string }>;
 }) {
+  const { zone: zoneParam } = await params;
   const { year: yearParam } = await searchParams;
+  const zone = decodeURIComponent(zoneParam);
   const me = await requireWholesaleMe();
   const supabase = await createSupabaseServerClient();
 
@@ -34,7 +37,8 @@ export default async function WholesaleBudgetsPage({
       .from('wholesale_clients')
       .select('id, name, city, zone, rep_id')
       .is('deleted_at', null)
-      .eq('is_active', true),
+      .eq('is_active', true)
+      .order('name'),
     supabase.from('wholesale_budgets').select('client_id, amount, units').eq('year', year),
     supabase
       .from('wholesale_sales')
@@ -45,7 +49,7 @@ export default async function WholesaleBudgetsPage({
     supabase.from('wholesale_reps').select('id, name').is('deleted_at', null),
   ]);
 
-  const clientList = clients ?? [];
+  const inZone = (clients ?? []).filter((c) => (c.zone?.trim() || SIN_ZONA) === zone);
   const repName = new Map((reps ?? []).map((r) => [r.id, r.name]));
 
   const budgetByClient = new Map<string, { amount: number; units: number }>();
@@ -56,7 +60,6 @@ export default async function WholesaleBudgetsPage({
       units: p.units + Number(b.units ?? 0),
     });
   }
-
   const actualByClient = new Map<string, { amount: number; units: number }>();
   for (const s of sales ?? []) {
     const p = actualByClient.get(s.client_id) ?? { amount: 0, units: 0 };
@@ -66,87 +69,49 @@ export default async function WholesaleBudgetsPage({
     });
   }
 
-  // Agregado por zona
-  const zones = new Map<string, {
-    clients: number; reps: Set<string>;
-    budget: { amount: number; units: number };
-    actual: { amount: number; units: number };
-  }>();
-  for (const c of clientList) {
-    const key = c.zone?.trim() || SIN_ZONA;
-    const z = zones.get(key) ?? {
-      clients: 0, reps: new Set<string>(),
-      budget: { amount: 0, units: 0 }, actual: { amount: 0, units: 0 },
-    };
-    const b = budgetByClient.get(c.id) ?? { amount: 0, units: 0 };
-    const a = actualByClient.get(c.id) ?? { amount: 0, units: 0 };
-    z.clients += 1;
-    if (c.rep_id) z.reps.add(c.rep_id);
-    z.budget = { amount: z.budget.amount + b.amount, units: z.budget.units + b.units };
-    z.actual = { amount: z.actual.amount + a.amount, units: z.actual.units + a.units };
-    zones.set(key, z);
-  }
+  const rows = inZone.map((c) => ({
+    ...c,
+    budget: budgetByClient.get(c.id) ?? { amount: 0, units: 0 },
+    actual: actualByClient.get(c.id) ?? { amount: 0, units: 0 },
+  })).sort((a, b) => b.budget.amount - a.budget.amount);
 
-  const zoneRows = [...zones.entries()].sort((a, b) => b[1].budget.amount - a[1].budget.amount);
-  const total = zoneRows.reduce((acc, [, z]) => ({
-    budgetAmount: acc.budgetAmount + z.budget.amount,
-    budgetUnits: acc.budgetUnits + z.budget.units,
-    actualAmount: acc.actualAmount + z.actual.amount,
-    actualUnits: acc.actualUnits + z.actual.units,
-    clients: acc.clients + z.clients,
-  }), { budgetAmount: 0, budgetUnits: 0, actualAmount: 0, actualUnits: 0, clients: 0 });
-
-  const years = [year - 2, year - 1, year, year + 1];
+  const total = rows.reduce((acc, r) => ({
+    budgetAmount: acc.budgetAmount + r.budget.amount,
+    budgetUnits: acc.budgetUnits + r.budget.units,
+    actualAmount: acc.actualAmount + r.actual.amount,
+    actualUnits: acc.actualUnits + r.actual.units,
+  }), { budgetAmount: 0, budgetUnits: 0, actualAmount: 0, actualUnits: 0 });
 
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-secondary">Wholesale</p>
-          <h1 className="text-2xl font-semibold mt-1">Presupuestos {year}</h1>
+          <Link href={`/wholesale/budgets?year=${year}`} className="text-secondary text-sm hover:underline">
+            ← Zonas
+          </Link>
+          <h1 className="text-2xl font-semibold mt-2">{zone}</h1>
           <p className="text-secondary text-sm mt-1">
-            Por zona. Entra a una para ver sus clientes mes a mes.
+            {rows.length} cliente{rows.length === 1 ? '' : 's'} · presupuesto {year}
           </p>
-        </div>
-        <div className="flex gap-2">
-          {years.map((y) => (
-            <Link
-              key={y}
-              href={`/wholesale/budgets?year=${y}`}
-              className={`h-10 leading-10 px-4 rounded-lg text-sm font-semibold transition ${
-                y === year ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
-              }`}
-            >
-              {y}
-            </Link>
-          ))}
         </div>
       </header>
 
-      {clientList.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState
-          emoji="🎯"
-          title="Primero necesitas clientes"
-          description="El presupuesto se define por cliente y se agrupa por zona. Carga la cartera y vuelve acá."
-          action={
-            <Link
-              href="/wholesale/clients/new"
-              className="inline-block h-11 leading-[44px] px-6 rounded-lg bg-primary text-white font-semibold hover:bg-primary-soft transition"
-            >
-              Cargar cliente
-            </Link>
-          }
+          emoji="🗺️"
+          title="Esta zona no tiene clientes activos"
+          description="Asigna centros auditivos a esta zona desde la ficha de cada cliente."
         />
       ) : (
         <div className="bg-white rounded-2xl border border-border shadow-sm overflow-x-auto">
           <table className="w-full text-sm min-w-[840px] border-collapse [&_th]:border [&_th]:border-border [&_td]:border [&_td]:border-border">
             <thead className="bg-surface text-secondary">
               <tr className="text-left">
-                <th className="px-5 py-3 font-semibold" rowSpan={2}>Zona</th>
-                <th className="px-3 py-3 font-semibold text-right" rowSpan={2}>Clientes</th>
+                <th className="px-5 py-3 font-semibold" rowSpan={2}>Cliente</th>
                 <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Presupuesto</th>
                 <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Real</th>
                 <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Cumplimiento</th>
+                <th className="px-3 py-3 font-semibold" rowSpan={2} />
               </tr>
               <tr className="text-right text-xs">
                 <th className="px-3 pb-2 font-medium">Valor</th>
@@ -158,39 +123,44 @@ export default async function WholesaleBudgetsPage({
               </tr>
             </thead>
             <tbody>
-              {zoneRows.map(([zone, z]) => (
-                <tr key={zone} className="hover:bg-surface/60 transition">
+              {rows.map((c) => (
+                <tr key={c.id} className="hover:bg-surface/60 transition">
                   <td className="px-5 py-3">
-                    <Link
-                      href={`/wholesale/budgets/zona/${encodeURIComponent(zone)}?year=${year}`}
-                      className="font-medium hover:underline"
-                    >
-                      {zone}
+                    <Link href={`/wholesale/budgets/${c.id}?year=${year}`} className="font-medium hover:underline">
+                      {c.name}
                     </Link>
                     <p className="text-xs text-secondary">
-                      {[...z.reps].map((id) => repName.get(id)).filter(Boolean).join(', ') || 'Sin comercial'}
+                      {[c.city, c.rep_id ? repName.get(c.rep_id) : null].filter(Boolean).join(' · ')}
                     </p>
                   </td>
-                  <td className="px-3 py-3 text-right">{z.clients}</td>
                   <td className="px-3 py-3 text-right">
-                    {z.budget.amount > 0 ? cop(z.budget.amount) : <span className="text-secondary">—</span>}
+                    {c.budget.amount > 0 ? cop(c.budget.amount) : <span className="text-secondary">Sin definir</span>}
                   </td>
-                  <td className="px-3 py-3 text-right text-secondary">{z.budget.units || '—'}</td>
-                  <td className="px-3 py-3 text-right font-medium">{cop(z.actual.amount)}</td>
-                  <td className="px-3 py-3 text-right text-secondary">{z.actual.units || '—'}</td>
+                  <td className="px-3 py-3 text-right text-secondary">{c.budget.units || '—'}</td>
+                  <td className="px-3 py-3 text-right font-medium">{cop(c.actual.amount)}</td>
+                  <td className="px-3 py-3 text-right text-secondary">{c.actual.units || '—'}</td>
                   <td className="px-3 py-3 text-right">
-                    <Compliance actual={z.actual.amount} budget={z.budget.amount} />
+                    <Compliance actual={c.actual.amount} budget={c.budget.amount} />
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <Compliance actual={z.actual.units} budget={z.budget.units} />
+                    <Compliance actual={c.actual.units} budget={c.budget.units} />
+                  </td>
+                  <td className="px-3 py-3 text-right">
+                    {me.role === 'coordinator' && (
+                      <Link
+                        href={`/wholesale/budgets/${c.id}?year=${year}`}
+                        className="text-primary font-semibold hover:underline whitespace-nowrap"
+                      >
+                        Editar
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
             <tfoot className="bg-surface font-semibold">
               <tr>
-                <td className="px-5 py-3">Total canal</td>
-                <td className="px-3 py-3 text-right">{total.clients}</td>
+                <td className="px-5 py-3">Total zona</td>
                 <td className="px-3 py-3 text-right">{cop(total.budgetAmount)}</td>
                 <td className="px-3 py-3 text-right">{total.budgetUnits || '—'}</td>
                 <td className="px-3 py-3 text-right">{cop(total.actualAmount)}</td>
@@ -201,6 +171,7 @@ export default async function WholesaleBudgetsPage({
                 <td className="px-3 py-3 text-right">
                   <Compliance actual={total.actualUnits} budget={total.budgetUnits} />
                 </td>
+                <td />
               </tr>
             </tfoot>
           </table>
