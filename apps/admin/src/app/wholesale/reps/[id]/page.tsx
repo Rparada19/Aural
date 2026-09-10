@@ -178,9 +178,17 @@ export default async function WholesaleRepDetail({
               {[rep.zone, rep.email, rep.phone].filter(Boolean).join(' · ') || 'Sin datos de contacto'}
             </p>
           </div>
-          <p className="text-secondary text-sm">
-            {clientList.length} cliente{clientList.length === 1 ? '' : 's'} en cartera
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-secondary text-sm">
+              {clientList.length} cliente{clientList.length === 1 ? '' : 's'} en cartera
+            </p>
+            <Link
+              href={`/wholesale/reps/${id}/reporte?year=${year}&month=${month}`}
+              className="h-10 leading-10 px-4 rounded-lg border border-border text-sm font-semibold hover:border-primary transition"
+            >
+              Reporte PDF
+            </Link>
+          </div>
         </div>
       </header>
 

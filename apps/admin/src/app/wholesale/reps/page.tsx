@@ -195,7 +195,13 @@ export default async function WholesaleRepsPage({
             Presupuesto, gasto y cumplimiento de cada zona, en valores y en unidades.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <Link
+            href={`/wholesale/reps/reporte?year=${year}${month ? `&month=${month}` : ''}`}
+            className="h-10 leading-10 px-4 rounded-lg border border-border text-sm font-semibold hover:border-primary transition"
+          >
+            Reporte PDF
+          </Link>
           {years.map((y) => (
             <Link
               key={y}
