@@ -18,6 +18,8 @@ import { requireWholesaleMe, salesMetrics, cop, pct } from '@/lib/wholesale';
 
 export const dynamic = 'force-dynamic';
 
+const SHOW_ACCESS = false;
+
 const MONTHS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -397,7 +399,9 @@ export default async function WholesaleRepDetail({
         </section>
       </div>
 
-      {me.role === 'coordinator' && (
+      {/* Gestión de accesos: lista pero apagada hasta que se decida abrir
+          el sistema a los comerciales. Poner SHOW_ACCESS en true la revive. */}
+      {SHOW_ACCESS && me.role === 'coordinator' && (
         <section className="mt-6 bg-white rounded-2xl border border-border p-6 shadow-sm">
           <h2 className="font-semibold">Acceso al sistema</h2>
           <p className="text-secondary text-xs mt-1 mb-4">
