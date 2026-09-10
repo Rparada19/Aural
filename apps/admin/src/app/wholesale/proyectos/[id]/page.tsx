@@ -37,12 +37,19 @@ export default async function ProjectDetail({
       .eq('project_id', id)
       .is('deleted_at', null)
       .order('created_at'),
-    supabase.from('wholesale_reps').select('id, name').is('deleted_at', null),
+    supabase.from('wholesale_reps').select('id, name, zone').is('deleted_at', null),
     supabase.from('wholesale_clients').select('id, name').is('deleted_at', null),
   ]);
 
+  const { data: team } = await supabase
+    .from('wholesale_project_reps')
+    .select('rep_id')
+    .eq('project_id', id);
+
   if (!project) notFound();
 
+  const teamIds = (team ?? []).map((t) => t.rep_id);
+  const teamReps = (reps ?? []).filter((r) => teamIds.includes(r.id));
   const repName = (reps ?? []).find((r) => r.id === project.rep_id)?.name;
   const clientName = (clients ?? []).find((c) => c.id === project.client_id)?.name;
 
@@ -51,7 +58,7 @@ export default async function ProjectDetail({
       <PageHead
         overline={KIND_LABEL[project.kind] ?? 'Proyecto'}
         title={project.title}
-        subtitle={[repName, clientName, project.starts_on && project.ends_on
+        subtitle={[teamReps.map((r) => r.name).join(' + ') || repName, clientName, project.starts_on && project.ends_on
           ? `${project.starts_on} → ${project.ends_on}`
           : project.starts_on].filter(Boolean).join(' · ')}
         actions={<Link href="/wholesale/proyectos" className="wsale-btn-ghost">Todos los proyectos</Link>}
@@ -91,13 +98,22 @@ export default async function ProjectDetail({
                 <dd className="wsale-figure text-[14px] mt-1">{cop(Number(project.budget_amount))}</dd>
               </div>
             )}
-            {repName && (
+            {teamReps.length > 0 && (
               <div>
-                <dt className="wsale-overline">Comercial</dt>
-                <dd className="mt-1">
-                  <Link href={`/wholesale/reps/${project.rep_id}`} className="hover:text-[var(--accent)] transition">
-                    {repName}
-                  </Link>
+                <dt className="wsale-overline">
+                  {teamReps.length === 1 ? 'Comercial' : 'Equipo'}
+                </dt>
+                <dd className="mt-1 space-y-1">
+                  {teamReps.map((r, i) => (
+                    <div key={r.id}>
+                      <Link href={`/wholesale/reps/${r.id}`} className="hover:text-[var(--accent)] transition">
+                        {r.name}
+                      </Link>
+                      {i === 0 && teamReps.length > 1 && (
+                        <span className="text-[10px] text-[var(--ink-faint)]"> · responsable</span>
+                      )}
+                    </div>
+                  ))}
                 </dd>
               </div>
             )}

@@ -1,10 +1,15 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from './supabase/server';
 
+import { type WholesaleRole, can, type Permissions } from './wholesale-roles';
+
 export interface WholesaleMe {
   id: string;
   full_name: string;
-  role: 'coordinator' | 'rep';
+  role: WholesaleRole;
+  /** Para pintar: admin y coordinación ven lo mismo salvo configuración */
+  isCoordination: boolean;
+  can: Permissions;
   repId: string | null;
 }
 
@@ -22,14 +27,19 @@ export async function getWholesaleMe(): Promise<WholesaleMe | null> {
     .single();
   if (!data) return null;
 
-  const isCoordinator = data.is_admin === true || data.admin_role === 'wholesale_coordinator';
-  const isRep = data.admin_role === 'wholesale_rep';
-  if (!isCoordinator && !isRep) return null;
+  const role: WholesaleRole | null =
+    data.is_admin === true ? 'admin'
+    : data.admin_role === 'wholesale_coordinator' ? 'coordinator'
+    : data.admin_role === 'wholesale_rep' ? 'rep'
+    : null;
+  if (!role) return null;
 
   return {
     id: data.id,
     full_name: data.full_name,
-    role: isCoordinator ? 'coordinator' : 'rep',
+    role,
+    isCoordination: role !== 'rep',
+    can: can(role),
     repId: data.linked_wholesale_rep_id ?? null,
   };
 }

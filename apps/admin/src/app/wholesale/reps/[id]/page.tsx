@@ -314,9 +314,9 @@ export default async function WholesaleRepDetail({
             month={month}
             rows={activityRows}
             types={typeList}
-            canEdit={me.role === 'coordinator'}
+            canEdit={me.isCoordination}
           />
-          {me.role === 'coordinator' && (
+          {me.isCoordination && (
             <ActivityTypeManager types={(types ?? []) as ActivityType[]} />
           )}
         </section>
@@ -347,7 +347,7 @@ export default async function WholesaleRepDetail({
                 note={g.progress_note}
               />
             ))}
-            {me.role === 'coordinator' && <NewGoalForm repId={id} year={year} month={month} />}
+            {me.isCoordination && <NewGoalForm repId={id} year={year} month={month} />}
           </div>
 
           {otherGoals.length > 0 && (
@@ -413,7 +413,7 @@ export default async function WholesaleRepDetail({
 
       {/* Gestión de accesos: lista pero apagada hasta que se decida abrir
           el sistema a los comerciales. Poner SHOW_ACCESS en true la revive. */}
-      {SHOW_ACCESS && me.role === 'coordinator' && (
+      {SHOW_ACCESS && me.isCoordination && (
         <section className="mt-6 wsale-panel p-6">
           <h2 className="font-semibold">Acceso al sistema</h2>
           <p className="text-[var(--ink-soft)] text-xs mt-1 mb-4">

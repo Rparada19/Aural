@@ -95,7 +95,7 @@ export default async function WholesaleSalesPage({
     <WholesaleLayout userName={me.full_name} role={me.role}>
       <PageHead
         overline={`Ventas · ${MONTHS[month - 1]} ${year}`}
-        title={me.role === 'coordinator' ? 'Movimiento del canal' : 'Tus ventas del mes'}
+        title={me.isCoordination ? 'Movimiento del canal' : 'Tus ventas del mes'}
         subtitle="Cada factura registrada alimenta el presupuesto mensual del cliente."
         actions={<Link href="/wholesale/sales/new" className="wsale-btn">Registrar venta</Link>}
       />
@@ -124,7 +124,7 @@ export default async function WholesaleSalesPage({
         ))}
       </div>
 
-      {me.role === 'coordinator' && zones.length > 1 && (
+      {me.isCoordination && zones.length > 1 && (
         <div className="flex flex-wrap gap-2 mb-6">
           <Link
             href={href({ zone: null })}

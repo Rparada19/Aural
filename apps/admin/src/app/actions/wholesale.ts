@@ -744,3 +744,118 @@ export async function deleteProjectNote(noteId: string, projectId: string) {
   if (error) throw error;
   revalidatePath(`/wholesale/proyectos/${projectId}`);
 }
+
+/** Proyecto creado por coordinación, con uno o varios comerciales. */
+export async function createTeamProject(input: {
+  title: string;
+  kind: 'evento' | 'campana' | 'capacitacion' | 'otro';
+  rep_ids: string[];
+  client_id?: string | null;
+  description?: string;
+  starts_on?: string | null;
+  ends_on?: string | null;
+  budget_amount?: number | null;
+}) {
+  const { supabase, me } = await ensureCoordinator();
+  if (input.rep_ids.length === 0) throw new Error('Elige al menos un comercial');
+
+  const { data: project, error } = await supabase
+    .from('wholesale_projects')
+    .insert({
+      // El primero queda como responsable; los demás participan
+      rep_id: input.rep_ids[0],
+      client_id: input.client_id || null,
+      title: input.title,
+      kind: input.kind,
+      description: input.description || null,
+      starts_on: input.starts_on || null,
+      ends_on: input.ends_on || null,
+      budget_amount: input.budget_amount ?? null,
+      created_by: me.id,
+    })
+    .select('id')
+    .single();
+  if (error || !project) throw error ?? new Error('No se pudo crear');
+
+  const { error: teamErr } = await supabase
+    .from('wholesale_project_reps')
+    .insert(input.rep_ids.map((rep_id) => ({ project_id: project.id, rep_id })));
+  if (teamErr) throw teamErr;
+
+  revalidatePath('/wholesale/proyectos');
+  return project.id;
+}
+
+export async function setProjectTeam(projectId: string, repIds: string[]) {
+  const { supabase } = await ensureCoordinator();
+  if (repIds.length === 0) throw new Error('El proyecto necesita al menos un comercial');
+
+  const { error: delErr } = await supabase
+    .from('wholesale_project_reps')
+    .delete()
+    .eq('project_id', projectId);
+  if (delErr) throw delErr;
+
+  const { error } = await supabase
+    .from('wholesale_project_reps')
+    .insert(repIds.map((rep_id) => ({ project_id: projectId, rep_id })));
+  if (error) throw error;
+
+  await supabase.from('wholesale_projects').update({ rep_id: repIds[0] }).eq('id', projectId);
+  revalidatePath(`/wholesale/proyectos/${projectId}`);
+  revalidatePath('/wholesale/proyectos');
+}
+
+/** El comercial mantiene sus datos personales. Zona, cargo y estado no
+ *  pasan por aquí: los cambia coordinación y el disparador de la base
+ *  rechaza cualquier intento por otra vía. */
+export async function updateMyProfile(formData: FormData) {
+  const { supabase, me } = await ensureMember();
+  if (!me.repId) throw new Error('Tu usuario no está vinculado a una ficha de comercial');
+
+  const patch: Record<string, string | null> = {
+    mobile: String(formData.get('mobile') ?? '').trim() || null,
+    phone: String(formData.get('phone') ?? '').trim() || null,
+    email: String(formData.get('email') ?? '').trim() || null,
+    city: String(formData.get('city') ?? '').trim() || null,
+    bio: String(formData.get('bio') ?? '').trim() || null,
+  };
+
+  const photo = formData.get('photo') as File | null;
+  if (photo && photo.size > 0) {
+    const path = `${me.repId}/${Date.now()}-${safeName(photo.name)}`;
+    const { error: upErr } = await supabase.storage
+      .from('wholesale-avatars')
+      .upload(path, photo, { contentType: photo.type || undefined, upsert: true });
+    if (upErr) throw upErr;
+    patch.photo_url = path;
+  }
+
+  const { error } = await supabase.from('wholesale_reps').update(patch).eq('id', me.repId);
+  if (error) throw error;
+
+  revalidatePath('/wholesale/perfil');
+  revalidatePath(`/wholesale/reps/${me.repId}`);
+}
+
+/** Coordinación mantiene lo que compromete: zona, cargo, ingreso, estado. */
+export async function updateRepAssignment(repId: string, input: {
+  zone?: string | null;
+  job_title?: string | null;
+  document_id?: string | null;
+  started_on?: string | null;
+  territory_note?: string | null;
+  is_active?: boolean;
+}) {
+  const { supabase } = await ensureCoordinator();
+  const { error } = await supabase.from('wholesale_reps').update(input).eq('id', repId);
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${repId}`);
+  revalidatePath('/wholesale/reps');
+}
+
+export async function getAvatarUrl(path: string) {
+  const { supabase } = await ensureMember();
+  const { data } = await supabase.storage.from('wholesale-avatars').createSignedUrl(path, 60 * 60);
+  return data?.signedUrl ?? null;
+}

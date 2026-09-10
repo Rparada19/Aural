@@ -145,7 +145,7 @@ export default async function ZoneBudgetPage({
                     <Compliance actual={c.actual.units} budget={c.budget.units} />
                   </td>
                   <td className="num">
-                    {me.role === 'coordinator' && (
+                    {me.isCoordination && (
                       <Link
                         href={`/wholesale/budgets/${c.id}?year=${year}`}
                         className="text-[var(--accent)] font-medium hover:underline whitespace-nowrap"

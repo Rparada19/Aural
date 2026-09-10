@@ -117,7 +117,7 @@ export default async function WholesaleDashboard() {
     <WholesaleLayout userName={me.full_name} role={me.role}>
       <PageHead
         overline={`${MONTHS_FULL[now.getMonth()]} ${now.getFullYear()}`}
-        title={me.role === 'coordinator' ? 'Resumen del canal' : `Tu zona, ${me.full_name.split(' ')[0]}`}
+        title={me.isCoordination ? 'Resumen del canal' : `Tu zona, ${me.full_name.split(' ')[0]}`}
         subtitle={`${clientList.length} cliente${clientList.length === 1 ? '' : 's'} activo${clientList.length === 1 ? '' : 's'} · ${openLoans.length} equipo${openLoans.length === 1 ? '' : 's'} prestado${openLoans.length === 1 ? '' : 's'}`}
         actions={
           <Link href="/wholesale/sales/new" className="wsale-btn">Registrar venta</Link>

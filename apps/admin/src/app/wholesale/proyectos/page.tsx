@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { WholesaleLayout, PageHead } from '@/components/WholesaleLayout';
 import { EmptyState, Meter } from '@/components/wholesale/MetricCard';
 import { requireWholesaleMe, cop } from '@/lib/wholesale';
+import { NewTeamProject } from '@/components/wholesale/NewTeamProject';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,12 +24,21 @@ export default async function ProjectsPage() {
       .select('id, rep_id, client_id, title, kind, starts_on, ends_on, budget_amount, progress_percent, status')
       .is('deleted_at', null)
       .order('starts_on', { ascending: false }),
-    supabase.from('wholesale_reps').select('id, name').is('deleted_at', null),
-    supabase.from('wholesale_clients').select('id, name').is('deleted_at', null),
+    supabase.from('wholesale_reps').select('id, name, zone').is('deleted_at', null).eq('is_active', true).order('name'),
+    supabase.from('wholesale_clients').select('id, name').is('deleted_at', null).eq('is_active', true).order('name'),
     supabase.from('wholesale_project_notes').select('project_id, created_at').is('deleted_at', null),
   ]);
 
+  const { data: team } = await supabase
+    .from('wholesale_project_reps')
+    .select('project_id, rep_id');
+
   const repName = new Map((reps ?? []).map((r) => [r.id, r.name]));
+  const teamByProject = new Map<string, string[]>();
+  for (const t of team ?? []) {
+    if (!teamByProject.has(t.project_id)) teamByProject.set(t.project_id, []);
+    teamByProject.get(t.project_id)!.push(t.rep_id);
+  }
   const clientName = new Map((clients ?? []).map((c) => [c.id, c.name]));
 
   const activity = new Map<string, { count: number; last: string }>();
@@ -57,6 +67,11 @@ export default async function ProjectsPage() {
         overline="Wholesale"
         title="Proyectos"
         subtitle="Eventos, campañas y capacitaciones que coordinación y comerciales trabajan juntos. Cada uno tiene su hilo de avances y archivos."
+        actions={
+          me.can.setGoals ? (
+            <NewTeamProject reps={reps ?? []} clients={clients ?? []} />
+          ) : undefined
+        }
       />
 
       {rows.length === 0 ? (
@@ -76,7 +91,11 @@ export default async function ProjectsPage() {
                     <p className="text-[11px] text-[var(--ink-faint)] mt-0.5">
                       {[
                         KIND_LABEL[p.kind] ?? 'Proyecto',
-                        p.rep_id ? repName.get(p.rep_id) : null,
+                        (teamByProject.get(p.id) ?? [p.rep_id])
+                          .filter(Boolean)
+                          .map((id) => repName.get(id as string))
+                          .filter(Boolean)
+                          .join(' + '),
                         p.client_id ? clientName.get(p.client_id) : null,
                         p.starts_on,
                       ].filter(Boolean).join(' · ')}

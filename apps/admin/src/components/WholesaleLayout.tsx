@@ -2,17 +2,19 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { LogoutButton } from './LogoutButton';
 import { MARKET_URL } from '@/lib/markets';
+import { ROLE_LABEL } from '@/lib/wholesale-roles';
 
-export type WholesaleRole = 'coordinator' | 'rep';
+import type { WholesaleRole } from '@/lib/wholesale-roles';
+export type { WholesaleRole };
 
 const NAV: { href: string; label: string; num: string; allowed: WholesaleRole[] }[] = [
-  { href: '/wholesale', label: 'Resumen', num: '01', allowed: ['coordinator', 'rep'] },
-  { href: '/wholesale/clients', label: 'Clientes', num: '02', allowed: ['coordinator', 'rep'] },
-  { href: '/wholesale/sales', label: 'Ventas', num: '03', allowed: ['coordinator', 'rep'] },
-  { href: '/wholesale/budgets', label: 'Presupuestos', num: '04', allowed: ['coordinator', 'rep'] },
-  { href: '/wholesale/proyectos', label: 'Proyectos', num: '05', allowed: ['coordinator', 'rep'] },
-  { href: '/wholesale/documentos', label: 'Documentos', num: '06', allowed: ['coordinator', 'rep'] },
-  { href: '/wholesale/reps', label: 'Comerciales', num: '07', allowed: ['coordinator'] },
+  { href: '/wholesale', label: 'Resumen', num: '01', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/clients', label: 'Clientes', num: '02', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/sales', label: 'Ventas', num: '03', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/budgets', label: 'Presupuestos', num: '04', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/proyectos', label: 'Proyectos', num: '05', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/documentos', label: 'Documentos', num: '06', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/reps', label: 'Comerciales', num: '07', allowed: ['admin', 'coordinator'] },
 ];
 
 export function WholesaleLayout({
@@ -57,10 +59,10 @@ export function WholesaleLayout({
         </nav>
 
         <div className="px-6 py-5 border-t border-white/10">
-          <p className="text-[13px] text-white/85 truncate">{userName}</p>
-          <p className="text-[11px] text-white/40 mt-0.5">
-            {role === 'coordinator' ? 'Coordinación' : 'Comercial'}
-          </p>
+          <Link href="/wholesale/perfil" className="text-[13px] text-white/85 truncate block hover:text-white transition">
+            {userName}
+          </Link>
+          <p className="text-[11px] text-white/40 mt-0.5">{ROLE_LABEL[role]}</p>
           <div className="mt-3 flex flex-col gap-1.5 text-[11px]">
             <a href={MARKET_URL.vm} className="text-white/50 hover:text-white transition">
               Visita médica →

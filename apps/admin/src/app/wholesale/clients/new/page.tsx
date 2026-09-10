@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function NewWholesaleClientPage() {
   const me = await requireWholesaleMe();
-  if (me.role !== 'coordinator') redirect('/wholesale/clients');
+  if (!me.isCoordination) redirect('/wholesale/clients');
 
   const supabase = await createSupabaseServerClient();
   const { data: reps } = await supabase

@@ -37,12 +37,12 @@ export default async function DocumentsPage() {
         overline="Wholesale"
         title="Documentos"
         subtitle={
-          me.role === 'coordinator'
+          me.isCoordination
             ? 'Material para el equipo comercial. Puedes publicarlo para todos o para comerciales puntuales.'
             : 'Material que coordinación publicó para ti.'
         }
       />
-      <DocumentList docs={rows} reps={reps ?? []} canManage={me.role === 'coordinator'} />
+      <DocumentList docs={rows} reps={reps ?? []} canManage={me.isCoordination} />
     </WholesaleLayout>
   );
 }

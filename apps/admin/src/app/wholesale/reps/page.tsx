@@ -27,7 +27,7 @@ export default async function WholesaleRepsPage({
 }) {
   const { year: yearParam, month: monthParam } = await searchParams;
   const me = await requireWholesaleMe();
-  if (me.role !== 'coordinator') redirect('/wholesale');
+  if (!me.isCoordination) redirect('/wholesale');
 
   const now = new Date();
   const year = Number(yearParam) || now.getFullYear();

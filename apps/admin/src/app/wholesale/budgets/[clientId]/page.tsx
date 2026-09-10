@@ -26,7 +26,7 @@ export default async function WholesaleBudgetDetail({
   const { clientId } = await params;
   const { year: yearParam } = await searchParams;
   const me = await requireWholesaleMe();
-  if (me.role !== 'coordinator') redirect('/wholesale/budgets');
+  if (!me.isCoordination) redirect('/wholesale/budgets');
 
   const year = Number(yearParam) || new Date().getFullYear();
   const supabase = await createSupabaseServerClient();

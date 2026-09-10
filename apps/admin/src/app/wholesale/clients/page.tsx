@@ -46,12 +46,12 @@ export default async function WholesaleClientsPage() {
         overline="Wholesale"
         title="Clientes"
         subtitle={
-          me.role === 'coordinator'
+          me.isCoordination
             ? 'Centros auditivos del canal, su comercial asignado y cuánto pesa cada uno.'
             : 'Los centros auditivos de tu zona.'
         }
         actions={
-          me.role === 'coordinator' ? (
+          me.isCoordination ? (
             <Link href="/wholesale/clients/new" className="wsale-btn">Nuevo cliente</Link>
           ) : undefined
         }
@@ -62,12 +62,12 @@ export default async function WholesaleClientsPage() {
           emoji="🏥"
           title="Sin clientes todavía"
           description={
-            me.role === 'coordinator'
+            me.isCoordination
               ? 'Carga el primer centro auditivo y asígnalo a un comercial de zona.'
               : 'Cuando coordinación te asigne clientes, aparecerán aquí.'
           }
           action={
-            me.role === 'coordinator' ? (
+            me.isCoordination ? (
               <Link
                 href="/wholesale/clients/new"
                 className="wsale-btn"
@@ -104,7 +104,7 @@ export default async function WholesaleClientsPage() {
                     {c.zone && <span className="text-xs block">{c.zone}</span>}
                   </td>
                   <td >
-                    {me.role === 'coordinator' ? (
+                    {me.isCoordination ? (
                       <RepPicker clientId={c.id} repId={c.rep_id} reps={repList} />
                     ) : (
                       (c.rep_id && repName.get(c.rep_id)) || 'Sin asignar'

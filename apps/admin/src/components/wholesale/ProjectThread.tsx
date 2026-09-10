@@ -31,7 +31,7 @@ export function ProjectThread({
   projectId: string;
   notes: Note[];
   progress: number;
-  myRole: 'coordinator' | 'rep';
+  myRole: 'admin' | 'coordinator' | 'rep';
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -85,7 +85,7 @@ export function ProjectThread({
         )}
 
         {notes.map((n) => {
-          const mine = n.author_role === (myRole === 'coordinator' ? 'Coordinación' : 'Comercial');
+          const mine = n.author_role === (myRole === 'rep' ? 'Comercial' : 'Coordinación');
           return (
             <li key={n.id} className="relative pl-5 pb-5 border-l border-[var(--rule)] last:border-transparent">
               {/* El punto ancla el mensaje en la línea de tiempo */}
