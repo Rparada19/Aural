@@ -78,6 +78,7 @@ export async function createWholesaleSale(input: {
   client_id: string;
   sold_on: string;
   invoice_number?: string;
+  campaign_name?: string;
   campaign_id?: string | null;
   patient_name?: string;
   patient_document?: string;
@@ -85,6 +86,8 @@ export async function createWholesaleSale(input: {
   binaural: boolean;
   rechargeable: boolean;
   style?: string | null;
+  platform?: string | null;
+  tech_level?: string | null;
   list_price: number;
   discount_percent: number;
 }) {
@@ -108,6 +111,7 @@ export async function createWholesaleSale(input: {
     rep_id: client.rep_id,
     sold_on: input.sold_on,
     invoice_number: input.invoice_number || null,
+    campaign_name: input.campaign_name || null,
     campaign_id: input.campaign_id || null,
     patient_name: input.patient_name || null,
     patient_document: input.patient_document || null,
@@ -115,6 +119,8 @@ export async function createWholesaleSale(input: {
     binaural: input.binaural,
     rechargeable: input.rechargeable,
     style: input.style || null,
+    platform: input.platform || null,
+    tech_level: input.tech_level || null,
     list_price: input.list_price,
     discount_percent: input.discount_percent,
     net_amount: net,

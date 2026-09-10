@@ -17,7 +17,7 @@ export default async function NewWholesaleSalePage({
   const supabase = await createSupabaseServerClient();
 
   // La RLS ya limita al comercial a su propia cartera.
-  const [{ data: clients }, { data: styles }] = await Promise.all([
+  const [{ data: clients }, { data: styles }, { data: platforms }, { data: techLevels }, { data: usedCampaigns }] = await Promise.all([
     supabase
       .from('wholesale_clients')
       .select('id, name')
@@ -29,9 +29,18 @@ export default async function NewWholesaleSalePage({
       .select('slug, label, description')
       .eq('is_active', true)
       .order('sort_order'),
+    supabase.from('wholesale_platforms').select('slug, label').eq('is_active', true).order('sort_order'),
+    supabase.from('wholesale_tech_levels').select('slug, label').eq('is_active', true).order('sort_order'),
+    supabase
+      .from('wholesale_sales')
+      .select('campaign_name')
+      .not('campaign_name', 'is', null)
+      .is('deleted_at', null)
+      .limit(500),
   ]);
 
   const clientList = clients ?? [];
+  const campaigns = [...new Set((usedCampaigns ?? []).map((c) => c.campaign_name as string))].sort();
 
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
@@ -50,7 +59,14 @@ export default async function NewWholesaleSalePage({
           description="Para registrar una venta primero necesitas un cliente en tu cartera. Habla con coordinación."
         />
       ) : (
-        <NewSaleForm clients={clientList} styles={styles ?? []} defaultClientId={client} />
+        <NewSaleForm
+          clients={clientList}
+          styles={styles ?? []}
+          platforms={platforms ?? []}
+          techLevels={techLevels ?? []}
+          campaigns={campaigns}
+          defaultClientId={client}
+        />
       )}
     </WholesaleLayout>
   );

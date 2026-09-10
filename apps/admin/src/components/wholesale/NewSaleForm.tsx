@@ -7,10 +7,13 @@ import { Field, inputClass } from './Field';
 import { cop } from '@/lib/format';
 
 export function NewSaleForm({
-  clients, styles, defaultClientId,
+  clients, styles, platforms, techLevels, campaigns, defaultClientId,
 }: {
   clients: { id: string; name: string }[];
   styles: { slug: string; label: string; description: string | null }[];
+  platforms: { slug: string; label: string }[];
+  techLevels: { slug: string; label: string }[];
+  campaigns: string[];
   defaultClientId?: string;
 }) {
   const router = useRouter();
@@ -20,6 +23,7 @@ export function NewSaleForm({
     client_id: defaultClientId ?? '',
     sold_on: new Date().toISOString().slice(0, 10),
     invoice_number: '',
+    campaign_name: '',
     patient_name: '',
     patient_document: '',
     units: '1',
@@ -28,6 +32,8 @@ export function NewSaleForm({
     binaural: 'unilateral',
     power: 'bateria',
     style: styles[0]?.slug ?? '',
+    platform: '',
+    tech_level: '',
   });
 
   const net = useMemo(() => {
@@ -52,12 +58,15 @@ export function NewSaleForm({
         client_id: form.client_id,
         sold_on: form.sold_on,
         invoice_number: form.invoice_number,
+        campaign_name: form.campaign_name,
         patient_name: form.patient_name,
         patient_document: form.patient_document,
         units: Number(form.units),
         binaural: form.binaural === 'binaural',
         rechargeable: form.power === 'recargable',
         style: form.style || null,
+        platform: form.platform || null,
+        tech_level: form.tech_level || null,
         list_price: Number(form.list_price),
         discount_percent: Number(form.discount_percent),
       });
@@ -87,6 +96,18 @@ export function NewSaleForm({
         <Field label="Número de factura">
           <input value={form.invoice_number} onChange={set('invoice_number')} className={inputClass} />
         </Field>
+        <Field label="Campaña" hint="Si la venta salió de una campaña, escribe su nombre.">
+          <input
+            value={form.campaign_name}
+            onChange={set('campaign_name')}
+            list="campanas-wholesale"
+            placeholder="Ej. Jornada octubre"
+            className={inputClass}
+          />
+          <datalist id="campanas-wholesale">
+            {campaigns.map((c) => <option key={c} value={c} />)}
+          </datalist>
+        </Field>
         <Field label="Paciente" hint="Del centro auditivo, para el recordatorio de garantía.">
           <input value={form.patient_name} onChange={set('patient_name')} className={inputClass} />
         </Field>
@@ -104,6 +125,21 @@ export function NewSaleForm({
         </Field>
         <Field label="Descuento %">
           <input type="number" min="0" max="100" step="0.5" value={form.discount_percent} onChange={set('discount_percent')} className={inputClass} />
+        </Field>
+      </div>
+
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Field label="Plataforma">
+          <select required value={form.platform} onChange={set('platform')} className={inputClass}>
+            <option value="">Selecciona…</option>
+            {platforms.map((p) => <option key={p.slug} value={p.slug}>{p.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Tecnología">
+          <select required value={form.tech_level} onChange={set('tech_level')} className={inputClass}>
+            <option value="">Selecciona…</option>
+            {techLevels.map((t) => <option key={t.slug} value={t.slug}>{t.label}</option>)}
+          </select>
         </Field>
       </div>
 
@@ -127,7 +163,7 @@ export function NewSaleForm({
           ]}
         />
         <Choice
-          label="Estilo"
+          label="Formato"
           value={form.style}
           onChange={(v) => setForm((f) => ({ ...f, style: v }))}
           options={styles.map((s) => ({ value: s.slug, label: s.label, hint: s.description }))}
