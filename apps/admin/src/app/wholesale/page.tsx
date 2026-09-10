@@ -25,8 +25,7 @@ export default async function WholesaleDashboard() {
     supabase
       .from('wholesale_sales')
       .select('client_id, sold_on, units, binaural, rechargeable, net_amount')
-      .is('deleted_at', null)
-      .gte('sold_on', yearStart),
+      .is('deleted_at', null),
     supabase
       .from('wholesale_budgets')
       .select('month, amount, units')
@@ -34,7 +33,8 @@ export default async function WholesaleDashboard() {
   ]);
 
   const clientList = clients ?? [];
-  const saleList = sales ?? [];
+  const allSales = sales ?? [];
+  const saleList = allSales.filter((s) => s.sold_on >= yearStart);
   const monthSales = saleList.filter((s) => s.sold_on >= monthStart);
   const month = salesMetrics(monthSales);
   const year = salesMetrics(saleList);
@@ -63,6 +63,38 @@ export default async function WholesaleDashboard() {
   const top = [...revenueByClient.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
+
+  // Seguimiento: quién no ha comprado en el mes en curso
+  const boughtThisMonth = new Set(monthSales.map((s) => s.client_id));
+  const lastSaleByClient = new Map<string, string>();
+  const historyByClient = new Map<string, { total: number; count: number }>();
+  for (const s of allSales) {
+    const prev = lastSaleByClient.get(s.client_id);
+    if (!prev || s.sold_on > prev) lastSaleByClient.set(s.client_id, s.sold_on);
+    const h = historyByClient.get(s.client_id) ?? { total: 0, count: 0 };
+    historyByClient.set(s.client_id, {
+      total: h.total + Number(s.net_amount ?? 0),
+      count: h.count + 1,
+    });
+  }
+
+  const daysSince = (iso: string) =>
+    Math.floor((Date.now() - Date.parse(`${iso}T00:00:00Z`)) / 86_400_000);
+
+  const pending = clientList
+    .filter((c) => !boughtThisMonth.has(c.id))
+    .map((c) => {
+      const last = lastSaleByClient.get(c.id) ?? null;
+      const hist = historyByClient.get(c.id);
+      return {
+        ...c,
+        last,
+        days: last ? daysSince(last) : null,
+        lifetime: hist?.total ?? 0,
+      };
+    })
+    // Primero los que más pesan: quien más compra es quien más duele perder
+    .sort((a, b) => b.lifetime - a.lifetime);
 
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
@@ -122,6 +154,51 @@ export default async function WholesaleDashboard() {
               tone={month.rechargeableRate >= 0.5 ? 'success' : 'warning'}
             />
           </section>
+
+          {pending.length > 0 && (
+            <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
+              <div className="flex items-baseline justify-between gap-4">
+                <div>
+                  <h2 className="font-semibold">Sin compra en {MONTHS[now.getMonth()]}</h2>
+                  <p className="text-secondary text-xs mt-1">
+                    {pending.length} de {clientList.length} clientes. Ordenados por lo que suelen pesar.
+                  </p>
+                </div>
+                <p className="text-2xl font-semibold text-warning">{pending.length}</p>
+              </div>
+
+              <ul className="mt-4 divide-y divide-border">
+                {pending.map((c) => (
+                  <li key={c.id} className="flex items-center gap-4 py-2.5">
+                    <Link href={`/wholesale/clients/${c.id}`} className="flex-1 min-w-0 hover:underline">
+                      <span className="block truncate">{c.name}</span>
+                      <span className="text-secondary text-xs">
+                        {[c.city, c.zone].filter(Boolean).join(' · ')}
+                      </span>
+                    </Link>
+
+                    <span className="text-xs text-right whitespace-nowrap">
+                      {c.last === null ? (
+                        <span className="text-secondary">Nunca ha comprado</span>
+                      ) : (
+                        <>
+                          <span className={c.days! > 90 ? 'text-danger font-semibold' : c.days! > 45 ? 'text-warning' : 'text-secondary'}>
+                            {c.days} días sin comprar
+                          </span>
+                          <span className="block text-secondary">Última: {c.last}</span>
+                        </>
+                      )}
+                    </span>
+
+                    <span className="w-32 text-right text-sm">
+                      {c.lifetime > 0 ? cop(c.lifetime) : '—'}
+                      <span className="block text-secondary text-xs">histórico</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
             <div className="flex items-baseline justify-between">
