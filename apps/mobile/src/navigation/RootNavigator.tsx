@@ -24,6 +24,8 @@ import { NewsScreen } from '../features/news/NewsScreen';
 import { NewsDetailScreen } from '../features/news/NewsDetailScreen';
 import { NewLeadScreen } from '../features/leads/NewLeadScreen';
 import { VisitorHomeScreen } from '../features/visitor/VisitorHomeScreen';
+import { MarketSelectScreen } from '../features/wholesale/MarketSelectScreen';
+import { WholesaleHomeScreen } from '../features/wholesale/WholesaleHomeScreen';
 import { VisitorDoctorsScreen } from '../features/visitor/VisitorDoctorsScreen';
 
 import type { AuthStackParamList, MainStackParamList, VisitorStackParamList } from './types';
@@ -80,6 +82,18 @@ function VisitorNavigator() {
   );
 }
 
+/** Quien atiende los dos mercados entra por el selector; el resto va
+ *  directo a lo suyo. */
+function MarketNavigator() {
+  return (
+    <MainStack.Navigator screenOptions={screenOptions}>
+      <MainStack.Screen name="MarketSelect" component={MarketSelectScreen} options={{ headerShown: false }} />
+      <MainStack.Screen name="MainStack" component={MainNavigator} options={{ headerShown: false }} />
+      <MainStack.Screen name="WholesaleHome" component={WholesaleHomeScreen} options={{ headerShown: false }} />
+    </MainStack.Navigator>
+  );
+}
+
 export function RootNavigator() {
   const { loading, session, profile } = useAuth();
   if (loading) {
@@ -91,6 +105,11 @@ export function RootNavigator() {
   }
   const isApproved = profile?.status === 'approved';
   const isVisitorRep = profile?.admin_role === 'visitor_rep';
+  // El administrador y la coordinación de wholesale ven los dos mercados
+  const hasWholesale =
+    profile?.is_admin === true ||
+    profile?.admin_role === 'wholesale_coordinator' ||
+    profile?.admin_role === 'wholesale_rep';
 
   return (
     <NavigationContainer>
@@ -100,6 +119,8 @@ export function RootNavigator() {
         <WaitingScreen />
       ) : isVisitorRep ? (
         <VisitorNavigator />
+      ) : hasWholesale ? (
+        <MarketNavigator />
       ) : (
         <MainNavigator />
       )}

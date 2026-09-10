@@ -4,13 +4,17 @@ import { supabase } from '../../lib/supabase';
 
 type ProfileStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
 
-type AdminRole = 'coordinator' | 'csr' | 'visitor_rep' | null;
+type AdminRole =
+  | 'coordinator' | 'csr' | 'visitor_rep'
+  | 'wholesale_coordinator' | 'wholesale_rep'
+  | null;
 
 interface ProfileLite {
   id: string;
   full_name: string;
   status: ProfileStatus;
   is_admin: boolean;
+  linked_wholesale_rep_id?: string | null;
   role: string;
   admin_role: AdminRole;
   linked_visitor_id: string | null;
@@ -34,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadProfile(uid: string) {
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, status, is_admin, role, admin_role, linked_visitor_id')
+      .select('id, full_name, status, is_admin, role, admin_role, linked_visitor_id, linked_wholesale_rep_id')
       .eq('id', uid)
       .single();
     setProfile((data as ProfileLite) ?? null);

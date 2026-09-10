@@ -11,6 +11,9 @@ export type AuthStackParamList = {
 };
 
 export type MainStackParamList = {
+  MarketSelect: undefined;
+  MainStack: undefined;
+  WholesaleHome: undefined;
   Home: undefined;
   Patients: undefined;
   PatientTimeline: { id: string };
