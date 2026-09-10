@@ -36,11 +36,11 @@ export default async function WholesaleRepsPage({
     supabase.from('wholesale_clients').select('id, rep_id').is('deleted_at', null),
     supabase
       .from('wholesale_sales')
-      .select('rep_id, units, net_amount')
+      .select('rep_id, sold_on, units, net_amount, binaural, rechargeable, discount_percent, list_price')
       .is('deleted_at', null)
       .gte('sold_on', `${year}-01-01`)
       .lte('sold_on', `${year}-12-31`),
-    supabase.from('wholesale_budgets').select('client_id, amount, units').eq('year', year),
+    supabase.from('wholesale_budgets').select('client_id, month, amount, units').eq('year', year),
   ]);
 
   const repList = reps ?? [];
@@ -73,14 +73,67 @@ export default async function WholesaleRepsPage({
     });
   }
 
+  // Indicadores por comercial: ASP, descuento ponderado y mix de producto.
+  const statsByRep = new Map<string, { count: number; binaural: number; rechargeable: number; listTotal: number; discTotal: number }>();
+  for (const s of sales ?? []) {
+    if (!s.rep_id) continue;
+    const st = statsByRep.get(s.rep_id) ?? { count: 0, binaural: 0, rechargeable: 0, listTotal: 0, discTotal: 0 };
+    const list = Number(s.list_price ?? 0) * Number(s.units ?? 0);
+    st.count += 1;
+    if (s.binaural) st.binaural += 1;
+    if (s.rechargeable) st.rechargeable += 1;
+    st.listTotal += list;
+    st.discTotal += list * (Number(s.discount_percent ?? 0) / 100);
+    statsByRep.set(s.rep_id, st);
+  }
+
   const chartData = repList.map((r) => {
     const b = budgetByRep.get(r.id) ?? { amount: 0, units: 0 };
     const a = actualByRep.get(r.id) ?? { amount: 0, units: 0 };
+    const st = statsByRep.get(r.id);
     return {
       name: r.name,
       budgetAmount: b.amount, actualAmount: a.amount,
       budgetUnits: b.units, actualUnits: a.units,
+      asp: a.units > 0 ? Math.round(a.amount / a.units) : 0,
+      avgDiscount: st && st.listTotal > 0 ? Number(((st.discTotal / st.listTotal) * 100).toFixed(1)) : 0,
+      binauralRate: st && st.count > 0 ? Number(((st.binaural / st.count) * 100).toFixed(1)) : 0,
+      rechargeableRate: st && st.count > 0 ? Number(((st.rechargeable / st.count) * 100).toFixed(1)) : 0,
     };
+  });
+
+  // Serie mensual: una columna por comercial.
+  const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  const repNameById = new Map(repList.map((r) => [r.id, r.name]));
+  const monthly = MONTH_LABELS.map((month) => {
+    const row: { month: string; [rep: string]: string | number } = { month };
+    for (const r of repList) row[r.name] = 0;
+    return row;
+  });
+  for (const s of sales ?? []) {
+    const name = s.rep_id ? repNameById.get(s.rep_id) : undefined;
+    if (!name) continue;
+    const i = Number(s.sold_on.slice(5, 7)) - 1;
+    monthly[i][name] = Number(monthly[i][name] ?? 0) + Number(s.net_amount ?? 0);
+  }
+
+  // Ritmo: acumulado real contra acumulado presupuestado.
+  const budgetByMonth = new Array(12).fill(0);
+  for (const b of budgets ?? []) {
+    if (repByClient.get(b.client_id)) budgetByMonth[b.month - 1] += Number(b.amount ?? 0);
+  }
+  const actualByMonth = new Array(12).fill(0);
+  for (const s of sales ?? []) {
+    actualByMonth[Number(s.sold_on.slice(5, 7)) - 1] += Number(s.net_amount ?? 0);
+  }
+  const isCurrentYear = year === new Date().getFullYear();
+  const lastMonth = isCurrentYear ? new Date().getMonth() : 11;
+  let accReal = 0;
+  let accBudget = 0;
+  const pace = MONTH_LABELS.map((month, i) => {
+    accBudget += budgetByMonth[i];
+    accReal += actualByMonth[i];
+    return { month, presupuesto: accBudget, real: i <= lastMonth ? accReal : (null as unknown as number) };
   });
 
   const years = [year - 1, year, year + 1];
@@ -112,7 +165,12 @@ export default async function WholesaleRepsPage({
 
       {repList.length > 0 && (
         <div className="mb-8">
-          <RepCharts data={chartData} />
+          <RepCharts
+            data={chartData}
+            monthly={monthly}
+            pace={pace}
+            repNames={repList.map((r) => r.name)}
+          />
         </div>
       )}
 
