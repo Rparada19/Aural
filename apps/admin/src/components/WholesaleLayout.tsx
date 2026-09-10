@@ -9,6 +9,7 @@ const NAV: { href: string; label: string; icon: string; allowed: WholesaleRole[]
   { href: '/wholesale', label: 'Resumen', icon: '📊', allowed: ['coordinator', 'rep'] },
   { href: '/wholesale/clients', label: 'Clientes', icon: '🏥', allowed: ['coordinator', 'rep'] },
   { href: '/wholesale/sales', label: 'Ventas', icon: '💳', allowed: ['coordinator', 'rep'] },
+  { href: '/wholesale/budgets', label: 'Presupuestos', icon: '🎯', allowed: ['coordinator', 'rep'] },
   { href: '/wholesale/reps', label: 'Comerciales', icon: '🧭', allowed: ['coordinator'] },
 ];
 

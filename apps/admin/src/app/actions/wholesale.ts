@@ -123,3 +123,25 @@ export async function createWholesaleSale(input: {
   revalidatePath(`/wholesale/clients/${input.client_id}`);
   revalidatePath('/wholesale');
 }
+
+export async function saveWholesaleBudgets(
+  clientId: string,
+  year: number,
+  rows: { month: number; amount: number; units: number }[],
+) {
+  const { supabase } = await ensureCoordinator();
+  const { error } = await supabase.from('wholesale_budgets').upsert(
+    rows.map((r) => ({
+      client_id: clientId,
+      year,
+      month: r.month,
+      amount: r.amount,
+      units: r.units,
+    })),
+    { onConflict: 'client_id,year,month' },
+  );
+  if (error) throw error;
+  revalidatePath('/wholesale/budgets');
+  revalidatePath(`/wholesale/budgets/${clientId}`);
+  revalidatePath('/wholesale');
+}

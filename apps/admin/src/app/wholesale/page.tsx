@@ -16,7 +16,7 @@ export default async function WholesaleDashboard() {
   const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
 
-  const [{ data: clients }, { data: sales }] = await Promise.all([
+  const [{ data: clients }, { data: sales }, { data: budgets }] = await Promise.all([
     supabase
       .from('wholesale_clients')
       .select('id, name, city, zone, rep_id')
@@ -27,6 +27,10 @@ export default async function WholesaleDashboard() {
       .select('client_id, sold_on, units, binaural, rechargeable, net_amount')
       .is('deleted_at', null)
       .gte('sold_on', yearStart),
+    supabase
+      .from('wholesale_budgets')
+      .select('month, amount, units')
+      .eq('year', now.getFullYear()),
   ]);
 
   const clientList = clients ?? [];
@@ -34,6 +38,13 @@ export default async function WholesaleDashboard() {
   const monthSales = saleList.filter((s) => s.sold_on >= monthStart);
   const month = salesMetrics(monthSales);
   const year = salesMetrics(saleList);
+
+  const budgetList = budgets ?? [];
+  const monthBudget = budgetList
+    .filter((b) => b.month === now.getMonth() + 1)
+    .reduce((a, b) => a + Number(b.amount ?? 0), 0);
+  const yearBudget = budgetList.reduce((a, b) => a + Number(b.amount ?? 0), 0);
+  const monthRatio = monthBudget > 0 ? month.revenue / monthBudget : null;
 
   // Ventas por mes del año en curso, para la barra de tendencia
   const byMonth = new Array(12).fill(0);
@@ -86,7 +97,12 @@ export default async function WholesaleDashboard() {
             <MetricCard
               label="Ventas del mes"
               value={cop(month.revenue)}
-              hint={`${month.units} unidad${month.units === 1 ? '' : 'es'}`}
+              hint={
+                monthRatio === null
+                  ? `${month.units} unidad${month.units === 1 ? '' : 'es'}`
+                  : `${Math.round(monthRatio * 100)}% del presupuesto`
+              }
+              tone={monthRatio === null ? 'neutral' : monthRatio >= 1 ? 'success' : 'warning'}
             />
             <MetricCard
               label="ASP"
@@ -110,7 +126,10 @@ export default async function WholesaleDashboard() {
           <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
             <div className="flex items-baseline justify-between">
               <h2 className="font-semibold">Año en curso</h2>
-              <p className="text-secondary text-sm">{cop(year.revenue)} acumulado</p>
+              <p className="text-secondary text-sm">
+                {cop(year.revenue)} acumulado
+                {yearBudget > 0 && ` · ${Math.round((year.revenue / yearBudget) * 100)}% del presupuesto`}
+              </p>
             </div>
             <div className="mt-6 flex items-end gap-2 h-40">
               {byMonth.map((amount, i) => (
