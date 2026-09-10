@@ -1,27 +1,29 @@
 import type { Metadata } from 'next';
-import { Fraunces, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
+import { Bricolage_Grotesque, Schibsted_Grotesk, Martian_Mono } from 'next/font/google';
 import './globals.css';
 
-// Fraunces para las cifras y los títulos: un serif con carácter que da
-// peso editorial a los números. Plex para la interfaz y los seriales.
-const fraunces = Fraunces({
+// Bricolage Grotesque: grotesca con recortes y ópticas raras, imposible
+// de confundir con una fuente de sistema. Va en títulos y cifras.
+const display = Bricolage_Grotesque({
   subsets: ['latin'],
-  variable: '--font-display',
-  axes: ['SOFT', 'WONK', 'opsz'],
+  variable: '--ws-display',
+  axes: ['opsz', 'wdth'],
   display: 'swap',
 });
 
-const plexSans = IBM_Plex_Sans({
+// Schibsted Grotesk: nórdica, de prensa digital. Legible en cuerpos
+// pequeños y con más personalidad que las grotescas de sistema.
+const ui = Schibsted_Grotesk({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-ui',
+  variable: '--ws-ui',
   display: 'swap',
 });
 
-const plexMono = IBM_Plex_Mono({
+// Martian Mono para seriales y fechas: ancha y técnica, se lee como dato.
+const mono = Martian_Mono({
   subsets: ['latin'],
   weight: ['400', '500'],
-  variable: '--font-mono',
+  variable: '--ws-mono',
   display: 'swap',
 });
 
@@ -34,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="es"
-      className={`h-full ${fraunces.variable} ${plexSans.variable} ${plexMono.variable}`}
+      className={`h-full ${display.variable} ${ui.variable} ${mono.variable}`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
