@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { WholesaleLayout } from '@/components/WholesaleLayout';
 import { MetricCard, EmptyState } from '@/components/wholesale/MetricCard';
 import { requireWholesaleMe, salesMetrics, cop, pct } from '@/lib/wholesale';
+import { LoanLight, daysLeft, type Loan } from '@/components/wholesale/Loans';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +17,7 @@ export default async function WholesaleDashboard() {
   const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
 
-  const [{ data: clients }, { data: sales }, { data: budgets }] = await Promise.all([
+  const [{ data: clients }, { data: sales }, { data: budgets }, { data: loans }, { data: reps }] = await Promise.all([
     supabase
       .from('wholesale_clients')
       .select('id, name, city, zone, rep_id')
@@ -30,6 +31,13 @@ export default async function WholesaleDashboard() {
       .from('wholesale_budgets')
       .select('month, amount, units')
       .eq('year', now.getFullYear()),
+    supabase
+      .from('wholesale_loans')
+      .select('id, client_id, rep_id, loaned_on, due_on, units, serials, patient_name, status')
+      .eq('status', 'active')
+      .is('deleted_at', null)
+      .order('due_on'),
+    supabase.from('wholesale_reps').select('id, name').is('deleted_at', null),
   ]);
 
   const clientList = clients ?? [];
@@ -63,6 +71,12 @@ export default async function WholesaleDashboard() {
   const top = [...revenueByClient.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
+
+  // Equipos prestados que hay que recuperar
+  const openLoans = ((loans ?? []) as Loan[]).sort((a, b) => a.due_on.localeCompare(b.due_on));
+  const overdueLoans = openLoans.filter((l) => daysLeft(l.due_on) < 0);
+  const repNameById = new Map((reps ?? []).map((r) => [r.id, r.name]));
+  const clientNameById = new Map(clientList.map((c) => [c.id, c.name]));
 
   // Seguimiento: quién no ha comprado en el mes en curso
   const boughtThisMonth = new Set(monthSales.map((s) => s.client_id));
@@ -154,6 +168,44 @@ export default async function WholesaleDashboard() {
               tone={month.rechargeableRate >= 0.5 ? 'success' : 'warning'}
             />
           </section>
+
+          {openLoans.length > 0 && (
+            <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">
+              <div className="flex items-baseline justify-between gap-4">
+                <div>
+                  <h2 className="font-semibold">Audífonos prestados</h2>
+                  <p className="text-secondary text-xs mt-1">
+                    {openLoans.length} equipo{openLoans.length === 1 ? '' : 's'} en la calle
+                    {overdueLoans.length > 0 && ` · ${overdueLoans.length} sin devolver a tiempo`}
+                  </p>
+                </div>
+                {overdueLoans.length > 0 && (
+                  <p className="text-2xl font-semibold text-danger">{overdueLoans.length}</p>
+                )}
+              </div>
+
+              <ul className="mt-4 divide-y divide-border">
+                {openLoans.map((l) => (
+                  <li key={l.id} className="flex items-center gap-4 py-2.5">
+                    <div className="flex-1 min-w-0">
+                      <Link href={`/wholesale/clients/${l.client_id}`} className="hover:underline">
+                        {clientNameById.get(l.client_id) ?? 'Cliente'}
+                      </Link>
+                      <p className="text-secondary text-xs">
+                        {l.serials.join(', ')}
+                        {l.patient_name && ` · ${l.patient_name}`}
+                      </p>
+                    </div>
+                    <span className="text-secondary text-xs text-right whitespace-nowrap">
+                      {l.rep_id ? repNameById.get(l.rep_id) : 'Sin comercial'}
+                      <span className="block">Prestado {l.loaned_on}</span>
+                    </span>
+                    <LoanLight dueOn={l.due_on} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {pending.length > 0 && (
             <section className="mt-8 bg-white rounded-2xl border border-border p-6 shadow-sm">

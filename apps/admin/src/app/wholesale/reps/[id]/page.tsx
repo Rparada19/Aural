@@ -10,6 +10,7 @@ import { ActivityTargets } from '@/components/wholesale/ActivityTargets';
 import { ActivityTypeManager } from '@/components/wholesale/ActivityTypeManager';
 import { Expenses, type Expense, type ExpenseCategory } from '@/components/wholesale/Expenses';
 import { RepAccess, type LinkedProfile } from '@/components/wholesale/RepAccess';
+import { Loans, type Loan } from '@/components/wholesale/Loans';
 import {
   agendaRange, shiftAnchor, mondayOf, monthStart, monthEnd,
   type ActivityType, type AgendaView,
@@ -59,7 +60,9 @@ export default async function WholesaleRepDetail({
 
   const [{ data: rep }, { data: clients }, { data: sales }, { data: budgets }, { data: goals }, { data: projects },
          { data: weekActs }, { data: monthActs }, { data: actTargets }, { data: types },
-         { data: expenses }, { data: expenseCats }, { data: profiles }] =
+         { data: expenses }, { data: expenseCats },
+         { data: loans }, { data: platforms }, { data: techLevels }, { data: pStyles },
+         { data: profiles }] =
     await Promise.all([
       supabase.from('wholesale_reps').select('id, name, zone, phone, email').eq('id', id).is('deleted_at', null).maybeSingle(),
       supabase.from('wholesale_clients').select('id, name, city').eq('rep_id', id).is('deleted_at', null).order('name'),
@@ -120,6 +123,15 @@ export default async function WholesaleRepDetail({
         .from('wholesale_expense_categories')
         .select('slug, label, icon, is_active')
         .order('sort_order'),
+      supabase
+        .from('wholesale_loans')
+        .select('id, client_id, rep_id, loaned_on, due_on, returned_on, platform, tech_level, style, units, binaural, rechargeable, serials, patient_name, notes, status')
+        .eq('rep_id', id)
+        .is('deleted_at', null)
+        .order('due_on'),
+      supabase.from('wholesale_platforms').select('slug, label').eq('is_active', true).order('sort_order'),
+      supabase.from('wholesale_tech_levels').select('slug, label').eq('is_active', true).order('sort_order'),
+      supabase.from('wholesale_product_styles').select('slug, label').eq('is_active', true).order('sort_order'),
       supabase
         .from('profiles')
         .select('id, full_name, email, admin_role, linked_wholesale_rep_id')
@@ -416,6 +428,20 @@ export default async function WholesaleRepDetail({
           />
         </section>
       )}
+
+      <section className="mt-6 bg-white rounded-2xl border border-border p-6 shadow-sm">
+        <Loans
+          loans={(loans ?? []) as Loan[]}
+          clients={clientList}
+          catalogs={{
+            platforms: platforms ?? [],
+            techLevels: techLevels ?? [],
+            styles: pStyles ?? [],
+          }}
+          canCreate
+          showClient
+        />
+      </section>
 
       <section className="mt-6 bg-white rounded-2xl border border-border p-6 shadow-sm">
         <Expenses

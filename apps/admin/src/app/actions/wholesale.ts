@@ -453,3 +453,138 @@ export async function unlinkRepAccess(repId: string, profileId: string) {
   if (error) throw error;
   revalidatePath(`/wholesale/reps/${repId}`);
 }
+
+export async function createLoan(input: {
+  client_id: string;
+  loaned_on: string;
+  due_on?: string | null;
+  platform?: string | null;
+  tech_level?: string | null;
+  style?: string | null;
+  units: number;
+  binaural: boolean;
+  rechargeable: boolean;
+  serials: string[];
+  patient_name?: string;
+  notes?: string;
+}) {
+  const { supabase, me } = await ensureMember();
+
+  const { data: client, error: clientErr } = await supabase
+    .from('wholesale_clients')
+    .select('id, rep_id')
+    .eq('id', input.client_id)
+    .single();
+  if (clientErr || !client) throw clientErr ?? new Error('Cliente no encontrado');
+  if (me.role === 'rep' && client.rep_id !== me.repId) {
+    throw new Error('Ese cliente no está en tu cartera');
+  }
+
+  const serials = input.serials.map((s) => s.trim()).filter(Boolean);
+  if (serials.length === 0) throw new Error('Registra al menos un serial');
+
+  // Plazo estándar de prueba: 14 días.
+  const due = input.due_on
+    ? input.due_on
+    : new Date(Date.parse(`${input.loaned_on}T00:00:00Z`) + 14 * 86_400_000)
+        .toISOString().slice(0, 10);
+
+  const { error } = await supabase.from('wholesale_loans').insert({
+    client_id: input.client_id,
+    rep_id: client.rep_id,
+    loaned_on: input.loaned_on,
+    due_on: due,
+    platform: input.platform || null,
+    tech_level: input.tech_level || null,
+    style: input.style || null,
+    units: input.units,
+    binaural: input.binaural,
+    rechargeable: input.rechargeable,
+    serials,
+    patient_name: input.patient_name || null,
+    notes: input.notes || null,
+    created_by: me.id,
+  });
+  if (error) throw error;
+
+  revalidatePath('/wholesale/loans');
+  if (client.rep_id) revalidatePath(`/wholesale/reps/${client.rep_id}`);
+  revalidatePath(`/wholesale/clients/${input.client_id}`);
+}
+
+export async function returnLoan(loanId: string, returnedOn?: string) {
+  const { supabase } = await ensureMember();
+  const { error } = await supabase
+    .from('wholesale_loans')
+    .update({ status: 'returned', returned_on: returnedOn ?? new Date().toISOString().slice(0, 10) })
+    .eq('id', loanId);
+  if (error) throw error;
+  revalidatePath('/wholesale/loans');
+  revalidatePath('/wholesale/reps', 'layout');
+}
+
+/** El centro vendió el equipo prestado: se crea la venta con los datos
+ *  del préstamo y el préstamo queda cerrado apuntando a ella. */
+export async function sellLoan(loanId: string, input: {
+  sold_on: string;
+  invoice_number?: string;
+  campaign_name?: string;
+  list_price: number;
+  discount_percent: number;
+}) {
+  const { supabase, me } = await ensureMember();
+
+  const { data: loan, error: loanErr } = await supabase
+    .from('wholesale_loans')
+    .select('*')
+    .eq('id', loanId)
+    .single();
+  if (loanErr || !loan) throw loanErr ?? new Error('Préstamo no encontrado');
+  if (loan.status !== 'active') throw new Error('Ese préstamo ya está cerrado');
+
+  const net = input.list_price * loan.units * (1 - input.discount_percent / 100);
+
+  const { data: sale, error: saleErr } = await supabase
+    .from('wholesale_sales')
+    .insert({
+      client_id: loan.client_id,
+      rep_id: loan.rep_id,
+      sold_on: input.sold_on,
+      invoice_number: input.invoice_number || null,
+      campaign_name: input.campaign_name || null,
+      patient_name: loan.patient_name,
+      units: loan.units,
+      binaural: loan.binaural,
+      rechargeable: loan.rechargeable,
+      style: loan.style,
+      platform: loan.platform,
+      tech_level: loan.tech_level,
+      list_price: input.list_price,
+      discount_percent: input.discount_percent,
+      net_amount: net,
+      created_by: me.id,
+    })
+    .select('id')
+    .single();
+  if (saleErr || !sale) throw saleErr ?? new Error('No se pudo registrar la venta');
+
+  const { error } = await supabase
+    .from('wholesale_loans')
+    .update({ status: 'sold', sale_id: sale.id, returned_on: input.sold_on })
+    .eq('id', loanId);
+  if (error) throw error;
+
+  revalidatePath('/wholesale/loans');
+  revalidatePath('/wholesale/sales');
+  revalidatePath(`/wholesale/clients/${loan.client_id}`);
+}
+
+export async function deleteLoan(loanId: string) {
+  const { supabase } = await ensureMember();
+  const { error } = await supabase
+    .from('wholesale_loans')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', loanId);
+  if (error) throw error;
+  revalidatePath('/wholesale/loans');
+}
