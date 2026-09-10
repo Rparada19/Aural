@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Hourglass } from 'lucide-react-native';
-import { colors, spacing, typography, radius } from '@aural/shared';
+import { colors, spacing, typography, radius, fonts } from '@aural/shared';
 import { Button } from '../../../components/ui/Button';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../../navigation/types';
@@ -47,5 +47,5 @@ const styles = StyleSheet.create({
     ...typography.body, color: colors.textMuted, textAlign: 'center',
     marginTop: spacing.md, paddingHorizontal: spacing.sm,
   },
-  bodyStrong: { color: colors.primary, fontFamily: 'Manrope_700Bold' },
+  bodyStrong: { color: colors.primary, fontFamily: fonts.bold },
 });

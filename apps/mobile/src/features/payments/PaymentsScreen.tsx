@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, Image, Pressable, RefreshControl, Lin
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Wallet, FileText, Receipt } from 'lucide-react-native';
-import { colors, spacing, typography, radius, shadow } from '@aural/shared';
+import { colors, spacing, typography, radius, shadow, fonts } from '@aural/shared';
 import { listMyPayments, type PaymentRow } from './api';
 
 const cop = (n: number) =>
@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     ...shadow.md,
   },
   summaryLabel: { ...typography.overline, color: 'rgba(255,255,255,0.7)' },
-  summaryValue: { fontFamily: 'Manrope_800ExtraBold', fontSize: 32, color: colors.white, marginTop: spacing.xs, letterSpacing: -0.5 },
+  summaryValue: { fontFamily: fonts.extraBold, fontSize: 32, color: colors.white, marginTop: spacing.xs, letterSpacing: -0.5 },
   summaryMeta: { ...typography.caption, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
 
   list: { padding: spacing.lg, gap: spacing.md },

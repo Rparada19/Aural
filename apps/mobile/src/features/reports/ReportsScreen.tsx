@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { FileText, ChevronRight } from 'lucide-react-native';
-import { colors, spacing, typography, radius, shadow } from '@aural/shared';
+import { colors, spacing, typography, radius, shadow, fonts } from '@aural/shared';
 import { useAuth } from '../auth/AuthContext';
 import { listReports, type ReportRow } from './api';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
   newBadge: { backgroundColor: colors.danger, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-  newBadgeText: { color: colors.white, fontFamily: 'Manrope_700Bold', fontSize: 9, letterSpacing: 1 },
+  newBadgeText: { color: colors.white, fontFamily: fonts.bold, fontSize: 9, letterSpacing: 1 },
   title: { ...typography.bodyStrong, color: colors.primary, flexShrink: 1 },
   meta: { ...typography.caption, color: colors.textMuted, marginTop: 2 },
   empty: { alignItems: 'center', paddingTop: spacing.xxl, gap: spacing.sm },

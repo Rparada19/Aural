@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { ChevronRight, UserRound } from 'lucide-react-native';
 import {
-  colors, spacing, typography, radius, shadow,
+  colors, spacing, typography, radius, shadow, fonts,
   FUNNEL_STATUS_LABEL, type PatientFunnelStatus,
   CASE_TYPE_LABEL, type PatientCaseType,
   trafficLight, TRAFFIC_LIGHT_COLOR,
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.borderSoft,
   },
   badgeClosed: { backgroundColor: colors.success, borderColor: colors.success },
-  badgeText: { fontFamily: 'Manrope_600SemiBold', fontSize: 10, color: colors.primary, letterSpacing: 0.5 },
+  badgeText: { fontFamily: fonts.semibold, fontSize: 10, color: colors.primary, letterSpacing: 0.5 },
   badgeTextClosed: { color: colors.white },
   empty: { alignItems: 'center', paddingTop: spacing.xxl, gap: spacing.sm },
   emptyIcon: {

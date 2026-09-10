@@ -66,17 +66,20 @@ export const shadow = {
   },
 } as const;
 
+/** Gotham, la tipografía de marca. Los nombres coinciden con las claves
+ *  que registra useFonts en App.tsx. */
 export const fonts = {
-  regular: 'Manrope_400Regular',
-  medium: 'Manrope_500Medium',
-  semibold: 'Manrope_600SemiBold',
-  bold: 'Manrope_700Bold',
-  extraBold: 'Manrope_800ExtraBold',
+  regular: 'Gotham-Book',
+  medium: 'Gotham-Medium',
+  semibold: 'Gotham-Medium',
+  bold: 'Gotham-Bold',
+  extraBold: 'Gotham-Black',
+  light: 'Gotham-Light',
 } as const;
 
 export const typography = {
-  display: { fontSize: 30, fontFamily: fonts.extraBold, fontWeight: '800' as const, letterSpacing: -0.8, lineHeight: 36 },
-  h1: { fontSize: 24, fontFamily: fonts.bold, fontWeight: '700' as const, letterSpacing: -0.4, lineHeight: 30 },
+  display: { fontSize: 30, fontFamily: fonts.extraBold, fontWeight: '800' as const, letterSpacing: -0.5, lineHeight: 36 },
+  h1: { fontSize: 24, fontFamily: fonts.bold, fontWeight: '700' as const, letterSpacing: -0.3, lineHeight: 30 },
   h2: { fontSize: 19, fontFamily: fonts.bold, fontWeight: '700' as const, letterSpacing: -0.2, lineHeight: 25 },
   h3: { fontSize: 16, fontFamily: fonts.semibold, fontWeight: '600' as const, letterSpacing: -0.1, lineHeight: 22 },
   body: { fontSize: 15, fontFamily: fonts.regular, fontWeight: '400' as const, lineHeight: 22 },

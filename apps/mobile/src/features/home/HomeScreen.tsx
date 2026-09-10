@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import {
   PlusCircle, Users, FileText, Newspaper, Wallet, ArrowRight, ChevronRight,
 } from 'lucide-react-native';
-import { colors, spacing, typography, radius, shadow } from '@aural/shared';
+import { colors, spacing, typography, radius, shadow, fonts } from '@aural/shared';
 import { useAuth } from '../auth/AuthContext';
 import { getProfessionalStats, type ProfessionalStats } from './api';
 import { countUnreadReports } from '../reports/api';
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     ...shadow.md,
   },
   heroLabel: { ...typography.overline, color: 'rgba(255,255,255,0.7)' },
-  heroValue: { fontFamily: 'Manrope_800ExtraBold', fontSize: 38, color: colors.white, marginTop: spacing.xs, letterSpacing: -1 },
+  heroValue: { fontFamily: fonts.extraBold, fontSize: 38, color: colors.white, marginTop: spacing.xs, letterSpacing: -1 },
   heroFooter: {
     flexDirection: 'row', gap: spacing.md, marginTop: spacing.lg,
     paddingTop: spacing.md, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.15)',
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
   },
   divider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.18)' },
   heroFooterLabel: { ...typography.caption, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: 1 },
-  heroFooterValue: { fontFamily: 'Manrope_700Bold', fontSize: 15, color: colors.white, marginTop: 2 },
+  heroFooterValue: { fontFamily: fonts.bold, fontSize: 15, color: colors.white, marginTop: 2 },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   stat: {
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, padding: spacing.md,
   },
   statLabel: { ...typography.caption, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 1.2 },
-  statValue: { fontFamily: 'Manrope_800ExtraBold', fontSize: 26, marginTop: 4 },
+  statValue: { fontFamily: fonts.extraBold, fontSize: 26, marginTop: 4 },
 
   sectionLabel: {
     ...typography.overline, color: colors.textSubtle,
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.danger, borderRadius: radius.pill,
     paddingHorizontal: 6, paddingVertical: 1,
   },
-  navBadgeText: { color: colors.white, fontFamily: 'Manrope_700Bold', fontSize: 10 },
+  navBadgeText: { color: colors.white, fontFamily: fonts.bold, fontSize: 10 },
 
   panel: {
     backgroundColor: colors.surfaceAlt,
@@ -357,7 +357,7 @@ const styles = StyleSheet.create({
 
   barRow: { flexDirection: 'row', height: 36, borderRadius: radius.sm, overflow: 'hidden' },
   barSeg: { alignItems: 'center', justifyContent: 'center' },
-  barSegText: { color: colors.white, fontFamily: 'Manrope_700Bold', fontSize: 12 },
+  barSegText: { color: colors.white, fontFamily: fonts.bold, fontSize: 12 },
 
   legendRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.sm },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -366,16 +366,16 @@ const styles = StyleSheet.create({
 
   aidsRowHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   aidsRowLabel: { ...typography.caption, color: colors.textMuted },
-  aidsRowValue: { fontFamily: 'Manrope_700Bold', fontSize: 13, color: colors.primary },
+  aidsRowValue: { fontFamily: fonts.bold, fontSize: 13, color: colors.primary },
   aidsBarBg: { height: 10, backgroundColor: colors.surface, borderRadius: 4 },
   aidsBarFill: { height: 10, borderRadius: 4 },
 
-  convValue: { fontFamily: 'Manrope_800ExtraBold', fontSize: 40, color: colors.primary, textAlign: 'center', letterSpacing: -1 },
+  convValue: { fontFamily: fonts.extraBold, fontSize: 40, color: colors.primary, textAlign: 'center', letterSpacing: -1 },
   convSubtitle: { ...typography.caption, color: colors.textMuted, textAlign: 'center', marginTop: 2 },
 
   monthlyRow: { flexDirection: 'row', gap: spacing.xs, alignItems: 'flex-end', height: 110 },
   monthlyCol: { flex: 1, alignItems: 'center', gap: 4 },
-  monthlyValue: { fontFamily: 'Manrope_700Bold', fontSize: 11, color: colors.primary },
+  monthlyValue: { fontFamily: fonts.bold, fontSize: 11, color: colors.primary },
   monthlyBar: { width: '100%', borderRadius: 4, minHeight: 4 },
   monthlyLabel: { ...typography.caption, color: colors.textMuted, fontSize: 10 },
 });

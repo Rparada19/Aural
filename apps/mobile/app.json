@@ -35,7 +35,18 @@
     "plugins": [
       "expo-secure-store",
       "expo-asset",
-      "expo-font"
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/Gotham-Light.ttf",
+            "./assets/fonts/Gotham-Book.ttf",
+            "./assets/fonts/Gotham-Medium.ttf",
+            "./assets/fonts/Gotham-Bold.ttf",
+            "./assets/fonts/Gotham-Black.ttf"
+          ]
+        }
+      ]
     ],
     "extra": {
       "eas": {
