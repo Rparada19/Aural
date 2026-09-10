@@ -38,10 +38,8 @@ export default async function WholesaleBudgetsPage({
     supabase.from('wholesale_budgets').select('client_id, amount, units').eq('year', year),
     supabase
       .from('wholesale_sales')
-      .select('client_id, units, net_amount')
-      .is('deleted_at', null)
-      .gte('sold_on', `${year}-01-01`)
-      .lte('sold_on', `${year}-12-31`),
+      .select('client_id, sold_on, units, net_amount')
+      .is('deleted_at', null),
     supabase.from('wholesale_reps').select('id, name').is('deleted_at', null),
   ]);
 
@@ -57,14 +55,70 @@ export default async function WholesaleBudgetsPage({
     });
   }
 
+  const saleList = sales ?? [];
+  const inYear = (d: string) => d.startsWith(String(year));
+
   const actualByClient = new Map<string, { amount: number; units: number }>();
-  for (const s of sales ?? []) {
+  for (const s of saleList) {
+    if (!inYear(s.sold_on)) continue;
     const p = actualByClient.get(s.client_id) ?? { amount: 0, units: 0 };
     actualByClient.set(s.client_id, {
       amount: p.amount + Number(s.net_amount ?? 0),
       units: p.units + Number(s.units ?? 0),
     });
   }
+
+  // Primera y última compra de cada cliente, sobre todo el histórico
+  const firstSale = new Map<string, string>();
+  const lastSale = new Map<string, string>();
+  for (const s of saleList) {
+    const f = firstSale.get(s.client_id);
+    if (!f || s.sold_on < f) firstSale.set(s.client_id, s.sold_on);
+    const l = lastSale.get(s.client_id);
+    if (!l || s.sold_on > l) lastSale.set(s.client_id, s.sold_on);
+  }
+
+  const zoneOf = (c: { zone: string | null }) => c.zone?.trim() || SIN_ZONA;
+
+  // Nuevo = su primera compra de la historia cayó en este año
+  const newClients = clientList
+    .filter((c) => {
+      const f = firstSale.get(c.id);
+      return f !== undefined && inYear(f);
+    })
+    .map((c) => ({
+      ...c,
+      firstSale: firstSale.get(c.id)!,
+      revenue: actualByClient.get(c.id)?.amount ?? 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue);
+
+  // Inactivo = compró alguna vez, pero nada en los últimos 90 días
+  const CUTOFF_DAYS = 90;
+  const cutoff = new Date(Date.now() - CUTOFF_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const dormantClients = clientList
+    .filter((c) => {
+      const l = lastSale.get(c.id);
+      return l !== undefined && l < cutoff;
+    })
+    .map((c) => {
+      const hist = saleList.filter((s) => s.client_id === c.id);
+      return {
+        ...c,
+        lastSale: lastSale.get(c.id)!,
+        lifetime: hist.reduce((a, s) => a + Number(s.net_amount ?? 0), 0),
+        purchases: hist.length,
+      };
+    })
+    .sort((a, b) => b.lifetime - a.lifetime);
+
+  // Zona que más clientes nuevos sumó
+  const newByZone = new Map<string, number>();
+  for (const c of newClients) {
+    const z = zoneOf(c);
+    newByZone.set(z, (newByZone.get(z) ?? 0) + 1);
+  }
+  const topNewZone = [...newByZone.entries()].sort((a, b) => b[1] - a[1])[0];
 
   // Agregado por zona
   const zones = new Map<string, {
@@ -73,7 +127,7 @@ export default async function WholesaleBudgetsPage({
     actual: { amount: number; units: number };
   }>();
   for (const c of clientList) {
-    const key = c.zone?.trim() || SIN_ZONA;
+    const key = zoneOf(c);
     const z = zones.get(key) ?? {
       clients: 0, reps: new Set<string>(),
       budget: { amount: 0, units: 0 }, actual: { amount: 0, units: 0 },
@@ -122,6 +176,99 @@ export default async function WholesaleBudgetsPage({
           ))}
         </div>
       </header>
+
+      {clientList.length > 0 && (
+        <>
+          <section className="grid gap-4 sm:grid-cols-3 mb-6">
+            <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-secondary">
+                Clientes nuevos {year}
+              </p>
+              <p className="text-2xl font-semibold mt-2 text-success">{newClients.length}</p>
+              <p className="text-xs text-secondary mt-1">
+                {newClients.length > 0
+                  ? `${cop(newClients.reduce((a, c) => a + c.revenue, 0))} facturados`
+                  : 'Ningún centro estrenó compra este año'}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-secondary">
+                Dejaron de comprar
+              </p>
+              <p className={`text-2xl font-semibold mt-2 ${dormantClients.length > 0 ? 'text-danger' : ''}`}>
+                {dormantClients.length}
+              </p>
+              <p className="text-xs text-secondary mt-1">
+                Sin comprar hace más de {CUTOFF_DAYS} días
+              </p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-border p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-wider text-secondary">
+                Zona con más nuevos
+              </p>
+              <p className="text-2xl font-semibold mt-2">{topNewZone ? topNewZone[0] : '—'}</p>
+              <p className="text-xs text-secondary mt-1">
+                {topNewZone
+                  ? `${topNewZone[1]} cliente${topNewZone[1] === 1 ? '' : 's'} nuevo${topNewZone[1] === 1 ? '' : 's'}`
+                  : 'Sin clientes nuevos este año'}
+              </p>
+            </div>
+          </section>
+
+          {(newClients.length > 0 || dormantClients.length > 0) && (
+            <section className="grid gap-6 lg:grid-cols-2 mb-8">
+              {newClients.length > 0 && (
+                <div className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+                  <h2 className="font-semibold">Nuevos este año</h2>
+                  <p className="text-secondary text-xs mt-1 mb-4">
+                    Centros cuya primera compra de la historia ocurrió en {year}.
+                  </p>
+                  <ul className="space-y-2">
+                    {newClients.map((c) => (
+                      <li key={c.id} className="flex items-center gap-3 text-sm">
+                        <Link href={`/wholesale/clients/${c.id}`} className="flex-1 truncate hover:underline">
+                          {c.name}
+                          <span className="text-secondary text-xs block">
+                            {[zoneOf(c), `desde ${c.firstSale}`].join(' · ')}
+                          </span>
+                        </Link>
+                        <span className="font-medium whitespace-nowrap">{cop(c.revenue)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {dormantClients.length > 0 && (
+                <div className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+                  <h2 className="font-semibold">Compraban y dejaron de comprar</h2>
+                  <p className="text-secondary text-xs mt-1 mb-4">
+                    Tienen historial pero llevan más de {CUTOFF_DAYS} días sin facturar.
+                  </p>
+                  <ul className="space-y-2">
+                    {dormantClients.map((c) => (
+                      <li key={c.id} className="flex items-center gap-3 text-sm">
+                        <Link href={`/wholesale/clients/${c.id}`} className="flex-1 truncate hover:underline">
+                          {c.name}
+                          <span className="text-secondary text-xs block">
+                            {zoneOf(c)} · última compra {c.lastSale}
+                          </span>
+                        </Link>
+                        <span className="text-secondary text-xs whitespace-nowrap">
+                          {c.purchases} compras
+                          <span className="block text-foreground font-medium">{cop(c.lifetime)}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          )}
+        </>
+      )}
 
       {clientList.length === 0 ? (
         <EmptyState
