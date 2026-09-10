@@ -22,16 +22,20 @@ function Compliance({ actual, budget }: { actual: number; budget: number }) {
 export default async function WholesaleRepsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string }>;
+  searchParams: Promise<{ year?: string; month?: string }>;
 }) {
-  const { year: yearParam } = await searchParams;
+  const { year: yearParam, month: monthParam } = await searchParams;
   const me = await requireWholesaleMe();
   if (me.role !== 'coordinator') redirect('/wholesale');
 
-  const year = Number(yearParam) || new Date().getFullYear();
+  const now = new Date();
+  const year = Number(yearParam) || now.getFullYear();
+  const month = monthParam ? Number(monthParam) : null; // null = todo el año
+  const periodFrom = month ? `${year}-${String(month).padStart(2, '0')}-01` : `${year}-01-01`;
+  const periodTo = month ? `${year}-${String(month).padStart(2, '0')}-31` : `${year}-12-31`;
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: reps }, { data: clients }, { data: sales }, { data: budgets }] = await Promise.all([
+  const [{ data: reps }, { data: clients }, { data: sales }, { data: budgets }, { data: expenses }] = await Promise.all([
     supabase.from('wholesale_reps').select('id, name, zone, phone, email').is('deleted_at', null).order('name'),
     supabase.from('wholesale_clients').select('id, rep_id').is('deleted_at', null),
     supabase
@@ -41,6 +45,12 @@ export default async function WholesaleRepsPage({
       .gte('sold_on', `${year}-01-01`)
       .lte('sold_on', `${year}-12-31`),
     supabase.from('wholesale_budgets').select('client_id, month, amount, units').eq('year', year),
+    supabase
+      .from('wholesale_expenses')
+      .select('rep_id, client_id, spent_on, amount')
+      .is('deleted_at', null)
+      .gte('spent_on', `${year}-01-01`)
+      .lte('spent_on', `${year}-12-31`),
   ]);
 
   const repList = reps ?? [];
@@ -51,9 +61,11 @@ export default async function WholesaleRepsPage({
     if (c.rep_id) clientsByRep.set(c.rep_id, (clientsByRep.get(c.rep_id) ?? 0) + 1);
   }
 
+  const inPeriod = (d: string) => d >= periodFrom && d <= periodTo;
+
   const actualByRep = new Map<string, { amount: number; units: number }>();
   for (const s of sales ?? []) {
-    if (!s.rep_id) continue;
+    if (!s.rep_id || !inPeriod(s.sold_on)) continue;
     const prev = actualByRep.get(s.rep_id) ?? { amount: 0, units: 0 };
     actualByRep.set(s.rep_id, {
       amount: prev.amount + Number(s.net_amount ?? 0),
@@ -66,6 +78,7 @@ export default async function WholesaleRepsPage({
   for (const b of budgets ?? []) {
     const repId = repByClient.get(b.client_id);
     if (!repId) continue;
+    if (month && b.month !== month) continue;
     const prev = budgetByRep.get(repId) ?? { amount: 0, units: 0 };
     budgetByRep.set(repId, {
       amount: prev.amount + Number(b.amount ?? 0),
@@ -76,7 +89,7 @@ export default async function WholesaleRepsPage({
   // Indicadores por comercial: ASP, descuento ponderado y mix de producto.
   const statsByRep = new Map<string, { count: number; binaural: number; rechargeable: number; listTotal: number; discTotal: number }>();
   for (const s of sales ?? []) {
-    if (!s.rep_id) continue;
+    if (!s.rep_id || !inPeriod(s.sold_on)) continue;
     const st = statsByRep.get(s.rep_id) ?? { count: 0, binaural: 0, rechargeable: 0, listTotal: 0, discTotal: 0 };
     const list = Number(s.list_price ?? 0) * Number(s.units ?? 0);
     st.count += 1;
@@ -85,6 +98,12 @@ export default async function WholesaleRepsPage({
     st.listTotal += list;
     st.discTotal += list * (Number(s.discount_percent ?? 0) / 100);
     statsByRep.set(s.rep_id, st);
+  }
+
+  const expenseByRep = new Map<string, number>();
+  for (const e of expenses ?? []) {
+    if (!e.rep_id || !inPeriod(e.spent_on)) continue;
+    expenseByRep.set(e.rep_id, (expenseByRep.get(e.rep_id) ?? 0) + Number(e.amount ?? 0));
   }
 
   const chartData = repList.map((r) => {
@@ -99,6 +118,8 @@ export default async function WholesaleRepsPage({
       avgDiscount: st && st.listTotal > 0 ? Number(((st.discTotal / st.listTotal) * 100).toFixed(1)) : 0,
       binauralRate: st && st.count > 0 ? Number(((st.binaural / st.count) * 100).toFixed(1)) : 0,
       rechargeableRate: st && st.count > 0 ? Number(((st.rechargeable / st.count) * 100).toFixed(1)) : 0,
+      expense: expenseByRep.get(r.id) ?? 0,
+      expenseRate: a.amount > 0 ? Number((((expenseByRep.get(r.id) ?? 0) / a.amount) * 100).toFixed(1)) : 0,
     };
   });
 
@@ -116,6 +137,28 @@ export default async function WholesaleRepsPage({
     const i = Number(s.sold_on.slice(5, 7)) - 1;
     monthly[i][name] = Number(monthly[i][name] ?? 0) + Number(s.net_amount ?? 0);
   }
+
+  const expenseMonthly = MONTH_LABELS.map((m) => {
+    const row: { month: string; [rep: string]: string | number } = { month: m };
+    for (const r of repList) row[r.name] = 0;
+    return row;
+  });
+  for (const e of expenses ?? []) {
+    const name = e.rep_id ? repNameById.get(e.rep_id) : undefined;
+    if (!name) continue;
+    const i = Number(e.spent_on.slice(5, 7)) - 1;
+    expenseMonthly[i][name] = Number(expenseMonthly[i][name] ?? 0) + Number(e.amount ?? 0);
+  }
+
+  // Un mes que todavía no llega no vale cero: sin dato, la línea se corta.
+  const lastRealMonth = year === now.getFullYear() ? now.getMonth() : 11;
+  const cut = (rows: { month: string; [k: string]: string | number }[]) =>
+    rows.map((row, i) => {
+      if (i <= lastRealMonth) return row;
+      const blank: { month: string; [k: string]: string | number } = { month: row.month };
+      for (const r of repList) blank[r.name] = null as unknown as number;
+      return blank;
+    });
 
   // Ritmo: acumulado real contra acumulado presupuestado.
   const budgetByMonth = new Array(12).fill(0);
@@ -137,22 +180,25 @@ export default async function WholesaleRepsPage({
   });
 
   const years = [year - 1, year, year + 1];
+  const periodLabel = month ? `${MONTH_LABELS[month - 1]} ${year}` : String(year);
+  const href = (y: number, m: number | null) =>
+    `/wholesale/reps?year=${y}${m ? `&month=${m}` : ''}`;
 
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
       <header className="mb-8 flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-widest text-secondary">Wholesale</p>
-          <h1 className="text-2xl font-semibold mt-1">Comerciales {year}</h1>
+          <h1 className="text-2xl font-semibold mt-1">Comerciales · {periodLabel}</h1>
           <p className="text-secondary text-sm mt-1">
-            Presupuesto y cumplimiento de cada zona, en valores y en unidades.
+            Presupuesto, gasto y cumplimiento de cada zona, en valores y en unidades.
           </p>
         </div>
         <div className="flex gap-2">
           {years.map((y) => (
             <Link
               key={y}
-              href={`/wholesale/reps?year=${y}`}
+              href={href(y, month)}
               className={`h-10 leading-10 px-4 rounded-lg text-sm font-semibold transition ${
                 y === year ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
               }`}
@@ -163,13 +209,37 @@ export default async function WholesaleRepsPage({
         </div>
       </header>
 
+      <div className="flex flex-wrap gap-1 mb-8">
+        <Link
+          href={href(year, null)}
+          className={`h-9 leading-9 px-3 rounded-lg text-xs font-semibold transition ${
+            month === null ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
+          }`}
+        >
+          Todo el año
+        </Link>
+        {MONTH_LABELS.map((label, i) => (
+          <Link
+            key={label}
+            href={href(year, i + 1)}
+            className={`h-9 leading-9 px-3 rounded-lg text-xs font-semibold transition ${
+              month === i + 1 ? 'bg-primary text-white' : 'bg-white border border-border hover:border-primary'
+            }`}
+          >
+            {label}
+          </Link>
+        ))}
+      </div>
+
       {repList.length > 0 && (
         <div className="mb-8">
           <RepCharts
             data={chartData}
-            monthly={monthly}
-            pace={pace}
+            monthly={cut(monthly)}
+            expenseMonthly={cut(expenseMonthly)}
+            pace={pace.map((p, i) => (i <= lastRealMonth ? p : { ...p, real: null as unknown as number }))}
             repNames={repList.map((r) => r.name)}
+            periodLabel={periodLabel}
           />
         </div>
       )}

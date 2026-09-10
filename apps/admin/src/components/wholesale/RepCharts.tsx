@@ -21,6 +21,8 @@ export interface RepChartRow {
   avgDiscount: number;
   binauralRate: number;
   rechargeableRate: number;
+  expense: number;
+  expenseRate: number;
 }
 
 export interface MonthPoint {
@@ -138,7 +140,7 @@ function SingleBar({
   data, dataKey, color, fmt, tip,
 }: {
   data: RepChartRow[];
-  dataKey: 'asp' | 'avgDiscount';
+  dataKey: 'asp' | 'avgDiscount' | 'expense' | 'expenseRate';
   color: string;
   fmt: (v: number) => string;
   tip: React.ReactElement;
@@ -150,26 +152,39 @@ function SingleBar({
         <XAxis type="number" tick={AXIS} tickFormatter={fmt} axisLine={false} tickLine={false} />
         <YAxis type="category" dataKey="name" width={150} tick={{ fontSize: 12, fill: '#041E42' }} axisLine={false} tickLine={false} />
         <Tooltip content={tip} cursor={{ fill: 'rgba(4, 30, 66, 0.04)' }} />
-        <Bar dataKey={dataKey} fill={color} radius={[0, 4, 4, 0]} barSize={18} name={dataKey === 'asp' ? 'ASP' : 'Descuento'} />
+        <Bar
+          dataKey={dataKey}
+          fill={color}
+          radius={[0, 4, 4, 0]}
+          barSize={18}
+          name={
+            dataKey === 'asp' ? 'ASP'
+            : dataKey === 'avgDiscount' ? 'Descuento'
+            : dataKey === 'expense' ? 'Inversión'
+            : 'Inversión sobre venta'
+          }
+        />
       </BarChart>
     </Box>
   );
 }
 
 export function RepCharts({
-  data, monthly, pace, repNames,
+  data, monthly, expenseMonthly, pace, repNames, periodLabel,
 }: {
   data: RepChartRow[];
   monthly: MonthPoint[];
+  expenseMonthly: MonthPoint[];
   pace: PacePoint[];
   repNames: string[];
+  periodLabel: string;
 }) {
   if (data.length === 0) return null;
 
   return (
     <div className="space-y-6">
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card title="Presupuesto vs. real · valor" hint="Acumulado del año por comercial.">
+        <Card title="Presupuesto vs. real · valor" hint={`${periodLabel}, por comercial.`}>
           <Comparison data={data} unit="cop" budgetKey="budgetAmount" actualKey="actualAmount" />
         </Card>
         <Card title="Presupuesto vs. real · unidades" hint="Las unidades cuentan aparte: otra escala, otra gráfica.">
@@ -194,6 +209,7 @@ export function RepCharts({
                 strokeWidth={2}
                 dot={{ r: 3 }}
                 activeDot={{ r: 5 }}
+                connectNulls={false}
               />
             ))}
           </LineChart>
@@ -210,7 +226,7 @@ export function RepCharts({
               <Tooltip content={<TipCopPlain />} cursor={{ stroke: '#041E42', strokeOpacity: 0.15 }} />
               <Legend wrapperStyle={{ fontSize: 12 }} iconType="square" />
               <Line type="monotone" dataKey="presupuesto" name="Presupuesto" stroke={BUDGET} strokeWidth={2} strokeDasharray="5 4" dot={false} />
-              <Line type="monotone" dataKey="real" name="Real" stroke={ACTUAL} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="real" name="Real" stroke={ACTUAL} strokeWidth={2} dot={{ r: 3 }} connectNulls={false} />
             </LineChart>
           </Box>
         </Card>
@@ -230,8 +246,41 @@ export function RepCharts({
         </Card>
       </div>
 
+      <Card title="Inversión mes a mes" hint="Cuánto gasta cada zona a lo largo del año.">
+        <Box height={280}>
+          <LineChart data={expenseMonthly} margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
+            <CartesianGrid stroke={GRID} strokeDasharray="3 3" />
+            <XAxis dataKey="month" tick={AXIS} axisLine={false} tickLine={false} />
+            <YAxis tick={AXIS} tickFormatter={MONEY_TICK} axisLine={false} tickLine={false} />
+            <Tooltip content={<TipCopPlain />} cursor={{ stroke: '#041E42', strokeOpacity: 0.15 }} />
+            <Legend wrapperStyle={{ fontSize: 12 }} iconType="square" />
+            {repNames.map((name, i) => (
+              <Line
+                key={name}
+                type="monotone"
+                dataKey={name}
+                stroke={SERIES[i % SERIES.length]}
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                activeDot={{ r: 5 }}
+                connectNulls={false}
+              />
+            ))}
+          </LineChart>
+        </Box>
+      </Card>
+
       <div className="grid gap-6 xl:grid-cols-2">
-        <Card title="ASP por comercial" hint="Precio promedio por unidad vendida en el año.">
+        <Card title="Inversión por comercial" hint={`Gasto comercial imputado · ${periodLabel}.`}>
+          <SingleBar data={data} dataKey="expense" color={SERIES[1]} fmt={MONEY_TICK} tip={<TipCopPlain />} />
+        </Card>
+        <Card title="Inversión sobre venta" hint="Cuántos pesos de gasto por cada 100 vendidos. Ojo con los que se disparan.">
+          <SingleBar data={data} dataKey="expenseRate" color={SERIES[2]} fmt={(v) => `${v}%`} tip={<TipPct />} />
+        </Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card title="ASP por comercial" hint={`Precio promedio por unidad · ${periodLabel}.`}>
           <SingleBar data={data} dataKey="asp" color={SERIES[0]} fmt={MONEY_TICK} tip={<TipCopPlain />} />
         </Card>
         <Card title="Descuento promedio" hint="Ponderado por valor de lista. Un descuento alto se come el ASP.">
