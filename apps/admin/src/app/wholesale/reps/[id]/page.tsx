@@ -9,6 +9,7 @@ import { Agenda, type Activity } from '@/components/wholesale/Agenda';
 import { ActivityTargets } from '@/components/wholesale/ActivityTargets';
 import { ActivityTypeManager } from '@/components/wholesale/ActivityTypeManager';
 import { Expenses, type Expense, type ExpenseCategory } from '@/components/wholesale/Expenses';
+import { RepAccess, type LinkedProfile } from '@/components/wholesale/RepAccess';
 import {
   agendaRange, shiftAnchor, mondayOf, monthStart, monthEnd,
   type ActivityType, type AgendaView,
@@ -56,7 +57,7 @@ export default async function WholesaleRepDetail({
 
   const [{ data: rep }, { data: clients }, { data: sales }, { data: budgets }, { data: goals }, { data: projects },
          { data: weekActs }, { data: monthActs }, { data: actTargets }, { data: types },
-         { data: expenses }, { data: expenseCats }] =
+         { data: expenses }, { data: expenseCats }, { data: profiles }] =
     await Promise.all([
       supabase.from('wholesale_reps').select('id, name, zone, phone, email').eq('id', id).is('deleted_at', null).maybeSingle(),
       supabase.from('wholesale_clients').select('id, name, city').eq('rep_id', id).is('deleted_at', null).order('name'),
@@ -117,6 +118,11 @@ export default async function WholesaleRepDetail({
         .from('wholesale_expense_categories')
         .select('slug, label, icon, is_active')
         .order('sort_order'),
+      supabase
+        .from('profiles')
+        .select('id, full_name, email, admin_role, linked_wholesale_rep_id')
+        .or(`linked_wholesale_rep_id.eq.${id},and(admin_role.is.null,is_admin.is.false)`)
+        .limit(200),
     ]);
 
   if (!rep) notFound();
@@ -162,6 +168,12 @@ export default async function WholesaleRepDetail({
   const agendaDone = (weekActs ?? []).filter((a) => a.status === 'done').length;
   const agendaHref = (v: AgendaView, on: string) =>
     `/wholesale/reps/${id}?year=${year}&month=${month}&view=${v}&on=${on}`;
+
+  const profileList = (profiles ?? []) as (LinkedProfile & {
+    admin_role: string | null; linked_wholesale_rep_id: string | null;
+  })[];
+  const linkedProfile = profileList.find((p) => p.linked_wholesale_rep_id === id) ?? null;
+  const candidateProfiles = profileList.filter((p) => p.linked_wholesale_rep_id !== id);
 
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -384,6 +396,22 @@ export default async function WholesaleRepDetail({
           </div>
         </section>
       </div>
+
+      {me.role === 'coordinator' && (
+        <section className="mt-6 bg-white rounded-2xl border border-border p-6 shadow-sm">
+          <h2 className="font-semibold">Acceso al sistema</h2>
+          <p className="text-secondary text-xs mt-1 mb-4">
+            Con usuario propio, el comercial entra a wholesale y ve solo lo suyo.
+          </p>
+          <RepAccess
+            repId={id}
+            repName={rep.name}
+            repEmail={rep.email}
+            linked={linkedProfile}
+            candidates={candidateProfiles}
+          />
+        </section>
+      )}
 
       <section className="mt-6 bg-white rounded-2xl border border-border p-6 shadow-sm">
         <Expenses

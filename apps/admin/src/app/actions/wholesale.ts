@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { createClient } from '@supabase/supabase-js';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getWholesaleMe } from '@/lib/wholesale';
 
@@ -374,4 +375,75 @@ export async function deleteExpense(expenseId: string, repId: string) {
   if (error) throw error;
   revalidatePath(`/wholesale/reps/${repId}`);
   revalidatePath('/wholesale/clients');
+}
+
+/** Cliente con service role: crear usuarios en auth exige bypass de RLS.
+ *  Solo se usa dentro de acciones server-side ya validadas. */
+function adminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  if (!key) throw new Error('Falta SUPABASE_SERVICE_ROLE_KEY');
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+/** Crea el usuario del comercial y lo deja vinculado a su ficha. */
+export async function createRepAccess(input: {
+  rep_id: string;
+  full_name: string;
+  email: string;
+  password: string;
+}) {
+  const { supabase } = await ensureCoordinator();
+  if (input.password.length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres');
+
+  const svc = adminClient();
+  const { data: created, error: createErr } = await svc.auth.admin.createUser({
+    email: input.email,
+    password: input.password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: input.full_name,
+      cedula: '0',
+      phone: '',
+      city: '',
+      profession: 'Aural',
+      address: 'N/A',
+      role: 'funcionario_aural',
+    },
+  });
+  if (createErr || !created.user) throw createErr ?? new Error('No se pudo crear el usuario');
+
+  const { error: upErr } = await supabase
+    .from('profiles')
+    .update({
+      admin_role: 'wholesale_rep',
+      linked_wholesale_rep_id: input.rep_id,
+      status: 'approved',
+      approved_at: new Date().toISOString(),
+    })
+    .eq('id', created.user.id);
+  if (upErr) throw upErr;
+
+  revalidatePath(`/wholesale/reps/${input.rep_id}`);
+}
+
+/** Vincula un usuario que ya existe a la ficha del comercial. */
+export async function linkRepAccess(repId: string, profileId: string) {
+  const { supabase } = await ensureCoordinator();
+  const { error } = await supabase
+    .from('profiles')
+    .update({ admin_role: 'wholesale_rep', linked_wholesale_rep_id: repId })
+    .eq('id', profileId);
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${repId}`);
+}
+
+export async function unlinkRepAccess(repId: string, profileId: string) {
+  const { supabase } = await ensureCoordinator();
+  const { error } = await supabase
+    .from('profiles')
+    .update({ linked_wholesale_rep_id: null, admin_role: null })
+    .eq('id', profileId);
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${repId}`);
 }

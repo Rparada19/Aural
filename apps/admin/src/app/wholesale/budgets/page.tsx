@@ -8,6 +8,11 @@ export const dynamic = 'force-dynamic';
 
 const SIN_ZONA = 'Sin zona';
 
+const MONTH_NAMES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
 function Compliance({ actual, budget }: { actual: number; budget: number }) {
   if (budget <= 0) return <span className="text-secondary">—</span>;
   const ratio = actual / budget;
@@ -35,7 +40,7 @@ export default async function WholesaleBudgetsPage({
       .select('id, name, city, zone, rep_id')
       .is('deleted_at', null)
       .eq('is_active', true),
-    supabase.from('wholesale_budgets').select('client_id, amount, units').eq('year', year),
+    supabase.from('wholesale_budgets').select('client_id, month, amount, units').eq('year', year),
     supabase
       .from('wholesale_sales')
       .select('client_id, sold_on, units, net_amount')
@@ -46,8 +51,21 @@ export default async function WholesaleBudgetsPage({
   const clientList = clients ?? [];
   const repName = new Map((reps ?? []).map((r) => [r.id, r.name]));
 
+  // El año en curso se juzga contra lo presupuestado hasta hoy; un año
+  // pasado, contra sus doce meses.
+  const now = new Date();
+  const throughMonth = year === now.getFullYear() ? now.getMonth() + 1 : 12;
+  const partialYear = throughMonth < 12;
+
   const budgetByClient = new Map<string, { amount: number; units: number }>();
+  const fullBudgetByClient = new Map<string, { amount: number; units: number }>();
   for (const b of budgets ?? []) {
+    const full = fullBudgetByClient.get(b.client_id) ?? { amount: 0, units: 0 };
+    fullBudgetByClient.set(b.client_id, {
+      amount: full.amount + Number(b.amount ?? 0),
+      units: full.units + Number(b.units ?? 0),
+    });
+    if (b.month > throughMonth) continue;
     const p = budgetByClient.get(b.client_id) ?? { amount: 0, units: 0 };
     budgetByClient.set(b.client_id, {
       amount: p.amount + Number(b.amount ?? 0),
@@ -124,19 +142,24 @@ export default async function WholesaleBudgetsPage({
   const zones = new Map<string, {
     clients: number; reps: Set<string>;
     budget: { amount: number; units: number };
+    ytd: { amount: number; units: number };
     actual: { amount: number; units: number };
   }>();
   for (const c of clientList) {
     const key = zoneOf(c);
     const z = zones.get(key) ?? {
       clients: 0, reps: new Set<string>(),
-      budget: { amount: 0, units: 0 }, actual: { amount: 0, units: 0 },
+      budget: { amount: 0, units: 0 },
+      ytd: { amount: 0, units: 0 },
+      actual: { amount: 0, units: 0 },
     };
-    const b = budgetByClient.get(c.id) ?? { amount: 0, units: 0 };
+    const full = fullBudgetByClient.get(c.id) ?? { amount: 0, units: 0 };
+    const ytd = budgetByClient.get(c.id) ?? { amount: 0, units: 0 };
     const a = actualByClient.get(c.id) ?? { amount: 0, units: 0 };
     z.clients += 1;
     if (c.rep_id) z.reps.add(c.rep_id);
-    z.budget = { amount: z.budget.amount + b.amount, units: z.budget.units + b.units };
+    z.budget = { amount: z.budget.amount + full.amount, units: z.budget.units + full.units };
+    z.ytd = { amount: z.ytd.amount + ytd.amount, units: z.ytd.units + ytd.units };
     z.actual = { amount: z.actual.amount + a.amount, units: z.actual.units + a.units };
     zones.set(key, z);
   }
@@ -145,10 +168,12 @@ export default async function WholesaleBudgetsPage({
   const total = zoneRows.reduce((acc, [, z]) => ({
     budgetAmount: acc.budgetAmount + z.budget.amount,
     budgetUnits: acc.budgetUnits + z.budget.units,
+    ytdAmount: acc.ytdAmount + z.ytd.amount,
+    ytdUnits: acc.ytdUnits + z.ytd.units,
     actualAmount: acc.actualAmount + z.actual.amount,
     actualUnits: acc.actualUnits + z.actual.units,
     clients: acc.clients + z.clients,
-  }), { budgetAmount: 0, budgetUnits: 0, actualAmount: 0, actualUnits: 0, clients: 0 });
+  }), { budgetAmount: 0, budgetUnits: 0, ytdAmount: 0, ytdUnits: 0, actualAmount: 0, actualUnits: 0, clients: 0 });
 
   const years = [year - 2, year - 1, year, year + 1];
 
@@ -160,6 +185,7 @@ export default async function WholesaleBudgetsPage({
           <h1 className="text-2xl font-semibold mt-1">Presupuestos {year}</h1>
           <p className="text-secondary text-sm mt-1">
             Por zona. Entra a una para ver sus clientes mes a mes.
+            {partialYear && ` El cumplimiento compara contra lo presupuestado hasta ${MONTH_NAMES[throughMonth - 1]}.`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -293,7 +319,10 @@ export default async function WholesaleBudgetsPage({
                 <th className="px-3 py-3 font-semibold text-right" rowSpan={2}>Clientes</th>
                 <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Presupuesto</th>
                 <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Real</th>
-                <th className="px-3 py-2 font-semibold text-center" colSpan={2}>Cumplimiento</th>
+                <th className="px-3 py-2 font-semibold text-center" colSpan={2}>
+                  Cumplimiento
+                  {partialYear && <span className="block text-[10px] font-normal normal-case">a {MONTH_NAMES[throughMonth - 1]}</span>}
+                </th>
               </tr>
               <tr className="text-right text-xs">
                 <th className="px-3 pb-2 font-medium">Valor</th>
@@ -326,10 +355,10 @@ export default async function WholesaleBudgetsPage({
                   <td className="px-3 py-3 text-right font-medium">{cop(z.actual.amount)}</td>
                   <td className="px-3 py-3 text-right text-secondary">{z.actual.units || '—'}</td>
                   <td className="px-3 py-3 text-right">
-                    <Compliance actual={z.actual.amount} budget={z.budget.amount} />
+                    <Compliance actual={z.actual.amount} budget={z.ytd.amount} />
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <Compliance actual={z.actual.units} budget={z.budget.units} />
+                    <Compliance actual={z.actual.units} budget={z.ytd.units} />
                   </td>
                 </tr>
               ))}
@@ -343,10 +372,10 @@ export default async function WholesaleBudgetsPage({
                 <td className="px-3 py-3 text-right">{cop(total.actualAmount)}</td>
                 <td className="px-3 py-3 text-right">{total.actualUnits || '—'}</td>
                 <td className="px-3 py-3 text-right">
-                  <Compliance actual={total.actualAmount} budget={total.budgetAmount} />
+                  <Compliance actual={total.actualAmount} budget={total.ytdAmount} />
                 </td>
                 <td className="px-3 py-3 text-right">
-                  <Compliance actual={total.actualUnits} budget={total.budgetUnits} />
+                  <Compliance actual={total.actualUnits} budget={total.ytdUnits} />
                 </td>
               </tr>
             </tfoot>
