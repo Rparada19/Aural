@@ -13,8 +13,9 @@ const NAV: { href: string; label: string; num: string; allowed: WholesaleRole[] 
   { href: '/wholesale/sales', label: 'Ventas', num: '03', allowed: ['admin', 'coordinator', 'rep'] },
   { href: '/wholesale/budgets', label: 'Presupuestos', num: '04', allowed: ['admin', 'coordinator', 'rep'] },
   { href: '/wholesale/proyectos', label: 'Proyectos', num: '05', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/documentos', label: 'Documentos', num: '06', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/reps', label: 'Comerciales', num: '07', allowed: ['admin', 'coordinator'] },
+  { href: '/wholesale/celebraciones', label: 'Celebraciones', num: '06', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/documentos', label: 'Documentos', num: '07', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/reps', label: 'Comerciales', num: '08', allowed: ['admin', 'coordinator'] },
 ];
 
 export function WholesaleLayout({
