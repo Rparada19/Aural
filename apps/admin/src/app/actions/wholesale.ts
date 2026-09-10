@@ -870,3 +870,157 @@ export async function getAvatarUrl(path: string) {
   const { data } = await supabase.storage.from('wholesale-avatars').createSignedUrl(path, 60 * 60);
   return data?.signedUrl ?? null;
 }
+
+// ===================== CELEBRACIONES Y CORREO =========================
+
+export async function upsertContact(input: {
+  id?: string;
+  client_id: string;
+  name: string;
+  role?: string;
+  email?: string;
+  phone?: string;
+  birth_month?: number | null;
+  birth_day?: number | null;
+}) {
+  const { supabase } = await ensureMember();
+  const row = {
+    client_id: input.client_id,
+    name: input.name,
+    role: input.role || null,
+    email: input.email || null,
+    phone: input.phone || null,
+    birth_month: input.birth_month ?? null,
+    birth_day: input.birth_day ?? null,
+  };
+  const { error } = input.id
+    ? await supabase.from('wholesale_contacts').update(row).eq('id', input.id)
+    : await supabase.from('wholesale_contacts').insert(row);
+  if (error) throw error;
+  revalidatePath('/wholesale/celebraciones');
+  revalidatePath(`/wholesale/clients/${input.client_id}`);
+}
+
+export async function deleteContact(contactId: string) {
+  const { supabase } = await ensureMember();
+  const { error } = await supabase
+    .from('wholesale_contacts')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', contactId);
+  if (error) throw error;
+  revalidatePath('/wholesale/celebraciones');
+}
+
+/** Envía el saludo y deja constancia. Si el correo no está configurado,
+ *  el registro queda como pendiente en vez de perderse. */
+export async function sendGreeting(input: {
+  contact_id: string;
+  client_id: string;
+  celebration_slug: string | null;
+  template_id: string | null;
+  subject: string;
+  body: string;
+}) {
+  const { supabase, me } = await ensureMember();
+  const year = new Date().getFullYear();
+
+  const { data: contact } = await supabase
+    .from('wholesale_contacts')
+    .select('email, name')
+    .eq('id', input.contact_id)
+    .single();
+
+  if (!contact?.email) throw new Error('Ese contacto no tiene correo registrado');
+
+  const { sendMail, mailerReady } = await import('@/lib/mailer');
+  const result = mailerReady()
+    ? await sendMail(contact.email, input.subject, input.body)
+    : { ok: false, error: 'Correo saliente sin configurar' };
+
+  const { error } = await supabase.from('wholesale_sends').insert({
+    contact_id: input.contact_id,
+    client_id: input.client_id,
+    template_id: input.template_id,
+    celebration_slug: input.celebration_slug,
+    year,
+    channel: 'email',
+    status: result.ok ? 'sent' : 'failed',
+    subject: input.subject,
+    body: input.body,
+    error: result.ok ? null : result.error,
+    sent_by: me.id,
+    sent_at: result.ok ? new Date().toISOString() : null,
+  });
+  if (error) throw error;
+
+  revalidatePath('/wholesale/celebraciones');
+  if (!result.ok) throw new Error(result.error ?? 'No se pudo enviar');
+}
+
+/** Marca el saludo como hecho por fuera del sistema: por WhatsApp, en
+ *  persona, con una tarjeta física. Igual cuenta como atendido. */
+export async function markGreetingDone(input: {
+  contact_id: string;
+  client_id: string;
+  celebration_slug: string | null;
+  channel: string;
+}) {
+  const { supabase, me } = await ensureMember();
+  const { error } = await supabase.from('wholesale_sends').insert({
+    contact_id: input.contact_id,
+    client_id: input.client_id,
+    celebration_slug: input.celebration_slug,
+    year: new Date().getFullYear(),
+    channel: input.channel,
+    status: 'sent',
+    sent_by: me.id,
+    sent_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+  revalidatePath('/wholesale/celebraciones');
+}
+
+export async function saveTemplate(input: {
+  id?: string;
+  name: string;
+  kind: string;
+  subject: string;
+  body: string;
+  celebration_slug?: string | null;
+}) {
+  const { supabase, me } = await ensureCoordinator();
+  const row = {
+    name: input.name,
+    kind: input.kind,
+    subject: input.subject || null,
+    body: input.body,
+    celebration_slug: input.celebration_slug || null,
+    created_by: me.id,
+  };
+  const { error } = input.id
+    ? await supabase.from('wholesale_templates').update(row).eq('id', input.id)
+    : await supabase.from('wholesale_templates').insert(row);
+  if (error) throw error;
+  revalidatePath('/wholesale/celebraciones');
+}
+
+export async function saveCelebrationDate(input: {
+  slug: string;
+  label: string;
+  month: number;
+  day: number;
+  audience?: string;
+  note?: string;
+}) {
+  const { supabase } = await ensureCoordinator();
+  const { error } = await supabase.from('wholesale_celebrations').upsert({
+    slug: input.slug,
+    label: input.label,
+    month: input.month,
+    day: input.day,
+    audience: input.audience || 'todos',
+    note: input.note || null,
+  });
+  if (error) throw error;
+  revalidatePath('/wholesale/celebraciones');
+}
