@@ -10,7 +10,8 @@ import { ActivityTargets } from '@/components/wholesale/ActivityTargets';
 import { ActivityTypeManager } from '@/components/wholesale/ActivityTypeManager';
 import { Expenses, type Expense, type ExpenseCategory } from '@/components/wholesale/Expenses';
 import {
-  agendaRange, shiftAnchor, mondayOf, type ActivityType, type AgendaView,
+  agendaRange, shiftAnchor, mondayOf, monthStart, monthEnd,
+  type ActivityType, type AgendaView,
 } from '@/lib/activities';
 import { requireWholesaleMe, salesMetrics, cop, pct } from '@/lib/wholesale';
 
@@ -49,8 +50,8 @@ export default async function WholesaleRepDetail({
     viewParam === 'day' || viewParam === 'month' ? viewParam : 'week';
   const anchor = onParam ?? (view === 'week' ? mondayOf(now) : today);
   const { from: agendaFrom, to: agendaTo } = agendaRange(view, anchor);
-  const monthFrom = `${year}-${String(month).padStart(2, '0')}-01`;
-  const monthTo = `${year}-${String(month).padStart(2, '0')}-31`;
+  const monthFrom = monthStart(year, month);
+  const monthTo = monthEnd(year, month);
   const supabase = await createSupabaseServerClient();
 
   const [{ data: rep }, { data: clients }, { data: sales }, { data: budgets }, { data: goals }, { data: projects },

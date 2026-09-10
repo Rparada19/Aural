@@ -70,3 +70,14 @@ export function shiftAnchor(view: AgendaView, anchor: string, dir: 1 | -1): stri
   const d = new Date(Date.UTC(y, m - 1 + dir, 1));
   return d.toISOString().slice(0, 10);
 }
+
+/** Último día real del mes. Usar siempre esto para cerrar un rango:
+ *  Postgres rechaza '2026-09-31' con date/time field value out of range. */
+export function monthEnd(year: number, month: number): string {
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${String(month).padStart(2, '0')}-${last}`;
+}
+
+export function monthStart(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, '0')}-01`;
+}

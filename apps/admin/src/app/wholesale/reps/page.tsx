@@ -5,6 +5,7 @@ import { WholesaleLayout } from '@/components/WholesaleLayout';
 import { EmptyState } from '@/components/wholesale/MetricCard';
 import { NewRepForm } from '@/components/wholesale/NewRepForm';
 import { RepCharts } from '@/components/wholesale/RepCharts';
+import { monthStart, monthEnd } from '@/lib/activities';
 import { requireWholesaleMe, cop } from '@/lib/wholesale';
 
 export const dynamic = 'force-dynamic';
@@ -31,8 +32,8 @@ export default async function WholesaleRepsPage({
   const now = new Date();
   const year = Number(yearParam) || now.getFullYear();
   const month = monthParam ? Number(monthParam) : null; // null = todo el año
-  const periodFrom = month ? `${year}-${String(month).padStart(2, '0')}-01` : `${year}-01-01`;
-  const periodTo = month ? `${year}-${String(month).padStart(2, '0')}-31` : `${year}-12-31`;
+  const periodFrom = month ? monthStart(year, month) : `${year}-01-01`;
+  const periodTo = month ? monthEnd(year, month) : `${year}-12-31`;
   const supabase = await createSupabaseServerClient();
 
   const [{ data: reps }, { data: clients }, { data: sales }, { data: budgets }, { data: expenses }] = await Promise.all([
