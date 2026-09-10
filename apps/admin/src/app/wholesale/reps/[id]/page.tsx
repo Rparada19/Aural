@@ -5,6 +5,9 @@ import { WholesaleLayout } from '@/components/WholesaleLayout';
 import { MetricCard } from '@/components/wholesale/MetricCard';
 import { ProgressCard, type GoalStatus } from '@/components/wholesale/ProgressCard';
 import { NewGoalForm, NewProjectForm } from '@/components/wholesale/NewGoalForm';
+import { WeekAgenda, type Activity } from '@/components/wholesale/WeekAgenda';
+import { ActivityTargets } from '@/components/wholesale/ActivityTargets';
+import { ACTIVITY_KINDS, mondayOf, addDays, type ActivityKind } from '@/lib/activities';
 import { requireWholesaleMe, salesMetrics, cop, pct } from '@/lib/wholesale';
 
 export const dynamic = 'force-dynamic';
@@ -25,10 +28,10 @@ export default async function WholesaleRepDetail({
   params, searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ year?: string; month?: string }>;
+  searchParams: Promise<{ year?: string; month?: string; week?: string }>;
 }) {
   const { id } = await params;
-  const { year: yearParam, month: monthParam } = await searchParams;
+  const { year: yearParam, month: monthParam, week: weekParam } = await searchParams;
   const me = await requireWholesaleMe();
 
   // El comercial solo entra a su propia ficha.
@@ -37,9 +40,16 @@ export default async function WholesaleRepDetail({
   const now = new Date();
   const year = Number(yearParam) || now.getFullYear();
   const month = Number(monthParam) || now.getMonth() + 1;
+  const monday = weekParam ?? mondayOf(now);
+  const today = now.toISOString().slice(0, 10);
+  const monthFrom = `${year}-${String(month).padStart(2, '0')}-01`;
+  const monthTo = `${year}-${String(month).padStart(2, '0')}-31`;
+  const weekFrom = monday;
+  const weekTo = addDays(monday, 6);
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: rep }, { data: clients }, { data: sales }, { data: budgets }, { data: goals }, { data: projects }] =
+  const [{ data: rep }, { data: clients }, { data: sales }, { data: budgets }, { data: goals }, { data: projects },
+         { data: weekActs }, { data: monthActs }, { data: actTargets }] =
     await Promise.all([
       supabase.from('wholesale_reps').select('id, name, zone, phone, email').eq('id', id).is('deleted_at', null).maybeSingle(),
       supabase.from('wholesale_clients').select('id, name, city').eq('rep_id', id).is('deleted_at', null).order('name'),
@@ -64,6 +74,26 @@ export default async function WholesaleRepDetail({
         .eq('rep_id', id)
         .is('deleted_at', null)
         .order('starts_on', { ascending: false }),
+      supabase
+        .from('wholesale_activities')
+        .select('id, kind, scheduled_on, starts_at, title, notes, status, client_id')
+        .eq('rep_id', id)
+        .is('deleted_at', null)
+        .gte('scheduled_on', weekFrom)
+        .lte('scheduled_on', weekTo),
+      supabase
+        .from('wholesale_activities')
+        .select('kind, status')
+        .eq('rep_id', id)
+        .is('deleted_at', null)
+        .gte('scheduled_on', monthFrom)
+        .lte('scheduled_on', monthTo),
+      supabase
+        .from('wholesale_activity_targets')
+        .select('kind, target')
+        .eq('rep_id', id)
+        .eq('year', year)
+        .eq('month', month),
     ]);
 
   if (!rep) notFound();
@@ -88,6 +118,24 @@ export default async function WholesaleRepDetail({
 
   const ratio = monthBudget.amount > 0 ? monthStats.revenue / monthBudget.amount : null;
   const unitRatio = monthBudget.units > 0 ? monthStats.units / monthBudget.units : null;
+
+  const targetByKind = new Map((actTargets ?? []).map((t) => [t.kind as ActivityKind, t.target]));
+  const activityRows = ACTIVITY_KINDS.map((k) => {
+    const mine = (monthActs ?? []).filter((a) => a.kind === k.kind);
+    return {
+      kind: k.kind,
+      target: targetByKind.get(k.kind) ?? 0,
+      doneCount: mine.filter((a) => a.status === 'done').length,
+      plannedCount: mine.filter((a) => a.status === 'planned').length,
+    };
+  });
+
+  const weekLabel = (() => {
+    const end = addDays(monday, 6);
+    return `${monday.slice(8)}/${monday.slice(5, 7)} — ${end.slice(8)}/${end.slice(5, 7)}`;
+  })();
+
+  const weekDone = (weekActs ?? []).filter((a) => a.status === 'done').length;
 
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
@@ -150,7 +198,63 @@ export default async function WholesaleRepDetail({
         />
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-2 mt-8 items-start">
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px] mt-8 items-start">
+        <section className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div>
+              <h2 className="font-semibold">Agenda de la semana</h2>
+              <p className="text-secondary text-xs mt-1">
+                {weekLabel} · {(weekActs ?? []).length} actividad
+                {(weekActs ?? []).length === 1 ? '' : 'es'}, {weekDone} cumplida
+                {weekDone === 1 ? '' : 's'}
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <Link
+                href={`/wholesale/reps/${id}?year=${year}&month=${month}&week=${addDays(monday, -7)}`}
+                className="h-9 px-3 leading-9 rounded-lg border border-border text-sm hover:border-primary transition"
+              >
+                ←
+              </Link>
+              <Link
+                href={`/wholesale/reps/${id}?year=${year}&month=${month}`}
+                className="h-9 px-3 leading-9 rounded-lg border border-border text-sm hover:border-primary transition"
+              >
+                Hoy
+              </Link>
+              <Link
+                href={`/wholesale/reps/${id}?year=${year}&month=${month}&week=${addDays(monday, 7)}`}
+                className="h-9 px-3 leading-9 rounded-lg border border-border text-sm hover:border-primary transition"
+              >
+                →
+              </Link>
+            </div>
+          </div>
+          <WeekAgenda
+            repId={id}
+            monday={monday}
+            activities={(weekActs ?? []) as Activity[]}
+            clients={clientList}
+            today={today}
+          />
+        </section>
+
+        <section className="bg-white rounded-2xl border border-border p-6 shadow-sm">
+          <h2 className="font-semibold">Actividad de {MONTHS[month - 1]}</h2>
+          <p className="text-secondary text-xs mt-1 mb-4">
+            Cumplidas contra la meta que fija coordinación.
+          </p>
+          <ActivityTargets
+            repId={id}
+            year={year}
+            month={month}
+            rows={activityRows}
+            canEdit={me.role === 'coordinator'}
+          />
+        </section>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2 mt-6 items-start">
         <section className="bg-white rounded-2xl border border-border p-6 shadow-sm">
           <h2 className="font-semibold">Objetivos de {MONTHS[month - 1]}</h2>
           <p className="text-secondary text-xs mt-1 mb-4">

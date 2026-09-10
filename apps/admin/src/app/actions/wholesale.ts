@@ -235,3 +235,69 @@ export async function updateProjectProgress(
   if (error) throw error;
   revalidatePath(`/wholesale/reps/${repId}`);
 }
+
+export type ActivityKind =
+  | 'presencial' | 'virtual' | 'viaje' | 'capacitacion' | 'jornada' | 'llamada' | 'whatsapp';
+export type ActivityStatus = 'planned' | 'done' | 'cancelled';
+
+export async function createActivity(input: {
+  rep_id: string;
+  client_id?: string | null;
+  kind: ActivityKind;
+  scheduled_on: string;
+  starts_at?: string | null;
+  title: string;
+  notes?: string;
+}) {
+  const { supabase, me } = await ensureMember();
+  if (me.role === 'rep' && input.rep_id !== me.repId) {
+    throw new Error('Solo puedes agendar en tu propia agenda');
+  }
+  const { error } = await supabase.from('wholesale_activities').insert({
+    rep_id: input.rep_id,
+    client_id: input.client_id || null,
+    kind: input.kind,
+    scheduled_on: input.scheduled_on,
+    starts_at: input.starts_at || null,
+    title: input.title,
+    notes: input.notes || null,
+    created_by: me.id,
+  });
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${input.rep_id}`);
+}
+
+export async function setActivityStatus(activityId: string, repId: string, status: ActivityStatus) {
+  const { supabase } = await ensureMember();
+  const { error } = await supabase
+    .from('wholesale_activities')
+    .update({ status })
+    .eq('id', activityId);
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${repId}`);
+}
+
+export async function deleteActivity(activityId: string, repId: string) {
+  const { supabase } = await ensureMember();
+  const { error } = await supabase
+    .from('wholesale_activities')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', activityId);
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${repId}`);
+}
+
+export async function saveActivityTargets(
+  repId: string,
+  year: number,
+  month: number,
+  targets: { kind: ActivityKind; target: number }[],
+) {
+  const { supabase } = await ensureCoordinator();
+  const { error } = await supabase.from('wholesale_activity_targets').upsert(
+    targets.map((t) => ({ rep_id: repId, year, month, kind: t.kind, target: t.target })),
+    { onConflict: 'rep_id,year,month,kind' },
+  );
+  if (error) throw error;
+  revalidatePath(`/wholesale/reps/${repId}`);
+}
