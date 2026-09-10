@@ -10,18 +10,20 @@ export default async function WholesaleSalesPage() {
   const me = await requireWholesaleMe();
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: sales }, { data: clients }] = await Promise.all([
+  const [{ data: sales }, { data: clients }, { data: styles }] = await Promise.all([
     supabase
       .from('wholesale_sales')
-      .select('id, client_id, sold_on, invoice_number, patient_name, units, binaural, rechargeable, discount_percent, net_amount')
+      .select('id, client_id, sold_on, invoice_number, patient_name, units, binaural, rechargeable, style, discount_percent, net_amount')
       .is('deleted_at', null)
       .order('sold_on', { ascending: false })
       .limit(200),
     supabase.from('wholesale_clients').select('id, name').is('deleted_at', null),
+    supabase.from('wholesale_product_styles').select('slug, label'),
   ]);
 
   const saleList = sales ?? [];
   const nameById = new Map((clients ?? []).map((c) => [c.id, c.name]));
+  const styleLabel = new Map((styles ?? []).map((s) => [s.slug, s.label]));
   const all = salesMetrics(saleList);
 
   return (
@@ -86,9 +88,9 @@ export default async function WholesaleSalesPage() {
                     </td>
                     <td className="px-5 py-3 text-secondary">{s.invoice_number ?? '—'}</td>
                     <td className="px-5 py-3 text-secondary">
-                      {s.units} und
-                      {s.binaural && ' · binaural'}
-                      {s.rechargeable && ' · recargable'}
+                      {s.units} und · {s.binaural ? 'binaural' : 'unilateral'} ·{' '}
+                      {s.rechargeable ? 'recargable' : 'batería'}
+                      {s.style && ` · ${styleLabel.get(s.style) ?? s.style}`}
                     </td>
                     <td className="px-5 py-3 text-right text-secondary">{Number(s.discount_percent)}%</td>
                     <td className="px-5 py-3 text-right font-semibold">{cop(Number(s.net_amount))}</td>

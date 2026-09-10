@@ -16,7 +16,7 @@ export default async function WholesaleClientDetail({
   const me = await requireWholesaleMe();
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: client }, { data: sales }, { data: reps }, { data: expenses }, { data: expenseCats }] = await Promise.all([
+  const [{ data: client }, { data: sales }, { data: reps }, { data: expenses }, { data: expenseCats }, { data: styles }] = await Promise.all([
     supabase
       .from('wholesale_clients')
       .select('id, name, nit, contact_name, phone, email, city, zone, rep_id, notes')
@@ -25,7 +25,7 @@ export default async function WholesaleClientDetail({
       .maybeSingle(),
     supabase
       .from('wholesale_sales')
-      .select('id, sold_on, invoice_number, patient_name, units, binaural, rechargeable, discount_percent, net_amount')
+      .select('id, sold_on, invoice_number, patient_name, units, binaural, rechargeable, style, discount_percent, net_amount')
       .eq('client_id', id)
       .is('deleted_at', null)
       .order('sold_on', { ascending: false }),
@@ -37,6 +37,7 @@ export default async function WholesaleClientDetail({
       .is('deleted_at', null)
       .order('spent_on', { ascending: false }),
     supabase.from('wholesale_expense_categories').select('slug, label, icon'),
+    supabase.from('wholesale_product_styles').select('slug, label'),
   ]);
 
   if (!client) notFound();
@@ -45,6 +46,7 @@ export default async function WholesaleClientDetail({
   const all = salesMetrics(saleList);
   const repName = (reps ?? []).find((r) => r.id === client.rep_id)?.name;
 
+  const styleLabel = new Map((styles ?? []).map((s) => [s.slug, s.label]));
   const expenseList = expenses ?? [];
   const invested = expenseList.reduce((a, e) => a + Number(e.amount ?? 0), 0);
   const catIcon = new Map((expenseCats ?? []).map((c) => [c.slug, c.icon]));
@@ -171,9 +173,9 @@ export default async function WholesaleClientDetail({
                     <td className="px-5 py-3 text-secondary">{s.invoice_number ?? '—'}</td>
                     <td className="px-5 py-3">{s.patient_name ?? '—'}</td>
                     <td className="px-5 py-3 text-secondary">
-                      {s.units} und
-                      {s.binaural && ' · binaural'}
-                      {s.rechargeable && ' · recargable'}
+                      {s.units} und · {s.binaural ? 'binaural' : 'unilateral'} ·{' '}
+                      {s.rechargeable ? 'recargable' : 'batería'}
+                      {s.style && ` · ${styleLabel.get(s.style) ?? s.style}`}
                     </td>
                     <td className="px-5 py-3 text-right text-secondary">{Number(s.discount_percent)}%</td>
                     <td className="px-5 py-3 text-right font-semibold">{cop(Number(s.net_amount))}</td>

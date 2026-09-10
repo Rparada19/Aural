@@ -23,6 +23,7 @@ export interface RepChartRow {
   rechargeableRate: number;
   expense: number;
   expenseRate: number;
+  styleMix: Record<string, number>;
 }
 
 export interface MonthPoint {
@@ -170,7 +171,7 @@ function SingleBar({
 }
 
 export function RepCharts({
-  data, monthly, expenseMonthly, pace, repNames, periodLabel,
+  data, monthly, expenseMonthly, pace, repNames, periodLabel, styleKeys,
 }: {
   data: RepChartRow[];
   monthly: MonthPoint[];
@@ -178,6 +179,7 @@ export function RepCharts({
   pace: PacePoint[];
   repNames: string[];
   periodLabel: string;
+  styleKeys: { slug: string; label: string }[];
 }) {
   if (data.length === 0) return null;
 
@@ -231,7 +233,7 @@ export function RepCharts({
           </Box>
         </Card>
 
-        <Card title="Mix de producto" hint="Qué porcentaje de las ventas de cada zona es binaural y recargable.">
+        <Card title="Adaptación y alimentación" hint="Del total de ventas, cuántas son binaurales y cuántas recargables. El resto son unilaterales y de batería.">
           <Box>
             <BarChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 4 }} barGap={2}>
               <CartesianGrid vertical={false} stroke={GRID} strokeDasharray="3 3" />
@@ -271,6 +273,29 @@ export function RepCharts({
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-2">
+        <Card title="Estilo de adaptación" hint="Reparto entre RIC, BTE e intracanal. Suma 100% en cada zona.">
+          <Box>
+            <BarChart data={data} margin={{ top: 4, right: 16, bottom: 4, left: 4 }}>
+              <CartesianGrid vertical={false} stroke={GRID} strokeDasharray="3 3" />
+              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#706F6F' }} axisLine={false} tickLine={false} />
+              <YAxis tick={AXIS} tickFormatter={(v) => `${v}%`} domain={[0, 100]} axisLine={false} tickLine={false} />
+              <Tooltip content={<TipPct />} cursor={{ fill: 'rgba(4, 30, 66, 0.04)' }} />
+              <Legend wrapperStyle={{ fontSize: 12 }} iconType="square" />
+              {styleKeys.map((k, i) => (
+                <Bar
+                  key={k.slug}
+                  dataKey={(row: RepChartRow) => row.styleMix[k.slug] ?? 0}
+                  name={k.label}
+                  stackId="style"
+                  fill={SERIES[i % SERIES.length]}
+                  barSize={26}
+                  radius={i === styleKeys.length - 1 ? [4, 4, 0, 0] : undefined}
+                />
+              ))}
+            </BarChart>
+          </Box>
+        </Card>
+
         <Card title="Inversión por comercial" hint={`Gasto comercial imputado · ${periodLabel}.`}>
           <SingleBar data={data} dataKey="expense" color={SERIES[1]} fmt={MONEY_TICK} tip={<TipCopPlain />} />
         </Card>

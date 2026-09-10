@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/wholesale/MetricCard';
 import { NewRepForm } from '@/components/wholesale/NewRepForm';
 import { RepCharts } from '@/components/wholesale/RepCharts';
 import { monthStart, monthEnd } from '@/lib/activities';
-import { requireWholesaleMe, cop } from '@/lib/wholesale';
+import { requireWholesaleMe, styleMix, cop } from '@/lib/wholesale';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,16 +36,17 @@ export default async function WholesaleRepsPage({
   const periodTo = month ? monthEnd(year, month) : `${year}-12-31`;
   const supabase = await createSupabaseServerClient();
 
-  const [{ data: reps }, { data: clients }, { data: sales }, { data: budgets }, { data: expenses }] = await Promise.all([
+  const [{ data: reps }, { data: clients }, { data: sales }, { data: budgets }, { data: productStyles }, { data: expenses }] = await Promise.all([
     supabase.from('wholesale_reps').select('id, name, zone, phone, email').is('deleted_at', null).order('name'),
     supabase.from('wholesale_clients').select('id, rep_id').is('deleted_at', null),
     supabase
       .from('wholesale_sales')
-      .select('rep_id, sold_on, units, net_amount, binaural, rechargeable, discount_percent, list_price')
+      .select('rep_id, sold_on, units, net_amount, binaural, rechargeable, style, discount_percent, list_price')
       .is('deleted_at', null)
       .gte('sold_on', `${year}-01-01`)
       .lte('sold_on', `${year}-12-31`),
     supabase.from('wholesale_budgets').select('client_id, month, amount, units').eq('year', year),
+    supabase.from('wholesale_product_styles').select('slug, label').eq('is_active', true).order('sort_order'),
     supabase
       .from('wholesale_expenses')
       .select('rep_id, client_id, spent_on, amount')
@@ -119,6 +120,7 @@ export default async function WholesaleRepsPage({
       avgDiscount: st && st.listTotal > 0 ? Number(((st.discTotal / st.listTotal) * 100).toFixed(1)) : 0,
       binauralRate: st && st.count > 0 ? Number(((st.binaural / st.count) * 100).toFixed(1)) : 0,
       rechargeableRate: st && st.count > 0 ? Number(((st.rechargeable / st.count) * 100).toFixed(1)) : 0,
+      styleMix: styleMix((sales ?? []).filter((s) => s.rep_id === r.id && inPeriod(s.sold_on))),
       expense: expenseByRep.get(r.id) ?? 0,
       expenseRate: a.amount > 0 ? Number((((expenseByRep.get(r.id) ?? 0) / a.amount) * 100).toFixed(1)) : 0,
     };
@@ -247,6 +249,7 @@ export default async function WholesaleRepsPage({
             pace={pace.map((p, i) => (i <= lastRealMonth ? p : { ...p, real: null as unknown as number }))}
             repNames={repList.map((r) => r.name)}
             periodLabel={periodLabel}
+            styleKeys={productStyles ?? []}
           />
         </div>
       )}

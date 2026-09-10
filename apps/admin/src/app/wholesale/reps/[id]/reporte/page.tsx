@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { PrintButton } from '@/components/wholesale/PrintButton';
-import { requireWholesaleMe, salesMetrics, cop, pct } from '@/lib/wholesale';
+import { requireWholesaleMe, salesMetrics, styleMix, cop, pct } from '@/lib/wholesale';
 import { monthStart, monthEnd, type ActivityType } from '@/lib/activities';
 
 export const dynamic = 'force-dynamic';
@@ -58,12 +58,12 @@ export default async function RepReport({
   const [
     { data: rep }, { data: clients }, { data: sales }, { data: budgets },
     { data: goals }, { data: projects }, { data: activities }, { data: actTargets },
-    { data: types }, { data: expenses }, { data: expenseCats },
+    { data: types }, { data: expenses }, { data: expenseCats }, { data: pStyles },
   ] = await Promise.all([
     supabase.from('wholesale_reps').select('id, name, zone, phone, email').eq('id', id).is('deleted_at', null).maybeSingle(),
     supabase.from('wholesale_clients').select('id, name, city').eq('rep_id', id).is('deleted_at', null).order('name'),
     supabase.from('wholesale_sales')
-      .select('client_id, sold_on, units, binaural, rechargeable, discount_percent, list_price, net_amount')
+      .select('client_id, sold_on, units, binaural, rechargeable, style, discount_percent, list_price, net_amount')
       .eq('rep_id', id).is('deleted_at', null).gte('sold_on', from).lte('sold_on', to),
     supabase.from('wholesale_budgets').select('client_id, month, amount, units').eq('year', year),
     supabase.from('wholesale_goals')
@@ -79,6 +79,7 @@ export default async function RepReport({
     supabase.from('wholesale_expenses').select('client_id, category, spent_on, amount, description')
       .eq('rep_id', id).is('deleted_at', null).gte('spent_on', from).lte('spent_on', to),
     supabase.from('wholesale_expense_categories').select('slug, label'),
+    supabase.from('wholesale_product_styles').select('slug, label').order('sort_order'),
   ]);
 
   if (!rep) notFound();
@@ -125,6 +126,7 @@ export default async function RepReport({
 
   const goalList = (goals ?? []).filter((g) => month === null || g.month === month);
 
+  const mix = styleMix(saleList);
   const period = month ? `${MONTHS[month - 1]} ${year}` : `Año ${year}`;
   const ratio = budgetAmount > 0 ? stats.revenue / budgetAmount : null;
   const investRatio = stats.revenue > 0 ? invested / stats.revenue : null;
@@ -205,14 +207,39 @@ export default async function RepReport({
               <span className="font-semibold">{stats.asp > 0 ? cop(stats.asp) : '—'}</span>
             </p>
             <p className="border border-border rounded-xl p-4">
-              <span className="text-secondary text-xs block">Binaurales</span>
-              <span className="font-semibold">{stats.count > 0 ? pct(stats.binauralRate) : '—'}</span>
+              <span className="text-secondary text-xs block">Adaptación</span>
+              <span className="font-semibold">
+                {stats.count > 0 ? `${pct(stats.binauralRate)} binaural` : '—'}
+              </span>
+              {stats.count > 0 && (
+                <span className="text-secondary text-xs block">
+                  {pct(1 - stats.binauralRate)} unilateral
+                </span>
+              )}
             </p>
             <p className="border border-border rounded-xl p-4">
-              <span className="text-secondary text-xs block">Recargables</span>
-              <span className="font-semibold">{stats.count > 0 ? pct(stats.rechargeableRate) : '—'}</span>
+              <span className="text-secondary text-xs block">Alimentación</span>
+              <span className="font-semibold">
+                {stats.count > 0 ? `${pct(stats.rechargeableRate)} recargable` : '—'}
+              </span>
+              {stats.count > 0 && (
+                <span className="text-secondary text-xs block">
+                  {pct(1 - stats.rechargeableRate)} batería
+                </span>
+              )}
             </p>
           </div>
+
+          {Object.keys(mix).length > 0 && (
+            <div className="grid grid-cols-3 gap-4 mt-4 text-sm">
+              {(pStyles ?? []).map((st) => (
+                <p key={st.slug} className="border border-border rounded-xl p-4">
+                  <span className="text-secondary text-xs block">{st.label}</span>
+                  <span className="font-semibold">{(mix[st.slug] ?? 0).toFixed(1)}%</span>
+                </p>
+              ))}
+            </div>
+          )}
         </Section>
 
         {/* Clientes */}

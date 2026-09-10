@@ -83,6 +83,7 @@ export async function createWholesaleSale(input: {
   units: number;
   binaural: boolean;
   rechargeable: boolean;
+  style?: string | null;
   list_price: number;
   discount_percent: number;
 }) {
@@ -112,6 +113,7 @@ export async function createWholesaleSale(input: {
     units: input.units,
     binaural: input.binaural,
     rechargeable: input.rechargeable,
+    style: input.style || null,
     list_price: input.list_price,
     discount_percent: input.discount_percent,
     net_amount: net,

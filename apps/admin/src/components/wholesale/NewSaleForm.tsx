@@ -7,9 +7,10 @@ import { Field, inputClass } from './Field';
 import { cop } from '@/lib/format';
 
 export function NewSaleForm({
-  clients, defaultClientId,
+  clients, styles, defaultClientId,
 }: {
   clients: { id: string; name: string }[];
+  styles: { slug: string; label: string; description: string | null }[];
   defaultClientId?: string;
 }) {
   const router = useRouter();
@@ -24,8 +25,9 @@ export function NewSaleForm({
     units: '1',
     list_price: '',
     discount_percent: '0',
-    binaural: false,
-    rechargeable: false,
+    binaural: 'unilateral',
+    power: 'bateria',
+    style: styles[0]?.slug ?? '',
   });
 
   const net = useMemo(() => {
@@ -53,8 +55,9 @@ export function NewSaleForm({
         patient_name: form.patient_name,
         patient_document: form.patient_document,
         units: Number(form.units),
-        binaural: form.binaural,
-        rechargeable: form.rechargeable,
+        binaural: form.binaural === 'binaural',
+        rechargeable: form.power === 'recargable',
+        style: form.style || null,
         list_price: Number(form.list_price),
         discount_percent: Number(form.discount_percent),
       });
@@ -104,15 +107,31 @@ export function NewSaleForm({
         </Field>
       </div>
 
-      <div className="flex flex-wrap gap-6">
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={form.binaural} onChange={set('binaural')} className="w-4 h-4 accent-[var(--primary)]" />
-          Adaptación binaural
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={form.rechargeable} onChange={set('rechargeable')} className="w-4 h-4 accent-[var(--primary)]" />
-          Recargable
-        </label>
+      <div className="grid gap-5 sm:grid-cols-3">
+        <Choice
+          label="Adaptación"
+          value={form.binaural}
+          onChange={(v) => setForm((f) => ({ ...f, binaural: v }))}
+          options={[
+            { value: 'unilateral', label: 'Unilateral' },
+            { value: 'binaural', label: 'Binaural' },
+          ]}
+        />
+        <Choice
+          label="Alimentación"
+          value={form.power}
+          onChange={(v) => setForm((f) => ({ ...f, power: v }))}
+          options={[
+            { value: 'bateria', label: 'Batería' },
+            { value: 'recargable', label: 'Recargable' },
+          ]}
+        />
+        <Choice
+          label="Estilo"
+          value={form.style}
+          onChange={(v) => setForm((f) => ({ ...f, style: v }))}
+          options={styles.map((s) => ({ value: s.slug, label: s.label, hint: s.description }))}
+        />
       </div>
 
       <div className="bg-surface rounded-xl px-5 py-4 flex items-baseline justify-between">
@@ -130,5 +149,36 @@ export function NewSaleForm({
         {loading ? 'Guardando…' : 'Registrar venta'}
       </button>
     </form>
+  );
+}
+
+
+function Choice({
+  label, value, onChange, options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string; hint?: string | null }[];
+}) {
+  return (
+    <div>
+      <span className="text-xs font-semibold uppercase tracking-wider text-secondary">{label}</span>
+      <div className="mt-1 flex rounded-lg border border-border overflow-hidden">
+        {options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            title={o.hint ?? undefined}
+            onClick={() => onChange(o.value)}
+            className={`flex-1 h-11 text-sm font-medium transition ${
+              value === o.value ? 'bg-primary text-white' : 'bg-white hover:bg-surface'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

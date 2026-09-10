@@ -17,12 +17,19 @@ export default async function NewWholesaleSalePage({
   const supabase = await createSupabaseServerClient();
 
   // La RLS ya limita al comercial a su propia cartera.
-  const { data: clients } = await supabase
-    .from('wholesale_clients')
-    .select('id, name')
-    .is('deleted_at', null)
-    .eq('is_active', true)
-    .order('name');
+  const [{ data: clients }, { data: styles }] = await Promise.all([
+    supabase
+      .from('wholesale_clients')
+      .select('id, name')
+      .is('deleted_at', null)
+      .eq('is_active', true)
+      .order('name'),
+    supabase
+      .from('wholesale_product_styles')
+      .select('slug, label, description')
+      .eq('is_active', true)
+      .order('sort_order'),
+  ]);
 
   const clientList = clients ?? [];
 
@@ -43,7 +50,7 @@ export default async function NewWholesaleSalePage({
           description="Para registrar una venta primero necesitas un cliente en tu cartera. Habla con coordinación."
         />
       ) : (
-        <NewSaleForm clients={clientList} defaultClientId={client} />
+        <NewSaleForm clients={clientList} styles={styles ?? []} defaultClientId={client} />
       )}
     </WholesaleLayout>
   );

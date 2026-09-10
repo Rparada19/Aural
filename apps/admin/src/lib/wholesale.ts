@@ -46,6 +46,7 @@ export interface SaleRow {
   units: number | null;
   binaural: boolean | null;
   rechargeable: boolean | null;
+  style?: string | null;
   net_amount: number | string | null;
 }
 
@@ -63,4 +64,18 @@ export function salesMetrics(rows: SaleRow[]) {
     binauralRate: rows.length > 0 ? binaural / rows.length : 0,
     rechargeableRate: rows.length > 0 ? rechargeable / rows.length : 0,
   };
+}
+
+/** Reparto por estilo (RIC, BTE, intracanal) en porcentaje de ventas. */
+export function styleMix(rows: SaleRow[]): Record<string, number> {
+  const total = rows.filter((r) => r.style).length;
+  if (total === 0) return {};
+  const counts: Record<string, number> = {};
+  for (const r of rows) {
+    if (!r.style) continue;
+    counts[r.style] = (counts[r.style] ?? 0) + 1;
+  }
+  return Object.fromEntries(
+    Object.entries(counts).map(([k, v]) => [k, Number(((v / total) * 100).toFixed(1))]),
+  );
 }
