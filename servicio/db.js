@@ -152,6 +152,9 @@ export async function migrate() {
   await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS area TEXT NOT NULL DEFAULT ''");
   await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT true");
   await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS telefono TEXT NOT NULL DEFAULT ''");
+  await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS photo BYTEA');
+  await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_mime TEXT NOT NULL DEFAULT ''");
+  await q(`CREATE OR REPLACE VIEW users_v AS SELECT id, email, name, role, cargo, sede, active, created_at, area, approved, telefono, (photo IS NOT NULL) AS has_photo FROM users`);
   await q("ALTER TABLE questions ADD COLUMN IF NOT EXISTS area TEXT NOT NULL DEFAULT ''");
   await q("ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS area TEXT NOT NULL DEFAULT ''");
   for (const [area, modules] of Object.entries(SEED)) {

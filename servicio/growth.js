@@ -49,7 +49,7 @@ const PLAN_TOOL = {
 };
 
 export async function generateMonthlyPlan(userId, mes) {
-  const u = await one('SELECT * FROM users WHERE id = $1', [userId]);
+  const u = await one('SELECT * FROM users_v WHERE id = $1', [userId]);
   const area = AREAS[u.area] || { label: 'Servicio', rol: '', criterios: '' };
   const ev = await one("SELECT report FROM evaluations WHERE user_id = $1 AND report IS NOT NULL ORDER BY id DESC LIMIT 1", [userId]);
   const prev = (await q(`SELECT p.mes, p.objetivo, i.accion, i.estado, i.nota FROM plans p LEFT JOIN plan_items i ON i.plan_id = p.id

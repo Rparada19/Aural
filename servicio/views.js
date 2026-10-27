@@ -29,6 +29,7 @@ const ICON = {
   mensajes: '<path d="M4 5h16v11H9l-5 4z"/>',
   preguntas: '<path d="M9.2 9a2.9 2.9 0 1 1 4.2 2.6c-.9.5-1.4 1.1-1.4 2.1V14"/><circle cx="12" cy="17.6" r=".6"/><circle cx="12" cy="12" r="9"/>',
   inicio: '<path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/>',
+  ranking: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/>',
   salir: '<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
 };
 const icon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true" class="ico">${ICON[k]}</svg>`;
@@ -43,7 +44,7 @@ export function layout(title, body, user, { wide = false, path = '' } = {}) {
   if (!user) return `${head}<body class="auth-body"><main class="auth">${body}</main></body></html>`;
   const salir = `<form method="post" action="/salir"><button class="navlink as-btn">${icon('salir')}<span>Salir</span></button></form>`;
   if (user.role === 'admin') {
-    const items = [['/admin', 'Panel', 'panel'], ['/admin/equipo', 'Equipo', 'equipo'], ['/admin/solicitudes', 'Solicitudes', 'solicitudes'], ['/admin/estudio', 'Estudio', 'estudio'], ['/admin/mensajes', 'Mensajes', 'mensajes'], ['/admin/preguntas', 'Preguntas', 'preguntas']];
+    const items = [['/admin', 'Panel', 'panel'], ['/admin/equipo', 'Equipo', 'equipo'], ['/admin/solicitudes', 'Solicitudes', 'solicitudes'], ['/admin/estudio', 'Estudio', 'estudio'], ['/ranking', 'Ranking', 'ranking'], ['/admin/mensajes', 'Mensajes', 'mensajes'], ['/admin/preguntas', 'Preguntas', 'preguntas']];
     const on = (h) => (h === '/admin' ? path === '/admin' || path.startsWith('/admin/personas') : path.startsWith(h));
     return `${head}<body class="admin-body"><aside class="side"><a href="/admin" class="side-brand"><img src="/logo-aural-blanco.png" alt="Aural"><span>Servicio</span></a>
       <nav class="side-nav">${items.map(([h, l, k]) => `<a href="${h}" class="navlink ${on(h) ? 'on' : ''}">${icon(k)}<span>${l}</span></a>`).join('')}</nav>
@@ -51,9 +52,21 @@ export function layout(title, body, user, { wide = false, path = '' } = {}) {
       <main class="content ${wide ? 'wide' : ''}">${body}</main></body></html>`;
   }
   return `${head}<body class="staff-body"><header class="top"><a href="/" class="brand"><img src="/logo-aural.png" alt="Aural"><span>Servicio</span></a>
-    <nav class="top-nav"><a href="/" class="navlink ${path === '/' ? 'on' : ''}">${icon('inicio')}<span>Mi espacio</span></a><a href="/estudio" class="navlink ${path.startsWith('/estudio') ? 'on' : ''}">${icon('estudio')}<span>Estudio</span></a>${salir}</nav></header>
+    <nav class="top-nav"><a href="/" class="navlink ${path === '/' ? 'on' : ''}">${icon('inicio')}<span>Mi espacio</span></a><a href="/estudio" class="navlink ${path.startsWith('/estudio') ? 'on' : ''}">${icon('estudio')}<span>Estudio</span></a><a href="/ranking" class="navlink ${path.startsWith('/ranking') ? 'on' : ''}">${icon('ranking')}<span>Ranking</span></a>${salir}</nav></header>
     <main class="content staff">${body}</main></body></html>`;
 }
+
+const initials = (n) => esc(String(n || '?').trim().split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase());
+export const avatar = (u, cls = '') => (u.has_photo ? `<img class="avatar ${cls}" src="/foto/${u.id}" alt="${esc(u.name)}">` : `<span class="avatar initials ${cls}" aria-hidden="true">${initials(u.name)}</span>`);
+
+const photoWidget = (mode) => `<div class="photo-widget" ${mode === 'perfil' ? 'data-endpoint="/perfil/foto"' : ''}>
+  <label class="photo-pick"><span class="photo-preview"><svg viewBox="0 0 24 24" class="ico"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+    <span class="photo-text"><strong>Tómate una foto</strong><span class="muted small">O elige una de tu galería. Aparecerá en el ranking del equipo.</span></span>
+    <input type="file" accept="image/*" capture="user" class="photo-input"></label>
+  <input type="hidden" name="photo" class="photo-data">
+  <label class="check consent"><input type="checkbox" name="consent" class="photo-consent"> Autorizo que mi nombre y mi foto se muestren en el ranking interno de Aural.</label>
+  ${mode === 'perfil' ? '<button type="button" class="btn small photo-save" disabled>Guardar foto</button><p class="photo-msg muted small"></p>' : ''}
+</div>`;
 
 const authArt = (title, text) => `<aside class="auth-art"><img src="/logo-aural-blanco.png" alt="Aural" class="auth-logo">
   <div class="auth-copy"><h1>${title}</h1><p>${text}</p></div>${arcs('draw')}</aside>`;
@@ -83,9 +96,10 @@ ${authArt('Crece con nosotros en cada atención.', 'Una evaluación personal, un
     <div class="grid2"><label>Celular<input name="telefono" value="${esc(b.telefono)}" autocomplete="tel" placeholder="Opcional"></label><label>Cargo<input name="cargo" value="${esc(b.cargo)}" placeholder="Opcional"></label></div>
     <label>Área<select name="area" required><option value="">Selecciona tu área</option>${AREA_OPTS(b.area)}</select></label>
     <label>Sede${sedeField(sedes, b.sede)}</label>
+    ${photoWidget('registro')}
     <input name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
     <button class="btn block">Enviar solicitud</button>
-  </form>
+  </form><script src="/photo.js?v=${V}"></script>
   <p class="muted small switch">¿Ya tienes cuenta? <a href="/login">Entra aquí</a></p>
 </div></section></div>`;
 
@@ -118,7 +132,7 @@ const pulseCard = (pulse) => (pulse ? `<section class="card pulse"><p class="eye
 
 export function staffHome(user, ev, plan, msg, pulse, mod) {
   const first = esc((user.name || '').split(' ')[0]);
-  const top = greet(user, msg) + studyCard(mod) + (ev && ['enviada', 'analizando', 'analizada'].includes(ev.status) ? pulseCard(pulse) : '');
+  const top = greet(user, msg) + (user.has_photo ? '' : `<section class="card photo-card"><h2>Tu foto para el ranking</h2>${photoWidget('perfil')}</section><script src="/photo.js?v=${V}"></script>`) + studyCard(mod) + (ev && ['enviada', 'analizando', 'analizada'].includes(ev.status) ? pulseCard(pulse) : '');
   if (!ev) return `${top}<section class="card"><h2>Tu evaluación</h2><p class="muted">Aún no tienes una evaluación asignada. Tu líder te avisará cuando esté lista.</p></section>`;
   if (ev.plan_published && ev.report) {
     return `${top}${plan ? monthlyPlanStaff(plan) : ''}${plan ? `<details class="card"><summary><h2>Mi ruta de 8 semanas</h2></summary>${planView(user, ev.report)}</details>` : planView(user, ev.report)}`;
@@ -245,10 +259,11 @@ export function adminPerson(person, evs, sessions, inviteLink, mailOk, plans = [
     ${ev.report ? `<form method="post" action="/admin/evaluaciones/${ev.id}/publicar" class="inline"><button class="btn ${ev.plan_published ? 'ghost' : ''}">${ev.plan_published ? 'Ocultar plan al profesional' : 'Publicar plan al profesional'}</button></form>` : ''}
     <button class="btn ghost" onclick="print()">Imprimir</button>` : '';
   return `<p><a href="/admin">← Panel</a></p>${error ? `<p class="notice err">${esc(error)}</p>` : ''}${person.active ? '' : '<p class="notice warn">Esta persona está desactivada: no puede entrar ni recibe mensajes.</p>'}
-  <div class="row-head"><div><p class="eyebrow">${esc(areaLabel(person.area))}${person.cargo ? ` · ${esc(person.cargo)}` : ''}${person.sede ? ` · ${esc(person.sede)}` : ''}</p><h1>${esc(person.name)}</h1><p class="muted">${esc(person.email)}</p></div>
+  <div class="row-head"><div><p class="eyebrow">${esc(areaLabel(person.area))}${person.cargo ? ` · ${esc(person.cargo)}` : ''}${person.sede ? ` · ${esc(person.sede)}` : ''}</p><div class="person-id">${avatar(person, 'lg')}<div><h1>${esc(person.name)}</h1><p class="muted">${esc(person.email)}</p></div></div></div>
     <div class="actions"><form method="post" action="/admin/personas/${person.id}/enlace" class="inline"><button class="btn ghost">${mailOk ? 'Reenviar enlace' : 'Generar enlace'}</button></form>
     <form method="post" action="/admin/personas/${person.id}/evaluacion" class="inline" onsubmit="return confirm('¿Asignar una nueva evaluación? La anterior queda en el historial.')"><button class="btn ghost">Nueva evaluación</button></form>
-    <form method="post" action="/admin/personas/${person.id}/desactivar" class="inline" onsubmit="return confirm('¿Cambiar el estado de esta persona?')"><button class="btn ghost">${person.active ? 'Desactivar' : 'Reactivar'}</button></form></div></div>
+    <form method="post" action="/admin/personas/${person.id}/desactivar" class="inline" onsubmit="return confirm('¿Cambiar el estado de esta persona?')"><button class="btn ghost">${person.active ? 'Desactivar' : 'Reactivar'}</button></form>
+    ${person.has_photo ? `<form method="post" action="/admin/personas/${person.id}/foto" class="inline" onsubmit="return confirm('¿Quitar la foto de esta persona?')"><button class="btn ghost">Quitar foto</button></form>` : ''}</div></div>
   ${inviteLink ? `<div class="notice ok">Enlace de acceso (vence en 7 días): <input class="copy" readonly value="${esc(inviteLink)}" onclick="this.select()"></div>` : ''}
   ${ev ? `<section class="card"><div class="row-head"><div>${badge(ev.status)} <span class="muted small">Asignada ${fdate(ev.created_at)} · Enviada ${fdate(ev.submitted_at)}</span></div><div class="actions">${actions}</div></div>
     ${ev.status === 'analizando' ? '<p class="notice info">Analizando respuestas… recarga en un minuto.</p><script>setTimeout(()=>location.reload(),15000)</script>' : ''}
@@ -564,4 +579,33 @@ export function adminStudyEdit(m, imgs, results, attempted, ok) {
       ${results.map((r) => `<tr><td><a href="/admin/personas/${r.id}">${esc(r.name)}</a><br><span class="muted small">${esc(r.sede)}</span></td><td>${r.leyo ? 'Leída' : '—'}</td><td>${r.intentos}/2</td><td>${r.mejor ?? '—'}${r.mejor != null ? '%' : ''}</td><td>${r.aprobado ? stBadge('aprobado') : r.intentos >= 2 ? stBadge('no_aprobado') : r.intentos ? stBadge('reintento') : '<span class="muted">Pendiente</span>'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No hay personas en esta área.</td></tr>'}</tbody></table></section>
     ${attempted ? '' : `<form method="post" action="/admin/estudio/${m.id}" onsubmit="return confirm('¿Eliminar este módulo?')"><input type="hidden" name="accion" value="borrar"><button class="link">Eliminar módulo</button></form>`}
     <script src="/upload.js?v=${V}"></script>`;
+}
+
+// ---------- Ranking ----------
+const PRIZE = 2;
+export function rankingPage(rows, mes, cur, months, me) {
+  const closed = mes < cur;
+  const mine = rows.find((r) => r.id === me.id);
+  const areas = Object.keys(AREAS).map((k) => {
+    const list = rows.filter((r) => r.area === k);
+    if (!list.length) return '';
+    const top = list.filter((r) => r.puntos > 0).slice(0, 3);
+    const pos = mine && mine.area === k ? list.indexOf(mine) + 1 : 0;
+    const slot = (r, place) => r ? `<div class="podium-slot p${place}">
+        <div class="pod-avatar">${avatar(r)}<span class="medal">${place}</span></div>
+        <p class="pod-name">${esc(r.name)}</p><p class="pod-sede">${esc(r.sede || '')}</p>
+        <p class="pod-pts"><b>${r.puntos}</b> pts</p>${place <= PRIZE ? `<span class="prize">${closed ? 'Ganó premio' : 'Va por premio'}</span>` : ''}
+        <div class="step">${place}</div></div>` : `<div class="podium-slot p${place} empty"><div class="pod-avatar"><span class="avatar initials">?</span></div><p class="pod-name muted">Puesto libre</p><div class="step">${place}</div></div>`;
+    return `<section class="card rank-area ${me.area === k ? 'mine' : ''}"><div class="row-head"><h2>${esc(areaName(k))}</h2><span class="muted small">${list.length} ${list.length === 1 ? 'persona' : 'personas'}</span></div>
+      <div class="podium">${slot(top[1], 2)}${slot(top[0], 1)}${slot(top[2], 3)}</div>
+      ${pos ? `<p class="my-pos">Vas de <strong>#${pos}</strong> con <strong>${mine.puntos} puntos</strong>${pos > 3 && top[2] ? `, a ${Math.max(0, top[2].puntos - mine.puntos + 1)} del podio` : ''}.</p>` : ''}</section>`;
+  }).join('');
+  const myBreak = mine ? `<div class="mybreak"><span>Módulo <b>${mine.p_estudio}</b></span><span>Plan <b>${mine.acciones * 10}</b></span><span>1:1 <b>${mine.sesiones * 10}</b></span><span>Pulso <b>${mine.pulso * 10}</b></span><span>Evaluación <b>${mine.evaluacion * 30}</b></span></div>` : '';
+  return `<section class="greet rank-hero"><div class="greet-copy"><p class="hello">${closed ? 'Resultados de' : 'Ranking de'} ${esc(fmonth(mes))}</p>
+    <h1>${closed ? 'Así cerró el mes' : 'Quién lidera el servicio este mes'}</h1>
+    <p class="greet-msg">Los dos primeros de cada área reciben premio. ${closed ? '' : 'El mes cierra el último día; cada acción suma.'}</p>
+    ${mine ? `<div class="greet-tip"><strong>Tus puntos: ${mine.puntos}</strong>${myBreak}</div>` : ''}</div>${arcs('draw')}</section>
+    <div class="row-head rank-tools"><form method="get" class="inline-form"><label class="sr" for="mes">Mes</label><select id="mes" name="mes" onchange="this.form.submit()">${months.map((m) => `<option value="${m}" ${m === mes ? 'selected' : ''}>${esc(fmonth(m))}</option>`).join('')}</select></form>
+      <details class="how"><summary>Cómo se ganan puntos</summary><ul><li>Módulo del mes aprobado: 50 en el primer intento o 30 en el segundo, más la nota dividida entre 10.</li><li>Cada acción del plan del mes hecha: 10.</li><li>Cada sesión uno a uno: 10.</li><li>Pulso del mes respondido: 10.</li><li>Evaluación de servicio enviada: 30.</li></ul><p class="small muted">En empate gana la mejor nota del módulo.</p></details></div>
+    <div class="rank-grid">${areas || '<p class="muted">Aún no hay personas registradas.</p>'}</div>`;
 }

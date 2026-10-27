@@ -19,6 +19,8 @@ const token = () => crypto.randomBytes(32).toString('base64url');
 
 app.set('trust proxy', 1);
 app.use(express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), 'public'), { maxAge: '7d' }));
+app.use('/registro', express.urlencoded({ extended: false, limit: '2mb' }));
+app.use('/perfil', express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
 app.use('/admin/estudio', express.json({ limit: '8mb' }));
 app.use(express.json({ limit: '200kb' }));
@@ -26,7 +28,7 @@ app.use(express.json({ limit: '200kb' }));
 // Sesión
 app.use(async (req, res, next) => {
   const sid = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1);
-  if (sid) req.user = await one('SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = $1 AND s.expires_at > now() AND u.active', [hash(sid)]);
+  if (sid) req.user = await one('SELECT u.id, u.email, u.name, u.role, u.area, u.sede, u.cargo, u.active, (u.photo IS NOT NULL) AS has_photo FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = $1 AND s.expires_at > now() AND u.active', [hash(sid)]);
   next();
 });
 
@@ -62,7 +64,7 @@ app.get('/login', (req, res) => (req.user ? res.redirect('/') : page(res, 'Entra
 
 app.post('/login', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
-  let user = await one('SELECT * FROM users WHERE email = $1 AND active', [email]);
+  let user = await one('SELECT * FROM users_v WHERE email = $1 AND active', [email]);
   if (!user && ADMINS.includes(email)) user = await one("INSERT INTO users (email, name, role) VALUES ($1, $1, 'admin') RETURNING *", [email]);
   if (user && ADMINS.includes(email) && user.role !== 'admin') await q("UPDATE users SET role = 'admin' WHERE id = $1", [user.id]);
   if (user) {
@@ -87,6 +89,34 @@ app.post('/salir', async (req, res) => {
   res.redirect('/login');
 });
 
+// ---------- Fotos ----------
+function parsePhoto(dataUrl) {
+  const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ''));
+  if (!m) return null;
+  const buf = Buffer.from(m[2], 'base64');
+  return buf.length && buf.length < 600 * 1024 ? { mime: m[1], buf } : null;
+}
+
+app.get('/foto/:id', needUser, async (req, res) => {
+  const u = await one('SELECT photo, photo_mime FROM users WHERE id = $1 AND photo IS NOT NULL', [req.params.id]);
+  if (!u) return res.status(404).end();
+  res.setHeader('Content-Type', u.photo_mime);
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  res.send(u.photo);
+});
+
+app.post('/perfil/foto', needUser, async (req, res) => {
+  const ph = parsePhoto(req.body?.photo);
+  if (!ph || req.body?.consent !== true) return res.status(400).json({ ok: false });
+  await q('UPDATE users SET photo = $2, photo_mime = $3 WHERE id = $1', [req.user.id, ph.buf, ph.mime]);
+  res.json({ ok: true });
+});
+
+app.post('/admin/personas/:id/foto', needAdmin, async (req, res) => {
+  await q("UPDATE users SET photo = NULL, photo_mime = '' WHERE id = $1", [req.params.id]);
+  res.redirect(`/admin/personas/${req.params.id}`);
+});
+
 // ---------- Registro público ----------
 const sedesList = () => getSetting('sedes', []);
 
@@ -100,10 +130,11 @@ app.post('/registro', async (req, res) => {
   const area = AREA_KEYS.includes(b.area) ? b.area : null;
   const sede = String(b.sede || '').trim().slice(0, 80);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !name || !area || !sede) return page(res, 'Registro', V.registerPage(await sedesList(), 'Completa todos los campos obligatorios.', b));
+  const ph = b.consent === 'on' ? parsePhoto(b.photo) : null;
   const exists = await one('SELECT id, active, approved FROM users WHERE email = $1', [email]);
   if (exists) return page(res, 'Registro', V.registerDone(exists.active ? 'Ya tienes una cuenta activa. Entra con tu correo desde la página de acceso.' : ''));
-  const u = await one(`INSERT INTO users (email, name, area, sede, cargo, telefono, active, approved) VALUES ($1,$2,$3,$4,$5,$6,false,false) RETURNING id`,
-    [email, name, area, sede, String(b.cargo || '').trim().slice(0, 80), String(b.telefono || '').trim().slice(0, 30)]);
+  const u = await one(`INSERT INTO users (email, name, area, sede, cargo, telefono, active, approved, photo, photo_mime) VALUES ($1,$2,$3,$4,$5,$6,false,false,$7,$8) RETURNING id`,
+    [email, name, area, sede, String(b.cargo || '').trim().slice(0, 80), String(b.telefono || '').trim().slice(0, 30), ph?.buf ?? null, ph?.mime ?? '']);
   for (const admin of ADMINS) {
     sendMail(admin, `Nueva solicitud de registro: ${name}`, `${name} (${email}) pidió acceso.\nÁrea: ${area} · Sede: ${sede}\n\nAprueba aquí: ${BASE}/admin/solicitudes`,
       `<div style="font-family:Arial,sans-serif;color:#041E42;max-width:520px;margin:auto;padding:24px"><h2 style="margin-top:0">Nueva solicitud de registro</h2>
@@ -239,12 +270,12 @@ app.get('/admin', needAdmin, async (req, res) => {
 });
 
 app.get('/admin/solicitudes', needAdmin, async (req, res) => {
-  const { rows } = await q('SELECT * FROM users WHERE approved = false ORDER BY created_at');
+  const { rows } = await q('SELECT * FROM users_v WHERE approved = false ORDER BY created_at');
   page(res, 'Solicitudes', V.adminRequests(rows, await sedesList()), req.user, { wide: true });
 });
 
 app.post('/admin/solicitudes/:id', needAdmin, async (req, res) => {
-  const u = await one('SELECT * FROM users WHERE id = $1 AND approved = false', [req.params.id]);
+  const u = await one('SELECT * FROM users_v WHERE id = $1 AND approved = false', [req.params.id]);
   if (!u) return res.redirect('/admin/solicitudes');
   if (req.body.decision === 'rechazar') {
     await q('DELETE FROM users WHERE id = $1', [u.id]);
@@ -264,7 +295,7 @@ app.post('/admin/sedes', needAdmin, async (req, res) => {
 });
 
 app.get('/admin/equipo', needAdmin, async (req, res) => {
-  const { rows } = await q(`SELECT u.*, e.status, e.submitted_at, e.plan_published, (e.report->>'puntaje_global')::int AS score,
+  const { rows } = await q(`SELECT u.id, u.email, u.name, u.area, u.cargo, u.sede, u.active, (u.photo IS NOT NULL) AS has_photo, e.status, e.submitted_at, e.plan_published, (e.report->>'puntaje_global')::int AS score,
       (SELECT count(*) FROM sessions_1a1 s WHERE s.user_id = u.id)::int AS sessions
     FROM users u LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
     WHERE u.role = 'staff' AND u.approved ORDER BY u.area, u.name`);
@@ -293,7 +324,7 @@ app.post('/admin/personas', needAdmin, async (req, res) => {
 });
 
 app.get('/admin/personas/:id', needAdmin, async (req, res) => {
-  const person = await one('SELECT * FROM users WHERE id = $1', [req.params.id]);
+  const person = await one('SELECT * FROM users_v WHERE id = $1', [req.params.id]);
   if (!person) return res.redirect('/admin');
   const evs = (await q('SELECT * FROM evaluations WHERE user_id = $1 ORDER BY id DESC', [person.id])).rows;
   const sessions = (await q('SELECT * FROM sessions_1a1 WHERE user_id = $1 ORDER BY fecha DESC, id DESC', [person.id])).rows;
@@ -303,7 +334,7 @@ app.get('/admin/personas/:id', needAdmin, async (req, res) => {
 });
 
 app.post('/admin/personas/:id/enlace', needAdmin, async (req, res) => {
-  const u = await one('SELECT * FROM users WHERE id = $1', [req.params.id]);
+  const u = await one('SELECT * FROM users_v WHERE id = $1', [req.params.id]);
   if (!u) return res.redirect('/admin');
   const link = await loginLink(u.id);
   let sent = false;
@@ -483,6 +514,35 @@ app.post('/admin/estudio/:id/imagen', needAdmin, async (req, res) => {
   if (buf.length > 4 * 1024 * 1024) return res.status(413).json({ ok: false });
   const im = await one('INSERT INTO study_images (module_id, nombre, mime, data) VALUES ($1,$2,$3,$4) RETURNING id', [req.params.id, String(nombre || '').slice(0, 120), mime, buf]);
   res.json({ ok: true, id: im.id });
+});
+
+// ---------- Ranking ----------
+async function rankingFor(mes) {
+  const { rows } = await q(`SELECT u.id, u.name, u.area, u.sede, (u.photo IS NOT NULL) AS has_photo,
+      (SELECT count(*) FROM plan_items i JOIN plans p ON p.id = i.plan_id WHERE p.user_id = u.id AND p.mes = $1 AND i.estado = 'hecho')::int AS acciones,
+      (SELECT count(*) FROM sessions_1a1 WHERE user_id = u.id AND to_char(fecha, 'YYYY-MM') = $1)::int AS sesiones,
+      (SELECT count(*) FROM pulses WHERE user_id = u.id AND mes = $1)::int AS pulso,
+      (SELECT count(*) FROM evaluations WHERE user_id = u.id AND to_char(submitted_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') = $1)::int AS evaluacion,
+      st.aprobado, st.primero, st.nota
+    FROM users u
+    LEFT JOIN LATERAL (SELECT bool_or(a.passed) AS aprobado, (array_agg(a.passed ORDER BY a.id))[1] AS primero, max(a.score) AS nota
+      FROM study_attempts a JOIN study_modules m ON m.id = a.module_id WHERE a.user_id = u.id AND m.mes = $1) st ON true
+    WHERE u.role = 'staff' AND u.active AND u.approved`, [mes]);
+  for (const r of rows) {
+    r.p_estudio = r.aprobado ? (r.primero ? 50 : 30) + Math.round((r.nota || 0) / 10) : 0;
+    r.puntos = r.p_estudio + r.acciones * 10 + r.sesiones * 10 + r.pulso * 10 + r.evaluacion * 30;
+  }
+  rows.sort((a, b) => b.puntos - a.puntos || (b.nota || 0) - (a.nota || 0) || a.name.localeCompare(b.name));
+  return rows;
+}
+
+app.get('/ranking', needUser, async (req, res) => {
+  const cur = thisMonth();
+  const mes = MES_RE.test(req.query.mes || '') && req.query.mes <= cur ? req.query.mes : cur;
+  const rows = await rankingFor(mes);
+  const months = (await q(`SELECT DISTINCT mes FROM (SELECT mes FROM plans UNION SELECT mes FROM pulses UNION SELECT mes FROM study_modules WHERE mes <= $1) x ORDER BY mes DESC LIMIT 12`, [cur])).rows.map((r) => r.mes);
+  if (!months.includes(cur)) months.unshift(cur);
+  page(res, 'Ranking', V.rankingPage(rows, mes, cur, months, req.user), req.user, { wide: true });
 });
 
 // ---------- Mensajes ----------
