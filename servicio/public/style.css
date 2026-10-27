@@ -458,3 +458,5 @@ a.route-step:hover { border-color: var(--navy); }
 .improve { border-left: 4px solid var(--navy-3); }
 @media (max-width: 760px) { .peek { grid-template-columns: 1fr; } .tbl .peek-row { display: block; } .tbl .peek-row td { display: block; } }
 .tbl tr[hidden] { display: none !important; }
+.photo-err { color: var(--err); margin: 0; min-height: 0; }
+.photo-err:empty { display: none; }

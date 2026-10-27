@@ -59,13 +59,13 @@ export function layout(title, body, user, { wide = false, path = '' } = {}) {
 const initials = (n) => esc(String(n || '?').trim().split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase());
 export const avatar = (u, cls = '') => (u.has_photo ? `<img class="avatar ${cls}" src="/foto/${u.id}" alt="${esc(u.name)}">` : `<span class="avatar initials ${cls}" aria-hidden="true">${initials(u.name)}</span>`);
 
-const photoWidget = (mode) => `<div class="photo-widget" ${mode === 'perfil' ? 'data-endpoint="/perfil/foto"' : ''}>
+const photoWidget = (mode, endpoint = '') => `<div class="photo-widget" ${mode !== 'registro' ? `data-endpoint="${endpoint || '/perfil/foto'}"` : ''}>
   <label class="photo-pick"><span class="photo-preview"><svg viewBox="0 0 24 24" class="ico"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
-    <span class="photo-text"><strong>Tómate una foto</strong><span class="muted small">O elige una de tu galería. Aparecerá en el ranking del equipo.</span></span>
+    <span class="photo-text"><strong>${mode === 'admin' ? 'Subir foto' : 'Tómate una foto'}</strong><span class="muted small">${mode === 'admin' ? 'JPG o PNG. Aparecerá en el ranking del equipo.' : 'O elige una de tu galería. Aparecerá en el ranking del equipo.'}</span></span>
     <input type="file" accept="image/*" capture="user" class="photo-input"></label>
-  <input type="hidden" name="photo" class="photo-data">
-  <label class="check consent"><input type="checkbox" name="consent" class="photo-consent"> Autorizo que mi nombre y mi foto se muestren en el ranking interno de Aural.</label>
-  ${mode === 'perfil' ? '<button type="button" class="btn small photo-save" disabled>Guardar foto</button><p class="photo-msg muted small"></p>' : ''}
+  <input type="hidden" name="photo" class="photo-data"><p class="photo-err small" role="alert"></p>
+  <label class="check consent"><input type="checkbox" name="consent" class="photo-consent"> ${mode === 'admin' ? 'La persona autorizó que su nombre y su foto se muestren en el ranking interno de Aural.' : 'Autorizo que mi nombre y mi foto se muestren en el ranking interno de Aural.'}</label>
+  ${mode !== 'registro' ? '<button type="button" class="btn small photo-save" disabled>Guardar foto</button><p class="photo-msg muted small"></p>' : ''}
 </div>`;
 
 const authArt = (title, text) => `<aside class="auth-art"><img src="/logo-aural-blanco.png" alt="Aural" class="auth-logo">
@@ -273,6 +273,7 @@ export function adminPerson(person, evs, sessions, inviteLink, mailOk, plans = [
     ${ev.report_error ? `<p class="notice err">No se pudo generar el análisis: ${esc(ev.report_error)}</p>` : ''}</section>
     ${ev.report ? reportView(ev) : ''}${Object.keys(ev.answers).length ? answersView(ev) : ''}` : '<section class="card"><p class="muted">Sin evaluación asignada.</p></section>'}
   ${plansAdmin(person, plans, mes, Boolean(ev?.report))}
+  <section class="card"><h2>Foto para el ranking</h2>${person.has_photo ? `<div class="person-id">${avatar(person, 'lg')}<p class="muted">Ya tiene foto. Puedes reemplazarla.</p></div>` : ''}${photoWidget('admin', `/admin/personas/${person.id}/foto`)}<script src="/photo.js?v=${V}"></script></section>
   <section class="card"><h2>Sesiones uno a uno</h2>
     <form method="post" action="/admin/personas/${person.id}/sesiones" class="stack">
       <div class="grid2"><label>Fecha<input type="date" name="fecha" required value="${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}"></label></div>
@@ -453,7 +454,7 @@ export function dashboard(rows, mes, area, pending = 0, series = [], comments = 
 export function adminRequests(rows, sedes) {
   return `<p class="eyebrow">Registro</p><h1>Solicitudes por aprobar</h1>
     <p class="muted">Comparte la página de registro con tu equipo: <input class="copy" readonly value="${esc((process.env.BASE_URL || '') + '/registro')}" onclick="this.select()" style="max-width:420px"></p>
-    ${rows.length ? rows.map((u) => `<section class="card"><div class="row-head"><div><h2 style="margin-top:0">${esc(u.name)}</h2><p class="muted">${esc(u.email)}${u.telefono ? ` · ${esc(u.telefono)}` : ''}${u.cargo ? ` · ${esc(u.cargo)}` : ''} · Solicitó ${fdate(u.created_at)}</p></div></div>
+    ${rows.length ? rows.map((u) => `<section class="card"><div class="row-head"><div class="person-id">${avatar(u, 'lg')}<div><h2 style="margin-top:0">${esc(u.name)}</h2><p class="muted">${esc(u.email)}${u.telefono ? ` · ${esc(u.telefono)}` : ''}${u.cargo ? ` · ${esc(u.cargo)}` : ''} · Solicitó ${fdate(u.created_at)}</p></div></div></div>
       <form method="post" action="/admin/solicitudes/${u.id}" class="grid-req"><label>Área<select name="area">${AREA_OPTS(u.area)}</select></label><label>Sede${sedeField(sedes, u.sede)}</label>
       <button class="btn" name="decision" value="aprobar">Aprobar e invitar</button><button class="btn ghost" name="decision" value="rechazar" formnovalidate onclick="return confirm('¿Rechazar y eliminar esta solicitud?')">Rechazar</button></form></section>`).join('') : '<section class="card"><p class="muted">No hay solicitudes pendientes.</p></section>'}`;
 }

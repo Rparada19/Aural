@@ -23,6 +23,7 @@ app.set('trust proxy', 1);
 app.use(express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), 'public'), { maxAge: '7d' }));
 app.use('/registro', express.urlencoded({ extended: false, limit: '2mb' }));
 app.use('/perfil', express.json({ limit: '2mb' }));
+app.use('/admin/personas', express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
 app.use('/admin/estudio', express.json({ limit: '8mb' }));
 app.use(express.json({ limit: '200kb' }));
@@ -116,6 +117,12 @@ app.post('/perfil/foto', needUser, async (req, res) => {
 });
 
 app.post('/admin/personas/:id/foto', needAdmin, async (req, res) => {
+  if (req.is('json')) {
+    const ph = parsePhoto(req.body?.photo);
+    if (!ph || req.body?.consent !== true) return res.status(400).json({ ok: false });
+    await q('UPDATE users SET photo = $2, photo_mime = $3 WHERE id = $1', [req.params.id, ph.buf, ph.mime]);
+    return res.json({ ok: true });
+  }
   await q("UPDATE users SET photo = NULL, photo_mime = '' WHERE id = $1", [req.params.id]);
   res.redirect(`/admin/personas/${req.params.id}`);
 });

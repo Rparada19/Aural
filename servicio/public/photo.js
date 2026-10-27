@@ -28,14 +28,21 @@
         preview.innerHTML = `<img src="${data.value}" alt="Tu foto">`;
         w.classList.add('has-photo');
         w.querySelector('.photo-text strong').textContent = 'Cambiar foto';
-      } catch { data.value = ''; }
+        const t = w.querySelector('.photo-err'); if (t) t.textContent = '';
+        if (msg) msg.textContent = '';
+      } catch {
+        data.value = '';
+        const t = w.querySelector('.photo-err');
+        if (t) t.textContent = 'No pudimos leer esa imagen. Prueba con una foto en formato JPG o PNG.';
+      }
       sync();
     });
     consent.addEventListener('change', sync);
     const form = w.closest('form');
     if (form) form.addEventListener('submit', (e) => {
-      if (data.value && !consent.checked) { e.preventDefault(); consent.focus(); consent.closest('label').classList.add('need'); }
+      if (data.value && !consent.checked) { e.preventDefault(); consent.focus(); consent.closest('label').classList.add('need'); const t = w.querySelector('.photo-err'); if (t) t.textContent = 'Marca la autorización para guardar tu foto.'; }
     });
+    if (save) save.addEventListener('mouseenter', () => { if (data.value && !consent.checked) { const t = w.querySelector('.photo-err'); if (t) t.textContent = 'Marca la autorización para poder guardar la foto.'; } });
     if (save) save.addEventListener('click', async () => {
       save.disabled = true; msg.textContent = 'Guardando…';
       const r = await fetch(w.dataset.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ photo: data.value, consent: consent.checked }) });
