@@ -46,7 +46,7 @@ export function layout(title, body, user, { wide = false, path = '' } = {}) {
   if (!user) return `${head}<body class="auth-body"><main class="auth">${body}</main></body></html>`;
   const salir = `<form method="post" action="/salir"><button class="navlink as-btn">${icon('salir')}<span>Salir</span></button></form>`;
   if (user.role === 'admin') {
-    const items = [['/admin', 'Panel', 'panel'], ['/admin/equipo', 'Equipo', 'equipo'], ['/admin/evaluaciones', 'Evaluaciones', 'evaluaciones'], ['/admin/solicitudes', 'Solicitudes', 'solicitudes'], ['/admin/estudio', 'Estudio', 'estudio'], ['/ranking', 'Ranking', 'ranking'], ['/admin/aprendizaje', 'Aprendizaje', 'aprendizaje'], ['/admin/mensajes', 'Mensajes', 'mensajes'], ['/admin/preguntas', 'Preguntas', 'preguntas']];
+    const items = [['/admin', 'Panel', 'panel'], ['/admin/equipo', 'Equipo', 'equipo'], ['/admin/evaluaciones', 'Evaluaciones', 'evaluaciones'], ['/admin/solicitudes', 'Solicitudes', 'solicitudes'], ['/admin/estudio', 'Estudio', 'estudio'], ['/ranking', 'Ranking', 'ranking'], ['/admin/aprendizaje', 'Aprendizaje', 'aprendizaje'], ['/ia', 'IA en vivo', 'aprendizaje'], ['/admin/mensajes', 'Mensajes', 'mensajes'], ['/admin/preguntas', 'Preguntas', 'preguntas']];
     const on = (h) => (h === '/admin' ? path === '/admin' || path.startsWith('/admin/personas') : path.startsWith(h));
     return `${head}<body class="admin-body"><aside class="side"><a href="/admin" class="side-brand"><img src="/logo-aural-blanco.png" alt="Aural"><span>Servicio</span></a>
       <nav class="side-nav">${items.map(([h, l, k]) => `<a href="${h}" class="navlink ${on(h) ? 'on' : ''}">${icon(k)}<span>${l}</span></a>`).join('')}</nav>
@@ -431,7 +431,7 @@ function hbars(items, { max = 100, unit = '', empty = 'Sin datos todavía', colo
     <div class="hb-t"><span style="width:${x.v == null ? 0 : Math.max(2, Math.min(100, (x.v / max) * 100))}%;background:${x.c || color}"></span></div><b>${x.v == null ? '—' : `${x.v}${unit}`}</b></div>`).join('')}</div>`;
 }
 
-function execSummary(list, all, area, series, gaps) {
+function execSummary(list, all, area, series, gaps, clientes) {
   const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
   const st = (k) => list.filter((r) => (k === 'sin' ? !r.status || r.status === 'pendiente' : k === 'curso' ? r.status === 'en_curso' : k === 'env' ? ['enviada', 'analizando'].includes(r.status) : r.status === 'analizada')).length;
   const done = list.filter((r) => ['enviada', 'analizando', 'analizada'].includes(r.status)).length;
@@ -454,6 +454,7 @@ function execSummary(list, all, area, series, gaps) {
   return `<section class="exec" aria-label="Resumen ejecutivo">
     <div class="chart-card"><h3>Avance de la evaluación</h3>${evalDonut}</div>
     <div class="chart-card"><h3>Nivel de servicio</h3>${levelDonut}</div>
+    <a class="chart-card ai-card" href="/admin/clientes"><h3>Percepción de la IA · clientes en Google</h3>${clientes ? `<p class="ai-score"><b>${clientes.data.promedio.toFixed(1)}</b><span>de 5 · ${clientes.data.resenas} reseñas</span></p>${hbars(clientes.data.dimensiones.map((x) => ({ l: x.l, v: x.v, c: x.v >= 4 ? COL.signal : x.v >= 3 ? COL.info : x.v >= 2.2 ? COL.amber : COL.err })), { max: 5 })}<p class="muted small">Ver análisis completo</p>` : '<p class="muted small">Sin análisis todavía.</p>'}</a>
     <div class="chart-card"><h3>Percepción del equipo${last.mes ? ` · ${esc(fmonth(last.mes).split(' ')[0])}` : ''}</h3>${hbars(pulseBars, { max: 5, empty: 'Aparece cuando el equipo responde el pulso del mes.' })}${pulseBars.length ? '<p class="muted small">Promedio de 1 a 5</p>' : ''}</div>
     ${area ? `<div class="chart-card wide"><h3>Puntaje por persona</h3>${hbars(peopleScore, { empty: 'Aparece cuando haya informes.' })}</div>`
       : `<div class="chart-card wide"><h3>Puntaje promedio por área</h3>${hbars(byScore, { empty: 'Aparece cuando haya informes.' })}</div>`}
@@ -462,7 +463,7 @@ function execSummary(list, all, area, series, gaps) {
   </section>`;
 }
 
-export function dashboard(rows, mes, area, pending = 0, series = [], comments = [], pulse = [], insight = null, error = '', gaps = []) {
+export function dashboard(rows, mes, area, pending = 0, series = [], comments = [], pulse = [], insight = null, error = '', gaps = [], clientes = null) {
   const dayOfMonth = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(8, 10));
   const enrich = (r) => {
     const f = [];
@@ -505,7 +506,7 @@ export function dashboard(rows, mes, area, pending = 0, series = [], comments = 
   return `<section class="band"><div class="band-copy"><div class="row-head"><div><p class="band-sub">Panel de ${esc(fmonth(mes))}</p><h1>${area ? esc(areaLabel(area)) : 'Todo el equipo'}</h1></div>
     <div class="actions">${pending ? `<a class="btn light" href="/admin/solicitudes">${pending} solicitud${pending > 1 ? 'es' : ''} por aprobar</a>` : ''}<a class="btn outline-light" href="/admin/equipo">Agregar personas</a></div></div>
   <div class="kpis">${kpis.map(([l, v, h]) => `<a class="kpi" href="${h}"><b>${v}</b><span>${esc(l)}</span></a>`).join('')}</div></div></section>
-  ${execSummary(list, all, area, series, gaps)}
+  ${execSummary(list, all, area, series, gaps, clientes)}
   <div class="areas"><a class="areacard all ${area ? '' : 'on'}" href="/admin"><p class="eyebrow">Todas las áreas</p><div class="ac-row"><div><b>${all.length}</b><span>personas</span></div></div></a>${byArea}</div>
   ${error ? `<p class="notice err">${esc(error)}</p>` : ''}
   ${evolution(series, comments, pulse)}
@@ -769,4 +770,50 @@ export function learningPage(area, k, people, qs, counts, error) {
         <div class="model"><p class="eyebrow">Respuesta modelo</p><p>${esc(p.respuesta_modelo)}</p></div>
         ${(p.mejores || []).length ? `<div class="bests">${p.mejores.map((m) => `<figure class="best"><blockquote>“${esc(m.text)}”</blockquote><figcaption><a href="/admin/personas/${m.uid}">${esc(m.name)}</a> · ${esc(m.por_que)}</figcaption></figure>`).join('')}</div>` : ''}
         ${(p.errores_comunes || []).length ? `<p class="small"><strong>Errores comunes:</strong> ${p.errores_comunes.map(esc).join(' · ')}</p>` : ''}</details>`).join('')}</section>` : ''}`;
+}
+
+// ---------- Percepción de clientes (Google) ----------
+export function customersPage(c, pulse) {
+  if (!c) return '<section class="card"><h1>Percepción de clientes</h1><p class="muted">Aún no hay análisis de reseñas.</p></section>';
+  const d = c.data;
+  const colr = (v) => (v >= 4 ? '#1FA59A' : v >= 3 ? '#6B8CC7' : v >= 2.2 ? '#E2A03F' : '#C8473E');
+  const bars = (xs) => hbars(xs, { max: 5 });
+  return `<section class="band"><div class="band-copy"><p class="band-sub">Percepción de la IA · reseñas de Google al ${fdate(d.fecha + 'T12:00:00')}</p><h1>Lo que dicen los clientes de Aural</h1>
+    <p class="learn-copy">${esc(d.resumen)}</p>
+    <div class="kpis"><div class="kpi"><b>${d.promedio.toFixed(1)}</b><span>calificación promedio</span></div><div class="kpi"><b>${d.resenas}</b><span>reseñas en Google</span></div><div class="kpi"><b>${d.tiendas.length}</b><span>sedes analizadas</span></div>
+      <div class="kpi"><b>${pulse?.servicio ?? '—'}</b><span>percepción del equipo (pulso)</span></div></div></div></section>
+  <div class="exec">
+    <div class="chart-card"><h3>Calificación por ciudad</h3>${bars(d.ciudades.map((x) => ({ l: x.l, v: x.v, note: `${x.n} reseñas`, c: colr(x.v) })))}</div>
+    <div class="chart-card"><h3>Qué perciben los clientes</h3>${bars(d.dimensiones.map((x) => ({ l: x.l, v: x.v, c: colr(x.v) })))}<p class="muted small">Puntaje de 1 a 5 estimado por la IA a partir de los comentarios</p></div>
+    <div class="chart-card"><h3>Equipo frente a clientes</h3>${bars([{ l: 'Percepción del equipo', v: pulse?.servicio ?? null, c: '#163E73', note: pulse ? `pulso de ${fmonth(pulse.mes).split(' ')[0]}` : 'sin pulso' }, { l: 'Clientes en Google', v: d.promedio, c: colr(d.promedio), note: `${d.resenas} reseñas` }])}
+      <p class="muted small">${pulse?.servicio && pulse.servicio - d.promedio > 0.5 ? 'El equipo percibe su servicio mejor de lo que lo viven los clientes.' : 'Comparación del servicio percibido por dentro y por fuera.'}</p></div>
+  </div>
+  <section class="card"><h2>Calificación por sede</h2>${bars(d.tiendas.map((t) => ({ l: t.nombre, v: t.rating, note: `${t.ciudad} · ${t.n} reseñas`, c: colr(t.rating) })))}</section>
+  <div class="two">
+    <section class="card"><h2>Lo que más valoran</h2><ul class="ev">${d.positivos.map((x) => `<li><strong>${esc(x.t)}</strong><span>${esc(x.d)}</span></li>`).join('')}</ul>
+      <h3>Personas reconocidas por los clientes</h3><ul class="recog">${d.reconocidos.map((x) => `<li><strong>${esc(x.nombre)}</strong><span>${esc(x.sede)}</span></li>`).join('')}</ul></section>
+    <section class="card"><h2>Lo que más les duele</h2><ul class="ev neg">${d.negativos.map((x) => `<li><strong>${esc(x.t)}</strong><span>${esc(x.d)}</span></li>`).join('')}</ul></section>
+  </div>
+  <section class="card"><h2>Acciones recomendadas</h2><div class="scroll"><table class="tbl"><thead><tr><th>Acción</th><th>Área responsable</th></tr></thead><tbody>${d.acciones.map((x) => `<tr><td><strong>${esc(x.a)}</strong></td><td>${esc(areaName(x.area))}</td></tr>`).join('')}</tbody></table></div>
+    <p class="muted small">${esc(d.metodo)}</p></section>`;
+}
+
+// ---------- IA en vivo (presentación) ----------
+export function aiLivePage(n, learned) {
+  const inputs = [
+    ['Respuestas de evaluación', n.respuestas], ['Reseñas de clientes', n.resenas], ['Pulsos del equipo', n.pulsos],
+    ['Acciones de planes', n.acciones], ['Intentos de módulos', n.intentos], ['Sesiones uno a uno', n.sesiones],
+  ];
+  const outputs = ['Fortalezas del equipo', 'Brechas por cerrar', 'Respuestas modelo', 'Módulos de la Academia', 'Planes personalizados', 'Recomendaciones'];
+  const data = { inputs, outputs, learned: learned.slice(0, 40) };
+  return `<section class="ai-live" id="ai-live">
+    <div class="ai-head"><div><p class="ai-kicker">Aural · Inteligencia del programa de servicio</p><h1>Así aprende la IA de nuestro equipo</h1>
+      <p class="ai-sub">Cada respuesta, cada reseña y cada acción del plan alimentan la red. La IA encuentra patrones y los convierte en lo que trabajamos cada mes.</p></div>
+      <button class="btn outline-light small" type="button" id="ai-full">Pantalla completa</button></div>
+    <div class="ai-stage"><canvas id="ai-net" aria-label="Red neuronal animada con los datos del programa" role="img"></canvas>
+      <aside class="ai-feed"><p class="ai-feed-t">Lo que está aprendiendo</p><ul id="ai-feed"></ul></aside></div>
+    <div class="ai-stats">${[['Datos procesados', n.respuestas + n.resenas + n.pulsos + n.acciones + n.intentos + n.sesiones], ['Evaluaciones', n.evaluaciones], ['Informes generados', n.informes], ['Módulos creados', n.modulos]].map(([l, v]) => `<div><b data-count="${v}">${v}</b><span>${l}</span></div>`).join('')}</div>
+    <p class="ai-note">Visualización ilustrativa con los datos reales del programa: la IA analiza la información con modelos de lenguaje; no es una red entrenada con estos datos.</p>
+    <script type="application/json" id="ai-data">${JSON.stringify(data).replace(/</g, '\\u003c')}</script><script src="/ai-live.js?v=${V}"></script>
+  </section>`;
 }

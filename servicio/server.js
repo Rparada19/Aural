@@ -291,7 +291,8 @@ app.get('/admin', needAdmin, async (req, res) => {
   const insight = await one('SELECT * FROM team_insights WHERE area = $1 ORDER BY id DESC LIMIT 1', [area]);
   const gaps = (await q(`SELECT o->>'titulo' AS t, count(*)::int AS n FROM users u JOIN LATERAL (SELECT report FROM evaluations WHERE user_id = u.id AND report IS NOT NULL ORDER BY id DESC LIMIT 1) e ON true,
       jsonb_array_elements(e.report->'oportunidades') o WHERE u.role = 'staff' AND u.active AND u.approved ${area ? 'AND u.area = $1' : ''} GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 7`, area ? [area] : [])).rows;
-  page(res, 'Panel', V.dashboard(rows, mes, area, pending, Object.values(series).sort((a, b) => a.mes.localeCompare(b.mes)), comments, PULSE, insight, req.query.error, gaps), req.user, { wide: true });
+  const clientes = await one('SELECT * FROM customer_insights ORDER BY id DESC LIMIT 1');
+  page(res, 'Panel', V.dashboard(rows, mes, area, pending, Object.values(series).sort((a, b) => a.mes.localeCompare(b.mes)), comments, PULSE, insight, req.query.error, gaps, clientes), req.user, { wide: true });
 });
 
 app.post('/admin/recomendaciones', needAdmin, async (req, res) => {
@@ -388,6 +389,33 @@ app.post('/admin/aprendizaje', needAdmin, async (req, res) => {
     return res.redirect(`/admin/aprendizaje?area=${area}&error=${encodeURIComponent(e.message)}`);
   }
   res.redirect(`/admin/aprendizaje?area=${area}`);
+});
+
+app.get('/ia', needUser, async (req, res) => {
+  const n = await one(`SELECT
+      (SELECT coalesce(sum((SELECT count(*) FROM jsonb_object_keys(answers))), 0) FROM evaluations)::int AS respuestas,
+      (SELECT count(*) FROM evaluations WHERE status IN ('enviada','analizando','analizada'))::int AS evaluaciones,
+      (SELECT count(*) FROM pulses)::int AS pulsos,
+      (SELECT count(*) FROM sessions_1a1)::int AS sesiones,
+      (SELECT count(*) FROM study_attempts)::int AS intentos,
+      (SELECT count(*) FROM plan_items)::int AS acciones,
+      (SELECT count(*) FROM evaluations WHERE report IS NOT NULL)::int AS informes,
+      (SELECT count(*) FROM study_modules)::int AS modulos`);
+  const c = await one('SELECT data FROM customer_insights ORDER BY id DESC LIMIT 1');
+  n.resenas = c?.data?.resenas || 0;
+  const learned = [];
+  for (const k of (await q('SELECT DISTINCT ON (area) area, data FROM knowledge ORDER BY area, id DESC')).rows) for (const t of k.data.temas || []) learned.push({ t: t.tema, k: t.tipo, a: V.areaName(k.area) });
+  for (const g of (await q(`SELECT o->>'titulo' AS t, count(*)::int AS n FROM evaluations e, jsonb_array_elements(e.report->'oportunidades') o WHERE e.report IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 10`)).rows) learned.push({ t: g.t, k: 'brecha', a: 'Evaluaciones' });
+  for (const g of (await q(`SELECT f->>'titulo' AS t, count(*)::int AS n FROM evaluations e, jsonb_array_elements(e.report->'fortalezas') f WHERE e.report IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 10`)).rows) learned.push({ t: g.t, k: 'fortaleza', a: 'Evaluaciones' });
+  for (const x of c?.data?.negativos || []) learned.push({ t: x.t, k: 'brecha', a: 'Clientes en Google' });
+  for (const x of c?.data?.positivos || []) learned.push({ t: x.t, k: 'fortaleza', a: 'Clientes en Google' });
+  page(res, 'La IA aprendiendo', V.aiLivePage(n, learned), req.user, { wide: true });
+});
+
+app.get('/admin/clientes', needAdmin, async (req, res) => {
+  const c = await one('SELECT * FROM customer_insights ORDER BY id DESC LIMIT 1');
+  const last = (await q("SELECT pu.mes, count(*)::int AS n, round(avg((answers->>'servicio')::numeric), 2)::float AS servicio FROM pulses pu GROUP BY pu.mes ORDER BY pu.mes DESC LIMIT 1")).rows[0];
+  page(res, 'Percepción de clientes', V.customersPage(c, last), req.user, { wide: true });
 });
 
 app.get('/admin/solicitudes', needAdmin, async (req, res) => {
