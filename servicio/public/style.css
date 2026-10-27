@@ -439,3 +439,22 @@ a.route-step:hover { border-color: var(--navy); }
 .academy-new { border-left: 4px solid var(--signal); }
 .academy-new .inline-form { align-items: end; } .academy-new .inline-form label { margin: 0; }
 @media (max-width: 760px) { .focus { grid-template-columns: 1fr; } }
+
+/* Personas desplegables */
+.peek-toggle { cursor: pointer; }
+.peek-toggle.open td { background: #F4F7FB; }
+.who-cell { display: flex; gap: 12px; align-items: center; }
+.who-cell .avatar { width: 38px; height: 38px; font-size: .8rem; }
+.peek-row td { background: #F4F7FB; padding: 4px 16px 20px; }
+.peek-row:hover td { background: #F4F7FB !important; }
+.peek { display: grid; grid-template-columns: 1.6fr 1fr; gap: 20px; }
+.peek .focus { margin: 10px 0 0; }
+.peek-side { background: #fff; border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.peek-side h3 { margin-top: 0; }
+.peek-items { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 6px; font-size: .88rem; }
+.peek-items li { padding-left: 22px; position: relative; }
+.peek-items li::before { content: ''; position: absolute; left: 0; top: 4px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); }
+.peek-items li.en_curso::before { border-color: #E2A03F; } .peek-items li.hecho::before { background: var(--signal); border-color: var(--signal); }
+.improve { border-left: 4px solid var(--navy-3); }
+@media (max-width: 760px) { .peek { grid-template-columns: 1fr; } .tbl .peek-row { display: block; } .tbl .peek-row td { display: block; } }
+.tbl tr[hidden] { display: none !important; }

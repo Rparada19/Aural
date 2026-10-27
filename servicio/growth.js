@@ -170,3 +170,32 @@ export async function runDaily() {
   for (const { id } of pending) sent += await sendMessage(id);
   return { generated, sent, estudio };
 }
+
+// ---------- Recomendaciones del equipo ----------
+const INSIGHT_TOOL = {
+  name: 'recomendaciones_equipo',
+  description: 'Entrega el diagnóstico del servicio del equipo y las acciones para mejorar.',
+  input_schema: {
+    type: 'object', required: ['diagnostico', 'fortalezas', 'brechas', 'acciones'],
+    properties: {
+      diagnostico: { type: 'string', description: 'Cómo estamos en servicio, 3-4 frases basadas en los datos y su tendencia' },
+      fortalezas: { type: 'array', maxItems: 4, items: { type: 'string' } },
+      brechas: { type: 'array', minItems: 2, maxItems: 5, items: { type: 'object', required: ['titulo', 'evidencia'], properties: { titulo: { type: 'string' }, evidencia: { type: 'string', description: 'Qué dato lo muestra' } } } },
+      acciones: {
+        type: 'array', minItems: 3, maxItems: 6,
+        items: { type: 'object', required: ['accion', 'responsable', 'plazo', 'indicador'], properties: { accion: { type: 'string' }, responsable: { type: 'string', description: 'Rol responsable (líder, área, cada profesional)' }, plazo: { type: 'string' }, indicador: { type: 'string' } } },
+      },
+      academia: { type: 'string', description: 'Tema que conviene reforzar en el próximo módulo de la Academia' },
+    },
+  },
+};
+
+export async function generateInsights(area, mes, ctx) {
+  const label = area ? AREAS[area].label : 'todo el equipo comercial y de servicio';
+  const out = await callTool(
+    `Eres un consultor de experiencia de paciente y servicio para Aural Colombia (distribuidor exclusivo de audífonos Widex). Analizas los datos del programa de servicio de ${label} y propones cómo avanzar. Sé concreto, basado en los datos, priorizado y realista para un equipo de sedes y comercial. No inventes cifras que no estén en los datos. Español de Colombia.`,
+    ctx, INSIGHT_TOOL, 3000,
+  );
+  await q('INSERT INTO team_insights (area, mes, data) VALUES ($1,$2,$3)', [area, mes, JSON.stringify(out)]);
+  return out;
+}

@@ -372,7 +372,27 @@ function evolution(series, comments, pulse) {
   </section>`;
 }
 
-export function dashboard(rows, mes, area, pending = 0, series = [], comments = [], pulse = []) {
+function improve(insight, area) {
+  const d = insight?.data;
+  const btn = `<form method="post" action="/admin/recomendaciones" class="inline" onsubmit="const b=this.querySelector('button');b.disabled=true;b.textContent='Analizando datos…'"><input type="hidden" name="area" value="${area}"><button class="btn ${d ? 'ghost' : ''} small">${d ? 'Actualizar análisis' : 'Analizar con IA'}</button></form>`;
+  if (!d) return `<section class="card improve" id="mejorar"><div class="row-head"><div><h2>Cómo podemos mejorar</h2><p class="muted">La IA revisa el pulso, los comentarios, las evaluaciones, los planes y los módulos, y propone un plan de acción para ${area ? 'esta área' : 'el equipo'}.</p></div>${btn}</div></section>`;
+  return `<section class="card improve" id="mejorar"><div class="row-head"><div><h2>Cómo podemos mejorar</h2><p class="muted small">Análisis del ${fdate(insight.created_at)}</p></div>${btn}</div>
+    <p class="lead">${esc(d.diagnostico)}</p>
+    <div class="two"><div><h3>Lo que el equipo hace bien</h3><ul class="ev">${(d.fortalezas || []).map((f) => `<li><strong>${esc(f)}</strong></li>`).join('')}</ul></div>
+      <div><h3>Brechas a cerrar</h3><ul class="ev">${(d.brechas || []).map((b) => `<li><strong>${esc(b.titulo)}</strong><span>${esc(b.evidencia)}</span></li>`).join('')}</ul></div></div>
+    <h3>Plan de acción</h3><div class="scroll"><table class="tbl"><thead><tr><th>Acción</th><th>Responsable</th><th>Plazo</th><th>Cómo medirlo</th></tr></thead><tbody>
+      ${(d.acciones || []).map((a) => `<tr><td><strong>${esc(a.accion)}</strong></td><td>${esc(a.responsable)}</td><td>${esc(a.plazo)}</td><td>${esc(a.indicador)}</td></tr>`).join('')}</tbody></table></div>
+    ${d.academia ? `<p class="notice info"><strong>Para la Academia:</strong> ${esc(d.academia)}</p>` : ''}</section>`;
+}
+
+const peek = (r) => `<tr class="peek-row" id="peek-${r.id}" hidden><td colspan="7"><div class="peek">
+  <div class="peek-main">${r.resumen ? `<p class="lead">${esc(r.resumen)}</p>` : `<p class="muted">${r.status ? 'El informe aparecerá cuando termine y se analice la evaluación.' : 'Aún no tiene evaluación.'}</p>`}
+    ${r.fortalezas || r.oportunidades ? `<div class="focus"><div class="focus-col good"><h3>Fortalezas</h3><ul>${(r.fortalezas || []).map((f) => `<li>${esc(f)}</li>`).join('')}</ul></div><div class="focus-col grow"><h3>A reforzar</h3><ul>${(r.oportunidades || []).map((f) => `<li>${esc(f)}</li>`).join('')}</ul></div></div>` : ''}</div>
+  <div class="peek-side"><h3>Avance del mes</h3>${r.plan_items ? `<p class="small"><strong>${esc(r.plan_objetivo || 'Plan del mes')}</strong></p><ul class="peek-items">${r.plan_items.map((i) => `<li class="${i.estado}">${esc(i.accion)}</li>`).join('')}</ul>` : '<p class="muted small">Sin plan este mes.</p>'}
+    <p class="small">Academia: ${r.mod_total ? `${r.mod_ok}/${r.mod_total} módulos aprobados` : 'sin módulos aún'}</p>
+    <a class="btn small" href="/admin/personas/${r.id}">Abrir informe completo</a></div></div></td></tr>`;
+
+export function dashboard(rows, mes, area, pending = 0, series = [], comments = [], pulse = [], insight = null, error = '') {
   const dayOfMonth = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(8, 10));
   const enrich = (r) => {
     const f = [];
@@ -415,16 +435,19 @@ export function dashboard(rows, mes, area, pending = 0, series = [], comments = 
     <div class="actions">${pending ? `<a class="btn light" href="/admin/solicitudes">${pending} solicitud${pending > 1 ? 'es' : ''} por aprobar</a>` : ''}<a class="btn outline-light" href="/admin/equipo">Agregar personas</a></div></div>
   <div class="kpis">${kpis.map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${esc(l)}</span></div>`).join('')}</div></div></section>
   <div class="areas"><a class="areacard all ${area ? '' : 'on'}" href="/admin"><p class="eyebrow">Todas las áreas</p><div class="ac-row"><div><b>${all.length}</b><span>personas</span></div></div></a>${byArea}</div>
+  ${error ? `<p class="notice err">${esc(error)}</p>` : ''}
   ${evolution(series, comments, pulse)}
+  ${improve(insight, area)}
   ${attention.length ? `<section class="card"><h2 style="margin-top:0">Requieren atención (${attention.length})</h2><div class="attn">${attention.map((r) => `<a href="/admin/personas/${r.id}" class="attn-item"><strong>${esc(r.name)}</strong><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span><div>${r.flags.filter(([, c]) => c === 'err' || c === 'warn').map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ')}</div></a>`).join('')}</div></section>` : ''}
-  <section class="card"><h2>Personas</h2><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Estudio</th><th>Último 1:1</th><th>Señales</th></tr></thead><tbody>
-  ${list.length ? list.map((r) => `<tr><td><a href="/admin/personas/${r.id}"><strong>${esc(r.name)}</strong></a><br><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span></td>
+  <section class="card"><h2>Personas</h2><p class="muted small">Toca una persona para ver su informe y su avance.</p><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Estudio</th><th>Último 1:1</th><th>Señales</th></tr></thead><tbody>
+  ${list.length ? list.map((r) => `<tr class="peek-toggle" data-peek="${r.id}" tabindex="0" aria-expanded="false"><td><div class="who-cell">${avatar(r)}<div><strong>${esc(r.name)}</strong><br><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span></div></div></td>
     <td>${r.status ? badge(r.status) : '<span class="muted">—</span>'}</td><td>${r.score ?? '—'}${trend(r)}</td>
     <td>${r.plan_id ? `<div class="bar slim"><span style="width:${r.prog}%"></span></div><span class="muted small">${r.done}/${r.items} hechas${r.doing ? ` · ${r.doing} en curso` : ''}</span>` : '<span class="muted">—</span>'}</td>
     <td>${r.mod_total ? `${r.mod_ok}/${r.mod_total} aprobados${r.mod_id ? `<br><span class="small ${r.mod_passed ? 'up' : 'muted'}">${r.mod_passed ? 'Mes aprobado' : `Mes: ${r.mod_attempts}/2 intentos`}</span>` : ''}` : '<span class="muted">—</span>'}</td>
     <td>${r.last_session ? fdate(r.last_session) : '<span class="muted">—</span>'}</td>
-    <td>${r.flags.map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ') || '<span class="badge ok">Al día</span>'}</td></tr>`).join('') : '<tr><td colspan="7" class="muted">Aún no hay personas en el equipo.</td></tr>'}
-  </tbody></table></section>`;
+    <td>${r.flags.map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ') || '<span class="badge ok">Al día</span>'}</td></tr>${peek(r)}`).join('') : '<tr><td colspan="7" class="muted">Aún no hay personas en el equipo.</td></tr>'}
+  </tbody></table></section>
+  <script>document.querySelectorAll('.peek-toggle').forEach((tr)=>{const t=()=>{const p=document.getElementById('peek-'+tr.dataset.peek);p.hidden=!p.hidden;tr.setAttribute('aria-expanded',String(!p.hidden));tr.classList.toggle('open',!p.hidden);};tr.addEventListener('click',(e)=>{if(e.target.closest('a,button'))return;t();});tr.addEventListener('keydown',(e)=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();t();}});});</script>`;
 }
 
 export function adminRequests(rows, sedes) {

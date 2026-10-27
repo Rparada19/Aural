@@ -10,7 +10,7 @@ import { AREA_KEYS } from './areas.js';
 import { generateModule, generateAcademy, userModuleState, grade, windowState, PASS, MAX_ATTEMPTS } from './study.js';
 import { rankingFor } from './ranking.js';
 import { notifyPlanPublished, METODOLOGIA } from './notify.js';
-import { generateMonthlyPlan, runDaily, sendMessage, getSetting, setSetting, today, thisMonth, PULSE } from './growth.js';
+import { generateMonthlyPlan, generateInsights, runDaily, sendMessage, getSetting, setSetting, today, thisMonth, PULSE } from './growth.js';
 
 const app = express();
 const BASE = (process.env.BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
@@ -226,9 +226,12 @@ app.post('/evaluacion/enviar', needUser, async (req, res) => {
 // ---------- Admin ----------
 app.get('/admin', needAdmin, async (req, res) => {
   const mes = thisMonth();
-  const { rows } = await q(`SELECT u.id, u.name, u.area, u.sede, u.cargo, u.created_at,
+  const { rows } = await q(`SELECT u.id, u.name, u.area, u.sede, u.cargo, u.created_at, (u.photo IS NOT NULL) AS has_photo,
       e.status, e.started_at, e.submitted_at, e.plan_published, (e.report->>'puntaje_global')::int AS score,
-      coalesce(jsonb_array_length(e.report->'alertas'), 0) AS alertas,
+      coalesce(jsonb_array_length(e.report->'alertas'), 0) AS alertas, e.report->>'resumen' AS resumen, e.report->>'nivel' AS nivel,
+      (SELECT jsonb_agg(f->>'titulo') FROM jsonb_array_elements(e.report->'fortalezas') f) AS fortalezas,
+      (SELECT jsonb_agg(o->>'titulo') FROM jsonb_array_elements(e.report->'oportunidades') o) AS oportunidades,
+      (SELECT jsonb_agg(jsonb_build_object('accion', accion, 'estado', estado) ORDER BY position, id) FROM plan_items WHERE plan_id = p.id) AS plan_items, p.objetivo AS plan_objetivo,
       (SELECT (report->>'puntaje_global')::int FROM evaluations WHERE user_id = u.id AND report IS NOT NULL AND id < e.id ORDER BY id DESC LIMIT 1) AS prev_score,
       p.id AS plan_id, p.published AS plan_pub,
       (SELECT count(*) FROM plan_items WHERE plan_id = p.id)::int AS items,
@@ -269,7 +272,41 @@ app.get('/admin', needAdmin, async (req, res) => {
     WHERE pct IS NOT NULL GROUP BY mes`, [since, ...ap])).rows);
   const comments = (await q(`SELECT pu.mes, pu.area, pu.comentario FROM pulses pu JOIN users u ON u.id = pu.user_id
     WHERE pu.comentario <> '' AND pu.mes >= $1 ${af} ORDER BY pu.created_at DESC LIMIT 10`, [since, ...ap])).rows;
-  page(res, 'Panel', V.dashboard(rows, mes, area, pending, Object.values(series).sort((a, b) => a.mes.localeCompare(b.mes)), comments, PULSE), req.user, { wide: true });
+  const insight = await one('SELECT * FROM team_insights WHERE area = $1 ORDER BY id DESC LIMIT 1', [area]);
+  page(res, 'Panel', V.dashboard(rows, mes, area, pending, Object.values(series).sort((a, b) => a.mes.localeCompare(b.mes)), comments, PULSE, insight, req.query.error), req.user, { wide: true });
+});
+
+app.post('/admin/recomendaciones', needAdmin, async (req, res) => {
+  const area = AREA_KEYS.includes(req.body.area) ? req.body.area : '';
+  const mes = thisMonth();
+  const af = area ? 'AND u.area = $1' : '';
+  const ap = area ? [area] : [];
+  const pul = (await q(`SELECT pu.mes, count(*)::int AS n, ${PULSE.map(([k]) => `round(avg((pu.answers->>'${k}')::numeric), 2)::float AS ${k}`).join(', ')}
+    FROM pulses pu JOIN users u ON u.id = pu.user_id WHERE true ${af} GROUP BY pu.mes ORDER BY pu.mes DESC LIMIT 6`, ap)).rows;
+  const coms = (await q(`SELECT pu.comentario FROM pulses pu JOIN users u ON u.id = pu.user_id WHERE pu.comentario <> '' ${af} ORDER BY pu.created_at DESC LIMIT 25`, ap)).rows.map((r) => r.comentario);
+  const gaps = (await q(`SELECT o->>'titulo' AS t, count(*)::int AS n FROM evaluations e JOIN users u ON u.id = e.user_id, jsonb_array_elements(e.report->'oportunidades') o WHERE e.report IS NOT NULL ${af} GROUP BY 1 ORDER BY 2 DESC LIMIT 12`, ap)).rows;
+  const strengths = (await q(`SELECT f->>'titulo' AS t, count(*)::int AS n FROM evaluations e JOIN users u ON u.id = e.user_id, jsonb_array_elements(e.report->'fortalezas') f WHERE e.report IS NOT NULL ${af} GROUP BY 1 ORDER BY 2 DESC LIMIT 8`, ap)).rows;
+  const st = (await one(`SELECT count(*)::int AS personas, count(*) FILTER (WHERE e.status IN ('enviada','analizando','analizada'))::int AS evaluadas,
+      round(avg((e.report->>'puntaje_global')::int))::int AS puntaje FROM users u LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
+    WHERE u.role = 'staff' AND u.active AND u.approved ${af}`, ap));
+  const plan = (await one(`SELECT round(avg(x.prog))::int AS avance, count(*)::int AS planes FROM plans p JOIN users u ON u.id = p.user_id
+    JOIN LATERAL (SELECT 100.0 * count(*) FILTER (WHERE estado = 'hecho') / nullif(count(*), 0) AS prog FROM plan_items WHERE plan_id = p.id) x ON x.prog IS NOT NULL WHERE p.mes = '${mes}' ${af}`, ap));
+  const mods = (await q(`SELECT m.mes, m.titulo, (SELECT count(DISTINCT a.user_id) FROM study_attempts a WHERE a.module_id = m.id AND a.passed)::int AS aprobados,
+      (SELECT count(DISTINCT a.user_id) FROM study_attempts a WHERE a.module_id = m.id)::int AS presentaron FROM study_modules m WHERE m.published ${area ? 'AND m.area = $1' : ''} ORDER BY m.mes DESC LIMIT 6`, ap)).rows;
+  const ctx = [
+    `Mes actual: ${mes}. Personas: ${st.personas}, evaluaciones enviadas: ${st.evaluadas}, puntaje promedio: ${st.puntaje ?? 'sin datos'}.`,
+    `Pulso de percepción (1-5) por mes: ${pul.map((r) => `${r.mes} (n=${r.n}): ${PULSE.map(([k]) => `${k} ${r[k]}`).join(', ')}`).join(' | ') || 'sin respuestas'}.`,
+    `Comentarios del pulso: ${coms.map((c) => `"${c}"`).join(' ') || 'ninguno'}.`,
+    `Oportunidades de mejora más frecuentes en evaluaciones: ${gaps.map((g) => `${g.t} (${g.n})`).join('; ') || 'sin datos'}.`,
+    `Fortalezas más frecuentes: ${strengths.map((g) => `${g.t} (${g.n})`).join('; ') || 'sin datos'}.`,
+    `Planes del mes: ${plan?.planes || 0} con avance promedio ${plan?.avance ?? 'sin datos'}%.`,
+    `Módulos de estudio: ${mods.map((m) => `${m.mes} ${m.titulo}: ${m.aprobados} aprobados de ${m.presentaron} que presentaron`).join(' | ') || 'sin módulos'}.`,
+  ].join('\n');
+  try { await generateInsights(area, mes, ctx); } catch (e) {
+    console.error('recomendaciones', e);
+    return res.redirect(`/admin?${area ? `area=${area}&` : ''}error=${encodeURIComponent('No se pudieron generar las recomendaciones: ' + e.message)}#mejorar`);
+  }
+  res.redirect(`/admin${area ? `?area=${area}` : ''}#mejorar`);
 });
 
 app.get('/admin/solicitudes', needAdmin, async (req, res) => {
