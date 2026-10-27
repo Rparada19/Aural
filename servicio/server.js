@@ -323,6 +323,21 @@ app.post('/admin/recomendaciones', needAdmin, async (req, res) => {
   res.redirect(`/admin${area ? `?area=${area}` : ''}#mejorar`);
 });
 
+app.get('/admin/evaluaciones', needAdmin, async (req, res) => {
+  const area = AREA_KEYS.includes(req.query.area) ? req.query.area : '';
+  const estado = ['revisar', 'informe', 'enviada', 'en_curso', 'pendiente'].includes(req.query.estado) ? req.query.estado : '';
+  const { rows: all } = await q(`SELECT e.id, e.status, e.plan_published, e.submitted_at, e.report_error, (e.report->>'puntaje_global')::int AS score, e.report->>'nivel' AS nivel, e.report->>'resumen' AS resumen,
+      jsonb_array_length(e.questions) AS total, (SELECT count(*) FROM jsonb_object_keys(e.answers))::int AS answered,
+      u.id AS uid, u.id, u.name, u.area, u.sede, (u.photo IS NOT NULL) AS has_photo
+    FROM users u JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
+    WHERE u.role = 'staff' AND u.active AND u.approved ${area ? 'AND u.area = $1' : ''}
+    ORDER BY (e.status = 'analizada' AND NOT e.plan_published) DESC, e.submitted_at DESC NULLS LAST, u.name`, area ? [area] : []);
+  const sent = (r) => ['enviada', 'analizando', 'analizada'].includes(r.status);
+  const counts = { total: all.length, enviadas: all.filter(sent).length, informe: all.filter((r) => r.score != null).length, revisar: all.filter((r) => r.status === 'analizada' && !r.plan_published).length, en_curso: all.filter((r) => r.status === 'en_curso').length, pendiente: all.filter((r) => r.status === 'pendiente').length };
+  const f = { revisar: (r) => r.status === 'analizada' && !r.plan_published, informe: (r) => r.score != null, enviada: (r) => ['enviada', 'analizando'].includes(r.status), en_curso: (r) => r.status === 'en_curso', pendiente: (r) => r.status === 'pendiente' }[estado];
+  page(res, 'Evaluaciones', V.adminEvaluations(f ? all.filter(f) : all, estado, area, counts), req.user, { wide: true });
+});
+
 app.get('/admin/solicitudes', needAdmin, async (req, res) => {
   const { rows } = await q('SELECT * FROM users_v WHERE approved = false ORDER BY created_at');
   page(res, 'Solicitudes', V.adminRequests(rows, await sedesList()), req.user, { wide: true });
