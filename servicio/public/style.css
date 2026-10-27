@@ -460,3 +460,14 @@ a.route-step:hover { border-color: var(--navy); }
 .tbl tr[hidden] { display: none !important; }
 .photo-err { color: var(--err); margin: 0; min-height: 0; }
 .photo-err:empty { display: none; }
+.photo-row { display: flex; gap: 16px; align-items: center; border: 1.5px dashed #B9C6D6; border-radius: var(--r); padding: 14px; }
+.photo-row .photo-preview { width: 76px; height: 76px; }
+.photo-actions { display: grid; gap: 8px; }
+.photo-actions .photo-text { margin: 0; display: grid; gap: 2px; }
+.photo-up { position: relative; overflow: hidden; }
+.photo-up input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; margin: 0; }
+.photo-up:focus-within { box-shadow: var(--focus); }
+.photo-live { display: grid; gap: 10px; justify-items: start; }
+.photo-live video { width: 100%; max-width: 360px; aspect-ratio: 1; object-fit: cover; border-radius: var(--r); background: var(--navy); transform: scaleX(-1); }
+.photo-live[hidden] { display: none; }
+@media (max-width: 480px) { .photo-row { flex-direction: column; align-items: flex-start; } }

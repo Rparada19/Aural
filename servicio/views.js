@@ -60,9 +60,11 @@ const initials = (n) => esc(String(n || '?').trim().split(/\s+/).slice(0, 2).map
 export const avatar = (u, cls = '') => (u.has_photo ? `<img class="avatar ${cls}" src="/foto/${u.id}" alt="${esc(u.name)}">` : `<span class="avatar initials ${cls}" aria-hidden="true">${initials(u.name)}</span>`);
 
 const photoWidget = (mode, endpoint = '') => `<div class="photo-widget" ${mode !== 'registro' ? `data-endpoint="${endpoint || '/perfil/foto'}"` : ''}>
-  <label class="photo-pick"><span class="photo-preview"><svg viewBox="0 0 24 24" class="ico"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
-    <span class="photo-text"><strong>${mode === 'admin' ? 'Subir foto' : 'Tómate una foto'}</strong><span class="muted small">${mode === 'admin' ? 'JPG o PNG. Aparecerá en el ranking del equipo.' : 'O elige una de tu galería. Aparecerá en el ranking del equipo.'}</span></span>
-    <input type="file" accept="image/*" capture="user" class="photo-input"></label>
+  <div class="photo-row"><span class="photo-preview"><svg viewBox="0 0 24 24" class="ico"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></span>
+    <div class="photo-actions"><p class="photo-text"><strong>${mode === 'admin' ? 'Foto de la persona' : 'Tu foto'}</strong><span class="muted small">Aparecerá en el ranking del equipo.</span></p>
+      <div class="actions"><button type="button" class="btn small photo-cam">Tomar foto con la cámara</button>
+      <label class="btn ghost small photo-up">Subir una foto<input type="file" accept="image/jpeg,image/png,image/webp,image/*" class="photo-input"></label></div></div></div>
+  <div class="photo-live" hidden><video playsinline muted autoplay></video><div class="actions"><button type="button" class="btn small photo-shot">Tomar foto</button><button type="button" class="btn ghost small photo-cancel">Cancelar</button></div></div>
   <input type="hidden" name="photo" class="photo-data"><p class="photo-err small" role="alert"></p>
   <label class="check consent"><input type="checkbox" name="consent" class="photo-consent"> ${mode === 'admin' ? 'La persona autorizó que su nombre y su foto se muestren en el ranking interno de Aural.' : 'Autorizo que mi nombre y mi foto se muestren en el ranking interno de Aural.'}</label>
   ${mode !== 'registro' ? '<button type="button" class="btn small photo-save" disabled>Guardar foto</button><p class="photo-msg muted small"></p>' : ''}
