@@ -40,9 +40,10 @@ const icon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true" class="ico">${I
 export const arcs = (cls = '') => `<svg class="arcs ${cls}" viewBox="0 0 400 400" aria-hidden="true">
   <circle cx="56" cy="200" r="20" class="dot"/>${[78, 138, 198, 258, 318].map((r, i) => `<path d="M${(56 + r * Math.cos(-0.82)).toFixed(1)} ${(200 + r * Math.sin(-0.82)).toFixed(1)} A ${r} ${r} 0 0 1 ${(56 + r * Math.cos(0.82)).toFixed(1)} ${(200 + r * Math.sin(0.82)).toFixed(1)}" style="--i:${i}"/>`).join('')}</svg>`;
 
-export function layout(title, body, user, { wide = false, path = '' } = {}) {
+export function layout(title, body, user, { wide = false, path = '', bare = false } = {}) {
   const head = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} · Aural Servicio</title><link rel="icon" href="/logo-aural-simbolo.png"><link rel="stylesheet" href="/style.css?v=${V}"></head>`;
+  if (bare) return `${head}<body class="bare-body">${body}</body></html>`;
   if (!user) return `${head}<body class="auth-body"><main class="auth">${body}</main></body></html>`;
   const salir = `<form method="post" action="/salir"><button class="navlink as-btn">${icon('salir')}<span>Salir</span></button></form>`;
   if (user.role === 'admin') {
@@ -799,21 +800,29 @@ export function customersPage(c, pulse) {
 }
 
 // ---------- IA en vivo (presentación) ----------
-export function aiLivePage(n, learned) {
+export function aiLivePage(n, learned, back = '/') {
   const inputs = [
     ['Respuestas de evaluación', n.respuestas], ['Reseñas de clientes', n.resenas], ['Pulsos del equipo', n.pulsos],
     ['Acciones de planes', n.acciones], ['Intentos de módulos', n.intentos], ['Sesiones uno a uno', n.sesiones],
   ];
   const outputs = ['Fortalezas del equipo', 'Brechas por cerrar', 'Respuestas modelo', 'Módulos de la Academia', 'Planes personalizados', 'Recomendaciones'];
-  const data = { inputs, outputs, learned: learned.slice(0, 40) };
-  return `<section class="ai-live" id="ai-live">
-    <div class="ai-head"><div><p class="ai-kicker">Aural · Inteligencia del programa de servicio</p><h1>Así aprende la IA de nuestro equipo</h1>
-      <p class="ai-sub">Cada respuesta, cada reseña y cada acción del plan alimentan la red. La IA encuentra patrones y los convierte en lo que trabajamos cada mes.</p></div>
-      <button class="btn outline-light small" type="button" id="ai-full">Pantalla completa</button></div>
-    <div class="ai-stage"><canvas id="ai-net" aria-label="Red neuronal animada con los datos del programa" role="img"></canvas>
-      <aside class="ai-feed"><p class="ai-feed-t">Lo que está aprendiendo</p><ul id="ai-feed"></ul></aside></div>
-    <div class="ai-stats">${[['Datos procesados', n.respuestas + n.resenas + n.pulsos + n.acciones + n.intentos + n.sesiones], ['Evaluaciones', n.evaluaciones], ['Informes generados', n.informes], ['Módulos creados', n.modulos]].map(([l, v]) => `<div><b data-count="${v}">${v}</b><span>${l}</span></div>`).join('')}</div>
-    <p class="ai-note">Visualización ilustrativa con los datos reales del programa: la IA analiza la información con modelos de lenguaje; no es una red entrenada con estos datos.</p>
-    <script type="application/json" id="ai-data">${JSON.stringify(data).replace(/</g, '\\u003c')}</script><script src="/ai-live.js?v=${V}"></script>
-  </section>`;
+  const total = inputs.reduce((a, [, v]) => a + v, 0);
+  const data = { learned: learned.slice(0, 40), taglines: ['Aprende de cada respuesta.', 'Escucha a cada cliente.', 'Encuentra lo que hacemos mejor.', 'Convierte datos en servicio de excelencia.'] };
+  return `<div class="wow" id="wow">
+    <canvas id="wow-bg" aria-hidden="true"></canvas>
+    <header class="wow-top"><img src="/logo-aural-blanco.png" alt="Aural"><div class="wow-actions"><button type="button" id="wow-full" class="wow-btn">Pantalla completa</button><a href="${back}" class="wow-btn ghost">Salir</a></div></header>
+    <section class="wow-hero"><p class="wow-kicker"><span class="dot"></span> IA de servicio Aural · en vivo</p>
+      <h1 class="wow-title">La inteligencia que aprende<br>de nuestro equipo</h1>
+      <p class="wow-tag"><span id="wow-tag"></span><i class="caret"></i></p></section>
+    <section class="wow-stage">
+      <ul class="wow-col in">${inputs.map(([l, v], i) => `<li class="chip" data-i="${i}"><b data-count="${v}">0</b><span>${esc(l)}</span></li>`).join('')}</ul>
+      <div class="wow-core" id="wow-core"><div class="core-glow"></div><div class="core-label"><b data-count="${total}">0</b><span>datos aprendidos</span></div></div>
+      <ul class="wow-col out">${outputs.map((l, i) => `<li class="chip out" data-o="${i}"><i></i><span>${esc(l)}</span></li>`).join('')}</ul>
+    </section>
+    <section class="wow-insight"><p class="wow-insight-k">Lo último que aprendió</p><p class="wow-insight-t" id="wow-insight">&nbsp;</p><p class="wow-insight-s" id="wow-insight-s">&nbsp;</p></section>
+    <footer class="wow-stats">${[['Evaluaciones analizadas', n.evaluaciones], ['Informes generados', n.informes], ['Reseñas de clientes', n.resenas], ['Módulos de la Academia', n.modulos]].map(([l, v]) => `<div><b data-count="${v}">0</b><span>${l}</span></div>`).join('')}</footer>
+    <div class="wow-ticker" aria-hidden="true"><div class="track">${[...learned, ...learned].slice(0, 60).map((x) => `<span class="${x.k === 'brecha' ? 'gap' : 'str'}">${esc(x.t)}</span>`).join('')}</div></div>
+    <p class="wow-note">Visualización ilustrativa con datos reales del programa. La IA analiza la información con modelos de lenguaje.</p>
+    <script type="application/json" id="wow-data">${JSON.stringify(data).replace(/</g, '\\u003c')}</script><script src="/ai-live.js?v=${V}"></script>
+  </div>`;
 }

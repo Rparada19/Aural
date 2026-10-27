@@ -1,98 +1,173 @@
 (() => {
-  const D = JSON.parse(document.getElementById('ai-data').textContent);
-  const cv = document.getElementById('ai-net');
+  const D = JSON.parse(document.getElementById('wow-data').textContent);
+  const root = document.getElementById('wow');
+  const cv = document.getElementById('wow-bg');
   const ctx = cv.getContext('2d');
+  const core = document.getElementById('wow-core');
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const TEAL = [31, 165, 154], AMBER = [226, 160, 63], WHITE = [255, 255, 255];
-  let W, H, layers, edges, sparks = [];
   const fmt = (n) => Number(n).toLocaleString('es-CO');
+  const TEAL = '31,165,154', MINT = '143,227,217', AMBER = '242,178,74', SKY = '120,170,255';
 
-  function build() {
-    const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
-    W = r.width; H = r.height;
-    cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const compact = W < 640;
-    const padL = compact ? 24 : Math.min(260, W * 0.27), padR = compact ? 24 : Math.min(230, W * 0.24);
-    const sizes = [D.inputs.length, 9, 11, 9, D.outputs.length];
-    const xs = sizes.map((_, i) => padL + (i * (W - padL - padR)) / (sizes.length - 1));
-    layers = sizes.map((n, li) => Array.from({ length: n }, (_, i) => ({
-      x: xs[li], y: H * 0.1 + ((i + 0.5) * (H * 0.8)) / n, a: Math.random() * 0.3, li, i,
-      label: li === 0 ? D.inputs[i] : li === sizes.length - 1 ? D.outputs[i] : null,
-    })));
-    edges = [];
-    for (let l = 0; l < layers.length - 1; l++) for (const a of layers[l]) for (const b of layers[l + 1]) if (Math.random() < (l === 0 || l === layers.length - 2 ? 0.75 : 0.45)) edges.push({ a, b, w: 0.04 + Math.random() * 0.08 });
+  let W, H, dpr, stars = [], sphere = [], edges = [], pulses = [], streams = [], flash = 0;
+  let cx = 0, cy = 0, R = 120;
+
+  // Esfera de Fibonacci
+  const N = 170;
+  for (let i = 0; i < N; i++) {
+    const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.399963;
+    sphere.push({ x: Math.cos(th) * r, y, z: Math.sin(th) * r, a: Math.random() * 0.4 });
+  }
+  for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+    const a = sphere[i], b = sphere[j];
+    if ((a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2 < 0.09) edges.push([i, j]);
   }
 
-  function fire(from) {
-    const out = edges.filter((e) => e.a === from);
-    for (const e of out) if (Math.random() < 0.45) sparks.push({ e, t: 0, s: 0.012 + Math.random() * 0.014 });
+  function layout() {
+    dpr = Math.min(2, devicePixelRatio || 1);
+    W = innerWidth; H = Math.max(innerHeight, root.scrollHeight);
+    cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const r = core.getBoundingClientRect(), top = root.getBoundingClientRect().top;
+    cx = r.left + r.width / 2; cy = r.top - top + r.height / 2; R = Math.min(r.width, r.height) * 0.62;
+    stars = Array.from({ length: Math.round((W * H) / 9000) }, () => ({ x: Math.random() * W, y: Math.random() * H, r: Math.random() * 1.3 + 0.2, s: Math.random() * 0.25 + 0.05, t: Math.random() * 6 }));
+    const anchor = (el, side) => { const b = el.getBoundingClientRect(); return { x: side === 'r' ? b.right : b.left, y: b.top - top + b.height / 2, el }; };
+    const stacked = innerWidth <= 900;
+    streams = stacked ? [] : [
+      ...[...root.querySelectorAll('.chip[data-i]')].map((el) => ({ from: anchor(el, 'r'), dir: 'in' })),
+      ...[...root.querySelectorAll('.chip[data-o]')].map((el) => ({ to: anchor(el, 'l'), dir: 'out' })),
+    ];
   }
 
-  const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
-  function draw() {
+  const bez = (p0, p1, p2, p3, t) => {
+    const u = 1 - t;
+    return { x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x, y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y };
+  };
+  const curve = (s) => {
+    const c = { x: cx, y: cy };
+    if (s.dir === 'in') { const a = s.from, m = (c.x - a.x) / 2; return [a, { x: a.x + m, y: a.y }, { x: c.x - m, y: c.y }, c]; }
+    const b = s.to, m = (b.x - c.x) / 2; return [c, { x: c.x + m, y: c.y }, { x: b.x - m, y: b.y }, b];
+  };
+  const particles = [];
+  function emit(s) { particles.push({ s, t: 0, v: 0.006 + Math.random() * 0.006, w: Math.random() * 1.5 + 1.5 }); }
+
+  let rot = 0, tilt = 0.35;
+  function frame(time) {
     ctx.clearRect(0, 0, W, H);
-    for (const e of edges) { ctx.strokeStyle = rgba(WHITE, e.w); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(e.a.x, e.a.y); ctx.lineTo(e.b.x, e.b.y); ctx.stroke(); e.w = Math.max(0.04, e.w * 0.995); }
-    for (const s of sparks) {
-      const { a, b } = s.e, x = a.x + (b.x - a.x) * s.t, y = a.y + (b.y - a.y) * s.t;
-      const g = ctx.createRadialGradient(x, y, 0, x, y, 7); g.addColorStop(0, rgba(TEAL, 0.95)); g.addColorStop(1, rgba(TEAL, 0));
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI * 2); ctx.fill();
-      s.t += s.s;
-      if (s.t >= 1) { s.done = true; s.e.w = Math.min(0.5, s.e.w + 0.12); b.a = Math.min(1, b.a + 0.45); if (b.li < layers.length - 1) fire(b); else pulseOutput(b); }
+    // estrellas
+    for (const st of stars) {
+      st.y -= st.s; if (st.y < 0) st.y = H;
+      ctx.fillStyle = `rgba(${MINT},${0.25 + 0.35 * Math.abs(Math.sin(time / 1500 + st.t))})`;
+      ctx.beginPath(); ctx.arc(st.x, st.y, st.r, 0, 6.283); ctx.fill();
     }
-    sparks = sparks.filter((s) => !s.done);
-    const last = layers.length - 1;
-    for (const L of layers) for (const n of L) {
-      const r = n.label ? 9 : 6;
-      const glow = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r * 3.2);
-      const c = n.li === last ? AMBER : TEAL;
-      glow.addColorStop(0, rgba(c, 0.35 * n.a + 0.05)); glow.addColorStop(1, rgba(c, 0));
-      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(n.x, n.y, r * 3.2, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = n.a > 0.25 ? rgba(c, 0.6 + n.a * 0.4) : rgba(WHITE, 0.85); ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, Math.PI * 2); ctx.fill();
-      n.a *= 0.965;
-      if (n.label && W >= 640) {
-        ctx.font = '500 13px Gotham, system-ui, sans-serif'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'rgba(255,255,255,.88)';
-        if (n.li === 0) { ctx.textAlign = 'right'; ctx.fillText(n.label[0], n.x - 18, n.y - 7); ctx.fillStyle = 'rgba(143,227,217,.95)'; ctx.font = '700 13px Gotham, system-ui, sans-serif'; ctx.fillText(fmt(n.label[1]), n.x - 18, n.y + 9); }
-        else { ctx.textAlign = 'left'; ctx.fillText(n.label, n.x + 18, n.y); }
+    // corrientes de datos
+    for (const s of streams) {
+      const p = curve(s);
+      ctx.strokeStyle = s.dir === 'in' ? `rgba(${TEAL},.16)` : `rgba(${AMBER},.16)`; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(p[0].x, p[0].y); ctx.bezierCurveTo(p[1].x, p[1].y, p[2].x, p[2].y, p[3].x, p[3].y); ctx.stroke();
+      if (!reduce && Math.random() < (s.dir === 'in' ? 0.05 : 0.03)) emit(s);
+    }
+    for (const pt of particles) {
+      pt.t += pt.v;
+      const p = curve(pt.s), q = bez(p[0], p[1], p[2], p[3], Math.min(1, pt.t));
+      const col = pt.s.dir === 'in' ? MINT : AMBER;
+      const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, pt.w * 5);
+      g.addColorStop(0, `rgba(${col},.95)`); g.addColorStop(1, `rgba(${col},0)`);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q.x, q.y, pt.w * 5, 0, 6.283); ctx.fill();
+      if (pt.t >= 1) {
+        pt.done = true;
+        if (pt.s.dir === 'in') { flash = Math.min(1, flash + 0.25); sphere[Math.floor(Math.random() * N)].a = 1; }
+        else { const el = pt.s.to.el; el.classList.add('lit'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('lit'), 700); }
       }
     }
+    for (let i = particles.length - 1; i >= 0; i--) if (particles[i].done) particles.splice(i, 1);
+
+    // esfera
+    rot += reduce ? 0 : 0.0035;
+    const cr = Math.cos(rot), sr = Math.sin(rot), ct = Math.cos(tilt), stt = Math.sin(tilt);
+    const pr = sphere.map((n) => {
+      const x = n.x * cr + n.z * sr, z1 = -n.x * sr + n.z * cr;
+      const y = n.y * ct - z1 * stt, z = n.y * stt + z1 * ct;
+      const k = 1 / (1.9 - z * 0.6);
+      return { x: cx + x * R * k * 1.2, y: cy + y * R * k * 1.2, z, n };
+    });
+    const halo = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 1.9);
+    halo.addColorStop(0, `rgba(${TEAL},${0.18 + flash * 0.25})`); halo.addColorStop(0.5, `rgba(${SKY},.06)`); halo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(cx, cy, R * 1.9, 0, 6.283); ctx.fill();
+    flash *= 0.96;
+    for (const [i, j] of edges) {
+      const a = pr[i], b = pr[j], d = (a.z + b.z) / 2;
+      ctx.strokeStyle = `rgba(${MINT},${0.05 + (d + 1) * 0.12})`; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    if (!reduce && Math.random() < 0.35) { const e = edges[Math.floor(Math.random() * edges.length)]; pulses.push({ e, t: 0 }); }
+    for (const p of pulses) {
+      const a = pr[p.e[0]], b = pr[p.e[1]]; p.t += 0.04;
+      const x = a.x + (b.x - a.x) * p.t, y = a.y + (b.y - a.y) * p.t;
+      ctx.fillStyle = `rgba(255,255,255,${0.9 - p.t * 0.6})`; ctx.beginPath(); ctx.arc(x, y, 1.8, 0, 6.283); ctx.fill();
+      if (p.t >= 1) { p.done = true; pr[p.e[1]].n.a = Math.min(1, pr[p.e[1]].n.a + 0.5); }
+    }
+    pulses = pulses.filter((p) => !p.done).slice(-140);
+    for (const p of pr.sort((a, b) => a.z - b.z)) {
+      const r = 1.4 + (p.z + 1) * 1.4 + p.n.a * 2.5;
+      ctx.fillStyle = p.n.a > 0.3 ? `rgba(${AMBER},${0.6 + p.n.a * 0.4})` : `rgba(${MINT},${0.35 + (p.z + 1) * 0.3})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.283); ctx.fill();
+      p.n.a *= 0.97;
+    }
+    if (!reduce) requestAnimationFrame(frame);
   }
 
-  const feed = document.getElementById('ai-feed');
-  let fi = 0;
-  function pulseOutput() {
-    if (!D.learned.length || Math.random() > 0.08) return;
-    const it = D.learned[fi++ % D.learned.length];
-    const li = document.createElement('li');
-    li.className = it.k === 'brecha' ? 'gap' : 'str';
-    li.innerHTML = `<span></span><div><strong></strong><em></em></div>`;
-    li.querySelector('strong').textContent = it.t;
-    li.querySelector('em').textContent = `${it.k === 'brecha' ? 'Por reforzar' : 'Fortaleza'} · ${it.a}`;
-    feed.prepend(li);
-    while (feed.children.length > 7) feed.lastChild.remove();
-  }
-
-  function tick() {
-    if (Math.random() < 0.09) { const n = layers[0][Math.floor(Math.random() * layers[0].length)]; n.a = 1; fire(n); }
-    draw();
-    requestAnimationFrame(tick);
-  }
-
-  build();
-  addEventListener('resize', build);
-  if (reduce) { for (const L of layers) for (const n of L) n.a = 0.5; draw(); D.learned.slice(0, 7).forEach(() => pulseOutput.call(null)); }
-  else { requestAnimationFrame(tick); }
-  if (!feed.children.length) for (let i = 0; i < Math.min(4, D.learned.length); i++) { const it = D.learned[i]; const li = document.createElement('li'); li.className = it.k === 'brecha' ? 'gap' : 'str'; li.innerHTML = '<span></span><div><strong></strong><em></em></div>'; li.querySelector('strong').textContent = it.t; li.querySelector('em').textContent = `${it.k === 'brecha' ? 'Por reforzar' : 'Fortaleza'} · ${it.a}`; feed.appendChild(li); fi = i + 1; }
-
-  // Cifras que cuentan hacia arriba
-  document.querySelectorAll('[data-count]').forEach((b) => {
-    const to = Number(b.dataset.count); if (reduce || !to) return;
+  // Contadores
+  const count = () => root.querySelectorAll('[data-count]').forEach((b) => {
+    const to = Number(b.dataset.count);
+    if (reduce || !to) { b.textContent = fmt(to); return; }
     const t0 = performance.now();
-    const step = (t) => { const k = Math.min(1, (t - t0) / 1600); b.textContent = fmt(Math.round(to * (1 - Math.pow(1 - k, 3)))); if (k < 1) requestAnimationFrame(step); };
+    const step = (t) => { const k = Math.min(1, (t - t0) / 2200); b.textContent = fmt(Math.round(to * (1 - Math.pow(1 - k, 4)))); if (k < 1) requestAnimationFrame(step); };
     requestAnimationFrame(step);
   });
 
-  const root = document.getElementById('ai-live');
-  document.getElementById('ai-full').addEventListener('click', () => { if (document.fullscreenElement) document.exitFullscreen(); else root.requestFullscreen?.(); });
-  document.addEventListener('fullscreenchange', () => setTimeout(build, 50));
+  // Frase que se escribe sola
+  const tag = document.getElementById('wow-tag');
+  let ti = 0;
+  function typeLine() {
+    const txt = D.taglines[ti++ % D.taglines.length];
+    if (reduce) { tag.textContent = txt; return; }
+    let i = 0;
+    const w = setInterval(() => { tag.textContent = txt.slice(0, ++i); if (i >= txt.length) { clearInterval(w); setTimeout(() => erase(txt), 2200); } }, 45);
+  }
+  function erase(txt) {
+    let i = txt.length;
+    const w = setInterval(() => { tag.textContent = txt.slice(0, --i); if (i <= 0) { clearInterval(w); typeLine(); } }, 22);
+  }
+
+  // Lo último que aprendió
+  const it = document.getElementById('wow-insight'), is = document.getElementById('wow-insight-s');
+  let li = 0;
+  function nextInsight() {
+    if (!D.learned.length) { it.textContent = 'Esperando las primeras evaluaciones del equipo…'; return; }
+    const x = D.learned[li++ % D.learned.length];
+    it.classList.remove('show'); is.classList.remove('show');
+    setTimeout(() => {
+      it.textContent = x.t; is.textContent = `${x.k === 'brecha' ? 'Por reforzar' : 'Fortaleza'} · ${x.a}`;
+      it.className = `wow-insight-t show ${x.k === 'brecha' ? 'gap' : 'str'}`; is.classList.add('show');
+    }, 250);
+  }
+
+  layout();
+  addEventListener('resize', layout);
+  document.addEventListener('fullscreenchange', () => setTimeout(layout, 80));
+  document.fonts?.ready.then(layout);
+  requestAnimationFrame(frame);
+  count(); typeLine(); nextInsight();
+  if (!reduce) setInterval(nextInsight, 3800);
+  // En móvil no hay corrientes: los resultados se encienden por turnos
+  if (!reduce) setInterval(() => {
+    if (innerWidth > 900) return;
+    const outs = root.querySelectorAll('.chip[data-o]'); if (!outs.length) return;
+    const el = outs[Math.floor(Math.random() * outs.length)];
+    el.classList.add('lit'); flash = 1; setTimeout(() => el.classList.remove('lit'), 700);
+  }, 900);
+
+  document.getElementById('wow-full').addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.();
+  });
 })();

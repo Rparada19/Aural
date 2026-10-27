@@ -409,7 +409,7 @@ app.get('/ia', needUser, async (req, res) => {
   for (const g of (await q(`SELECT f->>'titulo' AS t, count(*)::int AS n FROM evaluations e, jsonb_array_elements(e.report->'fortalezas') f WHERE e.report IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 10`)).rows) learned.push({ t: g.t, k: 'fortaleza', a: 'Evaluaciones' });
   for (const x of c?.data?.negativos || []) learned.push({ t: x.t, k: 'brecha', a: 'Clientes en Google' });
   for (const x of c?.data?.positivos || []) learned.push({ t: x.t, k: 'fortaleza', a: 'Clientes en Google' });
-  page(res, 'La IA aprendiendo', V.aiLivePage(n, learned), req.user, { wide: true });
+  page(res, 'IA de servicio en vivo', V.aiLivePage(n, learned, req.user.role === 'admin' ? '/admin' : '/'), req.user, { bare: true });
 });
 
 app.get('/admin/clientes', needAdmin, async (req, res) => {
