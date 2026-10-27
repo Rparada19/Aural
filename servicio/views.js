@@ -20,13 +20,14 @@ const days = (d) => (d ? (Date.now() - new Date(d).getTime()) / 86400000 : Infin
 export const fmonth = (mes) => new Date(`${mes}-15T12:00:00`).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
 const fdate = (d) => (d ? new Date(d).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Bogota' }) : '—');
 
+const V = Date.now().toString(36);
 export function layout(title, body, user, { wide = false } = {}) {
   const nav = user
     ? `<nav>${user.role === 'admin' ? '<a href="/admin">Panel</a><a href="/admin/equipo">Equipo</a><a href="/admin/solicitudes">Solicitudes</a><a href="/admin/estudio">Estudio</a><a href="/admin/mensajes">Mensajes</a><a href="/admin/preguntas">Preguntas</a>' : '<a href="/">Mi espacio</a><a href="/estudio">Estudio</a>'}
        <form method="post" action="/salir"><button class="link">Salir</button></form></nav>`
     : '';
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)} · Aural Servicio</title><link rel="icon" href="/logo-aural-simbolo.png"><link rel="stylesheet" href="/style.css"></head>
+<title>${esc(title)} · Aural Servicio</title><link rel="icon" href="/logo-aural-simbolo.png"><link rel="stylesheet" href="/style.css?v=${V}"></head>
 <body><header class="top"><a href="/" class="brand"><img src="/logo-aural.png" alt="Aural"><span>Servicio</span></a>${nav}</header>
 <main class="${wide ? 'wide' : ''}">${body}</main></body></html>`;
 }
@@ -142,7 +143,7 @@ export function evaluationForm(ev) {
   }).join('');
   return `<form id="ev" method="post" action="/evaluacion/enviar" class="card evalform">
     <div class="progress"><div class="bar"><span id="pbar"></span></div><span id="ptext" class="muted"></span><span id="saved" class="muted"></span></div>
-    ${steps}<p id="err" class="notice err" hidden></p></form><script src="/eval.js"></script>`;
+    ${steps}<p id="err" class="notice err" hidden></p></form><script src="/eval.js?v=${V}"></script>`;
 }
 
 export function planView(user, r) {
@@ -538,5 +539,5 @@ export function adminStudyEdit(m, imgs, results, attempted, ok) {
     <section class="card"><h2 style="margin-top:0">Resultados del equipo</h2><table class="tbl"><thead><tr><th>Profesional</th><th>Teoría</th><th>Intentos</th><th>Mejor nota</th><th>Estado</th></tr></thead><tbody>
       ${results.map((r) => `<tr><td><a href="/admin/personas/${r.id}">${esc(r.name)}</a><br><span class="muted small">${esc(r.sede)}</span></td><td>${r.leyo ? 'Leída' : '—'}</td><td>${r.intentos}/2</td><td>${r.mejor ?? '—'}${r.mejor != null ? '%' : ''}</td><td>${r.aprobado ? stBadge('aprobado') : r.intentos >= 2 ? stBadge('no_aprobado') : r.intentos ? stBadge('reintento') : '<span class="muted">Pendiente</span>'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No hay personas en esta área.</td></tr>'}</tbody></table></section>
     ${attempted ? '' : `<form method="post" action="/admin/estudio/${m.id}" onsubmit="return confirm('¿Eliminar este módulo?')"><input type="hidden" name="accion" value="borrar"><button class="link">Eliminar módulo</button></form>`}
-    <script src="/upload.js"></script>`;
+    <script src="/upload.js?v=${V}"></script>`;
 }
