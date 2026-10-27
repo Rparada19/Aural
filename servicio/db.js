@@ -66,7 +66,55 @@ export async function migrate() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  await q(`
+    CREATE TABLE IF NOT EXISTS plans (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      mes TEXT NOT NULL,
+      objetivo TEXT NOT NULL DEFAULT '',
+      mensaje TEXT NOT NULL DEFAULT '',
+      published BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (user_id, mes)
+    );
+    CREATE TABLE IF NOT EXISTS plan_items (
+      id SERIAL PRIMARY KEY,
+      plan_id INT NOT NULL REFERENCES plans(id) ON DELETE CASCADE,
+      accion TEXT NOT NULL,
+      indicador TEXT NOT NULL DEFAULT '',
+      estado TEXT NOT NULL DEFAULT 'pendiente',
+      nota TEXT NOT NULL DEFAULT '',
+      position INT NOT NULL DEFAULT 0,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS messages (
+      id SERIAL PRIMARY KEY,
+      area TEXT NOT NULL,
+      fecha DATE NOT NULL,
+      tipo TEXT NOT NULL DEFAULT 'diario',
+      titulo TEXT NOT NULL,
+      mensaje TEXT NOT NULL,
+      tip TEXT NOT NULL DEFAULT '',
+      sent_at TIMESTAMPTZ,
+      recipients INT NOT NULL DEFAULT 0,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS messages_diario_uniq ON messages (area, fecha) WHERE tipo = 'diario';
+    CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value JSONB NOT NULL);
+    CREATE TABLE IF NOT EXISTS pulses (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      area TEXT NOT NULL DEFAULT '',
+      mes TEXT NOT NULL,
+      answers JSONB NOT NULL,
+      comentario TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (user_id, mes)
+    );
+  `);
   await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS area TEXT NOT NULL DEFAULT ''");
+  await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT true");
+  await q("ALTER TABLE users ADD COLUMN IF NOT EXISTS telefono TEXT NOT NULL DEFAULT ''");
   await q("ALTER TABLE questions ADD COLUMN IF NOT EXISTS area TEXT NOT NULL DEFAULT ''");
   await q("ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS area TEXT NOT NULL DEFAULT ''");
   for (const [area, modules] of Object.entries(SEED)) {

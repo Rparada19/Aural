@@ -4,9 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { q, one, migrate } from './db.js';
 import { analyze } from './analysis.js';
-import { sendLoginLink, mailConfigured } from './mail.js';
+import { sendLoginLink, sendMail, mailConfigured } from './mail.js';
 import * as V from './views.js';
 import { AREA_KEYS } from './areas.js';
+import { generateMonthlyPlan, runDaily, sendMessage, getSetting, setSetting, today, thisMonth, PULSE } from './growth.js';
 
 const app = express();
 const BASE = (process.env.BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
@@ -84,12 +85,65 @@ app.post('/salir', async (req, res) => {
   res.redirect('/login');
 });
 
+// ---------- Registro público ----------
+const sedesList = () => getSetting('sedes', []);
+
+app.get('/registro', async (req, res) => page(res, 'Registro', V.registerPage(await sedesList())));
+
+app.post('/registro', async (req, res) => {
+  const b = req.body;
+  if (b.website) return page(res, 'Registro', V.registerDone());
+  const email = String(b.email || '').trim().toLowerCase();
+  const name = String(b.name || '').trim().slice(0, 120);
+  const area = AREA_KEYS.includes(b.area) ? b.area : null;
+  const sede = String(b.sede || '').trim().slice(0, 80);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !name || !area || !sede) return page(res, 'Registro', V.registerPage(await sedesList(), 'Completa todos los campos obligatorios.', b));
+  const exists = await one('SELECT id, active, approved FROM users WHERE email = $1', [email]);
+  if (exists) return page(res, 'Registro', V.registerDone(exists.active ? 'Ya tienes una cuenta activa. Entra con tu correo desde la página de acceso.' : ''));
+  const u = await one(`INSERT INTO users (email, name, area, sede, cargo, telefono, active, approved) VALUES ($1,$2,$3,$4,$5,$6,false,false) RETURNING id`,
+    [email, name, area, sede, String(b.cargo || '').trim().slice(0, 80), String(b.telefono || '').trim().slice(0, 30)]);
+  for (const admin of ADMINS) {
+    sendMail(admin, `Nueva solicitud de registro: ${name}`, `${name} (${email}) pidió acceso.\nÁrea: ${area} · Sede: ${sede}\n\nAprueba aquí: ${BASE}/admin/solicitudes`,
+      `<div style="font-family:Arial,sans-serif;color:#041E42;max-width:520px;margin:auto;padding:24px"><h2 style="margin-top:0">Nueva solicitud de registro</h2>
+      <p><strong>${V.esc(name)}</strong><br>${V.esc(email)}${b.telefono ? `<br>${V.esc(b.telefono)}` : ''}</p>
+      <p>Área: ${V.esc(V.areaName(area))}<br>Sede: ${V.esc(sede)}</p>
+      <p style="margin:24px 0"><a href="${BASE}/admin/solicitudes" style="background:#041E42;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:bold">Revisar y aprobar</a></p></div>`)
+      .catch((e) => console.error('aviso registro', e.message));
+  }
+  page(res, 'Registro', V.registerDone());
+});
+
 // ---------- Profesional ----------
 const currentEval = (userId) => one('SELECT * FROM evaluations WHERE user_id = $1 ORDER BY id DESC LIMIT 1', [userId]);
 
+const todayMessage = (area) => one("SELECT * FROM messages WHERE (area = $1 OR area = 'todas') AND fecha <= $2 ORDER BY fecha DESC, id DESC LIMIT 1", [area, today()]);
+async function currentPlan(userId, onlyPublished) {
+  const plan = await one(`SELECT * FROM plans WHERE user_id = $1 ${onlyPublished ? 'AND published' : ''} ORDER BY mes DESC LIMIT 1`, [userId]);
+  if (plan) plan.items = (await q('SELECT * FROM plan_items WHERE plan_id = $1 ORDER BY position, id', [plan.id])).rows;
+  return plan;
+}
+
 app.get('/', needUser, async (req, res) => {
   if (req.user.role === 'admin') return res.redirect('/admin');
-  page(res, 'Mi evaluación', V.staffHome(req.user, await currentEval(req.user.id)), req.user);
+  const pulseDone = await one('SELECT 1 FROM pulses WHERE user_id = $1 AND mes = $2', [req.user.id, thisMonth()]);
+  page(res, 'Mi espacio', V.staffHome(req.user, await currentEval(req.user.id), await currentPlan(req.user.id, true), await todayMessage(req.user.area), pulseDone ? null : PULSE), req.user);
+});
+
+app.post('/pulso', needUser, async (req, res) => {
+  const answers = {};
+  for (const [k] of PULSE) { const v = Number(req.body[k]); if (v >= 1 && v <= 5) answers[k] = v; }
+  if (Object.keys(answers).length === PULSE.length) {
+    await q('INSERT INTO pulses (user_id, area, mes, answers, comentario) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (user_id, mes) DO NOTHING',
+      [req.user.id, req.user.area, thisMonth(), JSON.stringify(answers), String(req.body.comentario || '').trim().slice(0, 2000)]);
+  }
+  res.redirect('/');
+});
+
+app.post('/plan/items/:id', needUser, async (req, res) => {
+  const estado = ['pendiente', 'en_curso', 'hecho'].includes(req.body.estado) ? req.body.estado : 'pendiente';
+  await q(`UPDATE plan_items i SET estado = $3, nota = $4, updated_at = now() FROM plans p
+    WHERE i.id = $1 AND p.id = i.plan_id AND p.user_id = $2 AND p.published`, [req.params.id, req.user.id, estado, String(req.body.nota || '').slice(0, 1000)]);
+  res.redirect('/#plan');
 });
 
 app.get('/evaluacion', needUser, async (req, res) => {
@@ -133,20 +187,87 @@ app.post('/evaluacion/enviar', needUser, async (req, res) => {
 
 // ---------- Admin ----------
 app.get('/admin', needAdmin, async (req, res) => {
+  const mes = thisMonth();
+  const { rows } = await q(`SELECT u.id, u.name, u.area, u.sede, u.cargo, u.created_at,
+      e.status, e.started_at, e.submitted_at, e.plan_published, (e.report->>'puntaje_global')::int AS score,
+      coalesce(jsonb_array_length(e.report->'alertas'), 0) AS alertas,
+      (SELECT (report->>'puntaje_global')::int FROM evaluations WHERE user_id = u.id AND report IS NOT NULL AND id < e.id ORDER BY id DESC LIMIT 1) AS prev_score,
+      p.id AS plan_id, p.published AS plan_pub,
+      (SELECT count(*) FROM plan_items WHERE plan_id = p.id)::int AS items,
+      (SELECT count(*) FROM plan_items WHERE plan_id = p.id AND estado = 'hecho')::int AS done,
+      (SELECT count(*) FROM plan_items WHERE plan_id = p.id AND estado = 'en_curso')::int AS doing,
+      (SELECT max(fecha) FROM sessions_1a1 WHERE user_id = u.id) AS last_session,
+      (SELECT count(*) FROM sessions_1a1 WHERE user_id = u.id AND to_char(fecha, 'YYYY-MM') = $1)::int AS sessions_month
+    FROM users u
+    LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
+    LEFT JOIN plans p ON p.user_id = u.id AND p.mes = $1
+    WHERE u.role = 'staff' AND u.active AND u.approved ORDER BY u.area, u.name`, [mes]);
+  const pending = (await one('SELECT count(*)::int AS n FROM users WHERE approved = false')).n;
+  const area = AREA_KEYS.includes(req.query.area) ? req.query.area : '';
+  const af = area ? 'AND u.area = $2' : '';
+  const ap = area ? [area] : [];
+  const since = `${Number(mes.slice(0, 4)) - (Number(mes.slice(5)) <= 5 ? 1 : 0)}-${String(((Number(mes.slice(5)) + 6) % 12) + 1).padStart(2, '0')}`;
+  const series = {};
+  const add = (rs) => rs.forEach((r) => Object.assign((series[r.mes] ||= { mes: r.mes }), r));
+  add((await q(`SELECT pu.mes, count(*)::int AS pulsos, ${PULSE.map(([k]) => `round(avg((pu.answers->>'${k}')::numeric), 2)::float AS ${k}`).join(', ')}
+    FROM pulses pu JOIN users u ON u.id = pu.user_id WHERE pu.mes >= $1 ${af} GROUP BY pu.mes`, [since, ...ap])).rows);
+  add((await q(`SELECT p.mes, round(avg(x.prog))::int AS avance FROM plans p JOIN users u ON u.id = p.user_id
+    JOIN LATERAL (SELECT 100.0 * count(*) FILTER (WHERE estado = 'hecho') / nullif(count(*), 0) AS prog FROM plan_items WHERE plan_id = p.id) x ON x.prog IS NOT NULL
+    WHERE p.mes >= $1 ${af} GROUP BY p.mes`, [since, ...ap])).rows);
+  add((await q(`SELECT to_char(e.analyzed_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') AS mes, round(avg((e.report->>'puntaje_global')::int))::int AS puntaje, count(*)::int AS evaluaciones
+    FROM evaluations e JOIN users u ON u.id = e.user_id WHERE e.report IS NOT NULL AND to_char(e.analyzed_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') >= $1 ${af} GROUP BY 1`, [since, ...ap])).rows);
+  add((await q(`SELECT to_char(s.fecha, 'YYYY-MM') AS mes, count(*)::int AS sesiones FROM sessions_1a1 s JOIN users u ON u.id = s.user_id
+    WHERE to_char(s.fecha, 'YYYY-MM') >= $1 ${af} GROUP BY 1`, [since, ...ap])).rows);
+  const comments = (await q(`SELECT pu.mes, pu.area, pu.comentario FROM pulses pu JOIN users u ON u.id = pu.user_id
+    WHERE pu.comentario <> '' AND pu.mes >= $1 ${af} ORDER BY pu.created_at DESC LIMIT 10`, [since, ...ap])).rows;
+  page(res, 'Panel', V.dashboard(rows, mes, area, pending, Object.values(series).sort((a, b) => a.mes.localeCompare(b.mes)), comments, PULSE), req.user, { wide: true });
+});
+
+app.get('/admin/solicitudes', needAdmin, async (req, res) => {
+  const { rows } = await q('SELECT * FROM users WHERE approved = false ORDER BY created_at');
+  page(res, 'Solicitudes', V.adminRequests(rows, await sedesList()), req.user, { wide: true });
+});
+
+app.post('/admin/solicitudes/:id', needAdmin, async (req, res) => {
+  const u = await one('SELECT * FROM users WHERE id = $1 AND approved = false', [req.params.id]);
+  if (!u) return res.redirect('/admin/solicitudes');
+  if (req.body.decision === 'rechazar') {
+    await q('DELETE FROM users WHERE id = $1', [u.id]);
+    return res.redirect('/admin/solicitudes');
+  }
+  const area = AREA_KEYS.includes(req.body.area) ? req.body.area : u.area;
+  const sede = String(req.body.sede || u.sede).trim();
+  await q('UPDATE users SET approved = true, active = true, area = $2, sede = $3 WHERE id = $1', [u.id, area, sede]);
+  await assignEvaluation(u.id);
+  try { await sendLoginLink(u.email, u.name, await loginLink(u.id), true); } catch (e) { console.error('mail', e); }
+  res.redirect('/admin/solicitudes');
+});
+
+app.post('/admin/sedes', needAdmin, async (req, res) => {
+  await setSetting('sedes', String(req.body.sedes || '').split('\n').map((x) => x.trim()).filter(Boolean));
+  res.redirect('/admin/equipo');
+});
+
+app.get('/admin/equipo', needAdmin, async (req, res) => {
   const { rows } = await q(`SELECT u.*, e.status, e.submitted_at, e.plan_published, (e.report->>'puntaje_global')::int AS score,
       (SELECT count(*) FROM sessions_1a1 s WHERE s.user_id = u.id)::int AS sessions
     FROM users u LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
-    WHERE u.role = 'staff' ORDER BY u.area, u.name`);
-  page(res, 'Equipo', V.adminHome(rows, mailConfigured()), req.user, { wide: true });
+    WHERE u.role = 'staff' AND u.approved ORDER BY u.area, u.name`);
+  page(res, 'Equipo', V.adminHome(rows, mailConfigured(), await sedesList()), req.user, { wide: true });
+});
+
+app.post('/admin/personas/:id/desactivar', needAdmin, async (req, res) => {
+  await q("UPDATE users SET active = NOT active WHERE id = $1 AND role = 'staff'", [req.params.id]);
+  res.redirect(`/admin/personas/${req.params.id}`);
 });
 
 app.post('/admin/personas', needAdmin, async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
   const name = String(req.body.name || '').trim();
   const area = AREA_KEYS.includes(req.body.area) ? req.body.area : null;
-  if (!email || !name || !area) return res.redirect('/admin');
+  if (!email || !name || !area) return res.redirect('/admin/equipo');
   const u = await one(`INSERT INTO users (email, name, area, cargo, sede) VALUES ($1,$2,$3,$4,$5)
-    ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, area = EXCLUDED.area, cargo = EXCLUDED.cargo, sede = EXCLUDED.sede, active = true RETURNING *`,
+    ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, area = EXCLUDED.area, cargo = EXCLUDED.cargo, sede = EXCLUDED.sede, active = true, approved = true RETURNING *`,
   [email, name, area, String(req.body.cargo || '').trim(), String(req.body.sede || '').trim()]);
   const has = await one("SELECT id FROM evaluations WHERE user_id = $1 AND area = $2", [u.id, area]);
   if (!has) await assignEvaluation(u.id);
@@ -161,7 +282,9 @@ app.get('/admin/personas/:id', needAdmin, async (req, res) => {
   if (!person) return res.redirect('/admin');
   const evs = (await q('SELECT * FROM evaluations WHERE user_id = $1 ORDER BY id DESC', [person.id])).rows;
   const sessions = (await q('SELECT * FROM sessions_1a1 WHERE user_id = $1 ORDER BY fecha DESC, id DESC', [person.id])).rows;
-  page(res, person.name, V.adminPerson(person, evs, sessions, req.query.link, mailConfigured()), req.user, { wide: true });
+  const plans = (await q(`SELECT p.*, coalesce(json_agg(i ORDER BY i.position, i.id) FILTER (WHERE i.id IS NOT NULL), '[]') AS items
+    FROM plans p LEFT JOIN plan_items i ON i.plan_id = p.id WHERE p.user_id = $1 GROUP BY p.id ORDER BY p.mes DESC`, [person.id])).rows;
+  page(res, person.name, V.adminPerson(person, evs, sessions, req.query.link, mailConfigured(), plans, thisMonth(), req.query.error), req.user, { wide: true });
 });
 
 app.post('/admin/personas/:id/enlace', needAdmin, async (req, res) => {
@@ -181,6 +304,82 @@ app.post('/admin/personas/:id/evaluacion', needAdmin, async (req, res) => {
 app.post('/admin/personas/:id/sesiones', needAdmin, async (req, res) => {
   await q('INSERT INTO sessions_1a1 (user_id, fecha, notas, compromisos) VALUES ($1,$2,$3,$4)', [req.params.id, req.body.fecha, String(req.body.notas || '').trim(), String(req.body.compromisos || '').trim()]);
   res.redirect(`/admin/personas/${req.params.id}`);
+});
+
+// ---------- Planes mensuales ----------
+const MES_RE = /^\d{4}-\d{2}$/;
+app.post('/admin/personas/:id/planes', needAdmin, async (req, res) => {
+  const mes = MES_RE.test(req.body.mes) ? req.body.mes : thisMonth();
+  try {
+    if (req.body.modo === 'ia') await generateMonthlyPlan(Number(req.params.id), mes);
+    else await q("INSERT INTO plans (user_id, mes, objetivo) VALUES ($1,$2,$3) ON CONFLICT (user_id, mes) DO NOTHING", [req.params.id, mes, String(req.body.objetivo || '').trim()]);
+  } catch (e) {
+    console.error('plan', e);
+    return res.redirect(`/admin/personas/${req.params.id}?error=${encodeURIComponent('No se pudo generar el plan: ' + e.message)}#planes`);
+  }
+  res.redirect(`/admin/personas/${req.params.id}#planes`);
+});
+
+const planOwner = async (planId) => (await one('SELECT user_id FROM plans WHERE id = $1', [planId]))?.user_id;
+
+app.post('/admin/planes/:id', needAdmin, async (req, res) => {
+  const b = req.body;
+  if (b.accion_tipo === 'publicar') await q('UPDATE plans SET published = NOT published WHERE id = $1', [req.params.id]);
+  else if (b.accion_tipo === 'objetivo') await q('UPDATE plans SET objetivo = $2 WHERE id = $1', [req.params.id, String(b.objetivo || '').trim()]);
+  else if (b.accion_tipo === 'item' && String(b.accion || '').trim()) {
+    await q('INSERT INTO plan_items (plan_id, accion, indicador, position) VALUES ($1,$2,$3,(SELECT coalesce(max(position),0)+10 FROM plan_items WHERE plan_id = $1))', [req.params.id, b.accion.trim(), String(b.indicador || '').trim()]);
+  }
+  res.redirect(`/admin/personas/${await planOwner(req.params.id)}#planes`);
+});
+
+app.post('/admin/items/:id', needAdmin, async (req, res) => {
+  const item = await one('SELECT plan_id FROM plan_items WHERE id = $1', [req.params.id]);
+  if (!item) return res.redirect('/admin');
+  if (req.body.borrar) await q('DELETE FROM plan_items WHERE id = $1', [req.params.id]);
+  else {
+    const estado = ['pendiente', 'en_curso', 'hecho'].includes(req.body.estado) ? req.body.estado : 'pendiente';
+    await q('UPDATE plan_items SET estado = $2, updated_at = now() WHERE id = $1', [req.params.id, estado]);
+  }
+  res.redirect(`/admin/personas/${await planOwner(item.plan_id)}#planes`);
+});
+
+// ---------- Mensajes ----------
+app.get('/admin/mensajes', needAdmin, async (req, res) => {
+  const msgs = (await q("SELECT * FROM messages ORDER BY fecha DESC, id DESC LIMIT 60")).rows;
+  const counts = Object.fromEntries((await q("SELECT area, count(*)::int AS n FROM users WHERE role = 'staff' AND active GROUP BY area")).rows.map((r) => [r.area, r.n]));
+  page(res, 'Mensajes', V.adminMessages(msgs, await getSetting('mensajes_activos', true), counts, mailConfigured(), req.query.ok, req.query.error), req.user, { wide: true });
+});
+
+app.post('/admin/mensajes/config', needAdmin, async (req, res) => {
+  await setSetting('mensajes_activos', req.body.activos === 'on');
+  res.redirect('/admin/mensajes');
+});
+
+app.post('/admin/mensajes/hoy', needAdmin, async (req, res) => {
+  try {
+    const r = await runDaily();
+    res.redirect(`/admin/mensajes?ok=${encodeURIComponent(r.skipped ? 'El envío automático está pausado.' : `Mensajes de hoy listos: ${r.sent} correos enviados.`)}`);
+  } catch (e) { console.error('diario', e); res.redirect(`/admin/mensajes?error=${encodeURIComponent(e.message)}`); }
+});
+
+app.post('/admin/mensajes', needAdmin, async (req, res) => {
+  const area = req.body.area === 'todas' || AREA_KEYS.includes(req.body.area) ? req.body.area : 'todas';
+  const titulo = String(req.body.titulo || '').trim();
+  const mensaje = String(req.body.mensaje || '').trim();
+  if (!titulo || !mensaje) return res.redirect('/admin/mensajes');
+  const m = await one("INSERT INTO messages (area, fecha, tipo, titulo, mensaje, tip) VALUES ($1,$2,'manual',$3,$4,$5) RETURNING id", [area, today(), titulo, mensaje, String(req.body.tip || '').trim()]);
+  const n = await sendMessage(m.id);
+  res.redirect(`/admin/mensajes?ok=${encodeURIComponent(`Mensaje enviado a ${n} personas.`)}`);
+});
+
+app.post('/cron/diario', async (req, res) => {
+  // Se puede llamar sin secreto solo en la franja de la mañana; el envío es idempotente (una vez por día).
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const authorized = process.env.CRON_SECRET && req.headers['x-cron-secret'] === process.env.CRON_SECRET;
+  if (!authorized && (now.getDay() === 0 || mins < 330 || mins > 570)) return res.status(403).send('fuera de horario');
+  res.status(202).send('ok');
+  runDaily().then((r) => console.log('diario', r)).catch((e) => console.error('diario', e));
 });
 
 app.post('/admin/evaluaciones/:id/analizar', needAdmin, async (req, res) => {

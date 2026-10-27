@@ -1,0 +1,13 @@
+name: Mensajes diarios de servicio
+on:
+  schedule:
+    - cron: '30 11 * * 1-6' # 6:30 a. m. Bogotá, lunes a sábado
+  workflow_dispatch:
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Despertar el servicio
+        run: curl -s --max-time 90 https://servicio.auralbusinessintelligence.com/health || true
+      - name: Generar y enviar mensajes del día
+        run: curl -fsS --retry 3 --retry-delay 20 --max-time 60 -X POST https://servicio.auralbusinessintelligence.com/cron/diario

@@ -12,6 +12,12 @@ const transporter = () => nodemailer.createTransport({
   auth: { user: process.env.BREVO_SMTP_USER, pass: process.env.BREVO_SMTP_PASS },
 });
 
+let tx;
+export async function sendMail(to, subject, text, html) {
+  tx ||= transporter();
+  await tx.sendMail({ from: process.env.MAIL_FROM || '"Aural" <no-reply@auralbusinessintelligence.com>', to, subject, text, html });
+}
+
 export async function sendLoginLink(to, name, link, invite = false) {
   if (!configured()) {
     console.log(`[mail no configurado] Enlace para ${to}: ${link}`);
