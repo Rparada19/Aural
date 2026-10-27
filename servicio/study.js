@@ -1,7 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { q, one } from './db.js';
 import { AREAS } from './areas.js';
-import { sendMail, mailConfigured } from './mail.js';
 
 const MODEL = process.env.ANALYSIS_MODEL || 'claude-opus-5-5';
 export const PASS = 85;
@@ -51,6 +50,8 @@ const MODULE_TOOL = {
 export async function generateModule(area, mes, tema = '') {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('Falta configurar ANTHROPIC_API_KEY');
   const a = AREAS[area];
+  const planned = await one("SELECT numero, titulo, objetivo FROM study_modules WHERE area = $1 AND mes = $2 AND numero IS NOT NULL", [area, mes]);
+  if (planned && !tema) tema = `Módulo ${planned.numero} de 12 de la Academia: "${planned.titulo}". Objetivo: ${planned.objetivo}. Mantén este tema y este enfoque.`;
   const prev = (await q('SELECT mes, titulo FROM study_modules WHERE area = $1 AND mes <> $2 ORDER BY mes', [area, mes])).rows;
   const gaps = (await q(`SELECT o->>'titulo' AS t, count(*)::int AS n FROM evaluations e JOIN users u ON u.id = e.user_id,
       jsonb_array_elements(e.report->'oportunidades') o WHERE u.area = $1 AND e.report IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 12`, [area])).rows;
@@ -71,7 +72,7 @@ Oportunidades de mejora más frecuentes en las evaluaciones del área: ${gaps.ma
   if (!t) throw new Error('La IA no devolvió el módulo');
   const m = t.input;
   return one(`INSERT INTO study_modules (area, mes, titulo, objetivo, secciones, preguntas) VALUES ($1,$2,$3,$4,$5,$6)
-    ON CONFLICT (area, mes) DO UPDATE SET titulo = EXCLUDED.titulo, objetivo = EXCLUDED.objetivo, secciones = EXCLUDED.secciones, preguntas = EXCLUDED.preguntas RETURNING id`,
+    ON CONFLICT (area, mes) DO UPDATE SET titulo = CASE WHEN study_modules.numero IS NULL THEN EXCLUDED.titulo ELSE study_modules.titulo END, objetivo = CASE WHEN study_modules.numero IS NULL THEN EXCLUDED.objetivo ELSE study_modules.objetivo END, secciones = EXCLUDED.secciones, preguntas = EXCLUDED.preguntas RETURNING id`,
   [area, mes, m.titulo, m.objetivo, JSON.stringify(m.secciones), JSON.stringify(m.preguntas)]);
 }
 
@@ -97,31 +98,53 @@ export function grade(mod, input) {
   return { answers, ok, score, passed: score >= PASS };
 }
 
-// Aviso de apertura (día 1) y recordatorio (desde el día 24) a quienes aún no aprueban
-export async function studyNotifications(baseUrl) {
-  if (!mailConfigured()) return 0;
+// ---------- Academia: ruta de 12 módulos ----------
+const ROUTE_TOOL = {
+  name: 'ruta_academia',
+  description: 'Entrega la ruta de 12 módulos de la Academia para un área.',
+  input_schema: {
+    type: 'object', required: ['modulos'],
+    properties: {
+      modulos: {
+        type: 'array', minItems: 12, maxItems: 12,
+        items: { type: 'object', required: ['titulo', 'objetivo'], properties: { titulo: { type: 'string', description: 'Máximo 8 palabras' }, objetivo: { type: 'string', description: 'Qué será capaz de hacer al terminar, una frase' } } },
+      },
+    },
+  },
+};
+
+const addMonths = (mes, k) => { const d = new Date(`${mes}-15T12:00:00`); d.setMonth(d.getMonth() + k); return d.toISOString().slice(0, 7); };
+
+export async function generateAcademy(area, inicio) {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error('Falta configurar ANTHROPIC_API_KEY');
+  const a = AREAS[area];
+  const gaps = (await q(`SELECT o->>'titulo' AS t, count(*)::int AS n FROM evaluations e JOIN users u ON u.id = e.user_id,
+      jsonb_array_elements(e.report->'oportunidades') o WHERE u.area = $1 AND e.report IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 15`, [area])).rows;
+  const res = await new Anthropic().messages.create({
+    model: MODEL, max_tokens: 4000,
+    system: `Eres un diseñador instruccional experto en servicio y salud auditiva. Diseñas la Academia Aural: una ruta de 12 módulos mensuales, de lo fundamental a lo avanzado, para el área "${a.label}" de Aural Colombia (distribuidor exclusivo de audífonos Widex). Rol: ${a.rol} Criterios de excelencia: ${a.criterios} Español de Colombia.`,
+    tools: [ROUTE_TOOL], tool_choice: { type: 'tool', name: 'ruta_academia' },
+    messages: [{ role: 'user', content: `Diseña los 12 módulos en orden. Prioriza estas oportunidades de mejora detectadas en las evaluaciones del área: ${gaps.map((g) => `${g.t} (${g.n})`).join('; ') || 'aún no hay evaluaciones; usa los criterios del área'}.` }],
+  });
+  const t = res.content.find((c) => c.type === 'tool_use');
+  if (!t) throw new Error('La IA no devolvió la ruta');
+  for (const [i, m] of t.input.modulos.entries()) {
+    await q(`INSERT INTO study_modules (area, mes, numero, titulo, objetivo) VALUES ($1,$2,$3,$4,$5)
+      ON CONFLICT (area, mes) DO UPDATE SET numero = EXCLUDED.numero, titulo = CASE WHEN jsonb_array_length(study_modules.secciones) = 0 THEN EXCLUDED.titulo ELSE study_modules.titulo END,
+        objetivo = CASE WHEN jsonb_array_length(study_modules.secciones) = 0 THEN EXCLUDED.objetivo ELSE study_modules.objetivo END`, [area, addMonths(inicio, i), i + 1, m.titulo, m.objetivo]);
+  }
+}
+
+// Prepara el contenido del módulo del mes siguiente (desde el día 15) y publica el del mes al iniciar
+export async function academyAutomation(notifyAdmins) {
   const mes = thisMonth();
   const day = Number(new Date().toLocaleDateString('en-CA', { timeZone: TZ }).slice(8, 10));
-  let n = 0;
-  for (const m of (await q('SELECT * FROM study_modules WHERE published AND mes = $1', [mes])).rows) {
-    const people = (await q("SELECT id, email, name FROM users WHERE role = 'staff' AND active AND approved AND area = $1", [m.area])).rows;
-    const send = async (p, subject, body) => {
-      const first = (p.name || '').split(' ')[0].replace(/[<>&"]/g, '');
-      await sendMail(p.email, subject, `${body}\n\n${baseUrl}/estudio/${m.id}`, `<div style="font-family:Arial,sans-serif;color:#041E42;max-width:520px;margin:auto;padding:24px"><p>Hola ${first},</p><p>${body}</p><p style="margin:24px 0"><a href="${baseUrl}/estudio/${m.id}" style="background:#041E42;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:bold">Ir al módulo</a></p><p style="color:#706F6F;font-size:12px">Tienes hasta el ${lastDay(mes)} de este mes · 2 intentos · se aprueba con 85%.</p></div>`);
-      n++;
-    };
-    if (!m.notified_at) {
-      for (const p of people) await send(p, `Nuevo módulo de estudio: ${m.titulo}`, `Ya está disponible tu módulo del mes: "${m.titulo}". ${m.objetivo}`).catch((e) => console.error('estudio', e.message));
-      await q('UPDATE study_modules SET notified_at = now() WHERE id = $1', [m.id]);
-    } else if (day >= 24 && !m.reminded_at) {
-      for (const p of people) {
-        if (await one('SELECT 1 FROM study_attempts WHERE user_id = $1 AND module_id = $2 AND passed', [p.id, m.id])) continue;
-        const used = (await one('SELECT count(*)::int AS c FROM study_attempts WHERE user_id = $1 AND module_id = $2', [p.id, m.id])).c;
-        if (used >= MAX_ATTEMPTS) continue;
-        await send(p, `Te quedan ${lastDay(mes) - day + 1} días para tu módulo`, `Recuerda completar el módulo "${m.titulo}" antes de que termine el mes.`).catch((e) => console.error('estudio', e.message));
-      }
-      await q('UPDATE study_modules SET reminded_at = now() WHERE id = $1', [m.id]);
+  const out = { preparados: 0, publicados: 0 };
+  if (day >= 15 && process.env.ANTHROPIC_API_KEY) {
+    for (const m of (await q("SELECT id, area, mes, titulo FROM study_modules WHERE numero IS NOT NULL AND mes = $1 AND jsonb_array_length(secciones) = 0", [addMonths(mes, 1)])).rows) {
+      try { await generateModule(m.area, m.mes); out.preparados++; await notifyAdmins?.(m); } catch (e) { console.error('academia', m.id, e.message); }
     }
   }
-  return n;
+  for (const m of (await q("UPDATE study_modules SET published = true WHERE numero IS NOT NULL AND mes = $1 AND NOT published AND auto_publish AND jsonb_array_length(secciones) > 0 AND jsonb_array_length(preguntas) >= 5 RETURNING id", [mes])).rows) out.publicados++;
+  return out;
 }

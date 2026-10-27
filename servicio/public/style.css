@@ -411,3 +411,31 @@ details[open] > summary h2::after { content: ' –'; }
 .podium-slot.empty .avatar { background: var(--line-2); color: var(--faint); box-shadow: none; }
 .my-pos { margin: 14px 0 0; font-size: .9rem; background: var(--bg); border-radius: var(--r-sm); padding: 10px 12px; }
 @media (max-width: 760px) { .rank-grid { grid-template-columns: 1fr; } .p1 .pod-avatar .avatar { width: 74px; height: 74px; } }
+
+/* Plan: foco */
+.focus { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 18px 0 8px; }
+.focus-col { border-radius: var(--r); padding: 16px 18px; }
+.focus-col h3 { margin: 0 0 8px; }
+.focus-col ul { margin: 0; padding-left: 18px; }
+.focus-col li { margin-bottom: 6px; }
+.focus-col li span { display: block; font-size: .85rem; color: var(--gray); }
+.focus-col.good { background: var(--signal-bg); } .focus-col.grow { background: var(--amber-bg); }
+.measure { list-style: none; padding: 0; display: grid; gap: 8px; }
+.measure li { background: var(--bg); border-radius: var(--r-sm); padding: 10px 14px; }
+.measure li span { display: block; font-size: .78rem; color: var(--gray); font-weight: 500; }
+
+/* Academia */
+.method { margin: 0; padding-left: 20px; } .method li { margin-bottom: 6px; }
+.how-academy summary h2 { margin: 0; }
+.route { display: grid; gap: 10px; counter-reset: none; }
+.route-step { display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start; border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; text-decoration: none; color: var(--ink); }
+a.route-step:hover { border-color: var(--navy); }
+.route-step h3 { margin: 0 0 2px; font-size: 1rem; }
+.route-step p { margin: 0 0 4px; }
+.ac-num { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--navy); color: #fff; font-weight: 700; }
+.route-step.locked { background: #FAFBFD; } .route-step.locked .ac-num { background: var(--line-2); color: var(--faint); } .route-step.locked h3 { color: var(--gray); }
+.route-step.aprobado .ac-num { background: var(--signal); }
+.route-step.no_aprobado .ac-num, .route-step.cerrado .ac-num { background: var(--err); }
+.academy-new { border-left: 4px solid var(--signal); }
+.academy-new .inline-form { align-items: end; } .academy-new .inline-form label { margin: 0; }
+@media (max-width: 760px) { .focus { grid-template-columns: 1fr; } }

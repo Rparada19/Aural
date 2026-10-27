@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { q, one } from './db.js';
 import { AREAS } from './areas.js';
+import { notifyReportReady } from './notify.js';
 
 const MODEL = process.env.ANALYSIS_MODEL || 'claude-opus-5-5';
 
@@ -106,6 +107,7 @@ El plan de trabajo debe ser específico para este rol (no genérico), práctico,
     const tool = res.content.find((c) => c.type === 'tool_use');
     if (!tool) throw new Error('La respuesta no trajo informe');
     await q("UPDATE evaluations SET report = $2, status = 'analizada', analyzed_at = now() WHERE id = $1", [evaluationId, JSON.stringify(tool.input)]);
+    notifyReportReady(evaluationId).catch((e) => console.error('aviso resultados', e.message));
   } catch (e) {
     console.error('analyze', evaluationId, e);
     await q("UPDATE evaluations SET status = 'enviada', report_error = $2 WHERE id = $1", [evaluationId, String(e.message || e).slice(0, 500)]);

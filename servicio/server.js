@@ -7,7 +7,9 @@ import { analyze } from './analysis.js';
 import { sendLoginLink, sendMail, mailConfigured } from './mail.js';
 import * as V from './views.js';
 import { AREA_KEYS } from './areas.js';
-import { generateModule, userModuleState, grade, windowState, PASS, MAX_ATTEMPTS } from './study.js';
+import { generateModule, generateAcademy, userModuleState, grade, windowState, PASS, MAX_ATTEMPTS } from './study.js';
+import { rankingFor } from './ranking.js';
+import { notifyPlanPublished, METODOLOGIA } from './notify.js';
 import { generateMonthlyPlan, runDaily, sendMessage, getSetting, setSetting, today, thisMonth, PULSE } from './growth.js';
 
 const app = express();
@@ -28,7 +30,8 @@ app.use(express.json({ limit: '200kb' }));
 // Sesión
 app.use(async (req, res, next) => {
   const sid = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1);
-  if (sid) req.user = await one('SELECT u.id, u.email, u.name, u.role, u.area, u.sede, u.cargo, u.active, (u.photo IS NOT NULL) AS has_photo FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = $1 AND s.expires_at > now() AND u.active', [hash(sid)]);
+  if (sid) req.user = await one('SELECT u.id, u.email, u.name, u.role, u.area, u.sede, u.cargo, u.active, u.last_seen, (u.photo IS NOT NULL) AS has_photo FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = $1 AND s.expires_at > now() AND u.active', [hash(sid)]);
+  if (req.user && (!req.user.last_seen || Date.now() - new Date(req.user.last_seen) > 3600e3)) q('UPDATE users SET last_seen = now() WHERE id = $1', [req.user.id]).catch(() => {});
   next();
 });
 
@@ -395,9 +398,9 @@ const canSee = (u, m) => u.role === 'admin' || (m.published && m.area === u.area
 
 app.get('/estudio', needUser, async (req, res) => {
   if (req.user.role === 'admin') return res.redirect('/admin/estudio');
-  const mods = (await q("SELECT * FROM study_modules WHERE area = $1 AND published ORDER BY mes", [req.user.area])).rows;
+  const mods = (await q("SELECT * FROM study_modules WHERE area = $1 AND (published OR (numero IS NOT NULL AND mes > to_char(now() AT TIME ZONE 'America/Bogota', 'YYYY-MM'))) ORDER BY mes", [req.user.area])).rows;
   for (const m of mods) m.st = await userModuleState(req.user.id, m);
-  page(res, 'Plan de estudio', V.studyList(mods), req.user);
+  page(res, 'Academia', V.studyList(mods, METODOLOGIA), req.user);
 });
 
 app.get('/estudio/:id', needUser, async (req, res) => {
@@ -443,7 +446,7 @@ app.get('/img/:id', needUser, async (req, res) => {
 
 app.get('/admin/estudio', needAdmin, async (req, res) => {
   const area = AREA_KEYS.includes(req.query.area) ? req.query.area : AREA_KEYS[0];
-  const mods = (await q(`SELECT m.id, m.mes, m.titulo, m.published, jsonb_array_length(m.preguntas) AS npreg,
+  const mods = (await q(`SELECT m.id, m.mes, m.numero, m.titulo, m.published, m.auto_publish, jsonb_array_length(m.secciones) AS nsec, jsonb_array_length(m.preguntas) AS npreg,
       (SELECT count(DISTINCT user_id) FROM study_attempts a WHERE a.module_id = m.id AND a.passed)::int AS aprobados,
       (SELECT count(DISTINCT user_id) FROM study_attempts a WHERE a.module_id = m.id)::int AS presentaron
     FROM study_modules m WHERE m.area = $1 ORDER BY m.mes`, [area])).rows;
@@ -465,6 +468,28 @@ app.post('/admin/estudio/generar', needAdmin, async (req, res) => {
     console.error('modulo', e);
     res.redirect(`/admin/estudio?area=${area}&error=${encodeURIComponent('No se pudo generar el módulo: ' + e.message)}`);
   }
+});
+
+app.post('/admin/estudio/academia', needAdmin, async (req, res) => {
+  const area = AREA_KEYS.includes(req.body.area) ? req.body.area : AREA_KEYS[0];
+  const inicio = MES_RE.test(req.body.inicio) ? req.body.inicio : thisMonth();
+  try { await generateAcademy(area, inicio); } catch (e) {
+    console.error('academia', e);
+    return res.redirect(`/admin/estudio?area=${area}&error=${encodeURIComponent('No se pudo crear la ruta: ' + e.message)}`);
+  }
+  res.redirect(`/admin/estudio?area=${area}`);
+});
+
+app.post('/admin/estudio/:id/contenido', needAdmin, async (req, res) => {
+  const m = await loadModule(req.params.id);
+  if (!m) return res.redirect('/admin/estudio');
+  try { await generateModule(m.area, m.mes); } catch (e) { console.error('modulo', e); }
+  res.redirect(`/admin/estudio/${m.id}`);
+});
+
+app.post('/admin/estudio/:id/auto', needAdmin, async (req, res) => {
+  await q('UPDATE study_modules SET auto_publish = NOT auto_publish WHERE id = $1', [req.params.id]);
+  res.redirect(`/admin/estudio/${req.params.id}`);
 });
 
 app.get('/admin/estudio/:id', needAdmin, async (req, res) => {
@@ -517,25 +542,6 @@ app.post('/admin/estudio/:id/imagen', needAdmin, async (req, res) => {
 });
 
 // ---------- Ranking ----------
-async function rankingFor(mes) {
-  const { rows } = await q(`SELECT u.id, u.name, u.area, u.sede, (u.photo IS NOT NULL) AS has_photo,
-      (SELECT count(*) FROM plan_items i JOIN plans p ON p.id = i.plan_id WHERE p.user_id = u.id AND p.mes = $1 AND i.estado = 'hecho')::int AS acciones,
-      (SELECT count(*) FROM sessions_1a1 WHERE user_id = u.id AND to_char(fecha, 'YYYY-MM') = $1)::int AS sesiones,
-      (SELECT count(*) FROM pulses WHERE user_id = u.id AND mes = $1)::int AS pulso,
-      (SELECT count(*) FROM evaluations WHERE user_id = u.id AND to_char(submitted_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') = $1)::int AS evaluacion,
-      st.aprobado, st.primero, st.nota
-    FROM users u
-    LEFT JOIN LATERAL (SELECT bool_or(a.passed) AS aprobado, (array_agg(a.passed ORDER BY a.id))[1] AS primero, max(a.score) AS nota
-      FROM study_attempts a JOIN study_modules m ON m.id = a.module_id WHERE a.user_id = u.id AND m.mes = $1) st ON true
-    WHERE u.role = 'staff' AND u.active AND u.approved`, [mes]);
-  for (const r of rows) {
-    r.p_estudio = r.aprobado ? (r.primero ? 50 : 30) + Math.round((r.nota || 0) / 10) : 0;
-    r.puntos = r.p_estudio + r.acciones * 10 + r.sesiones * 10 + r.pulso * 10 + r.evaluacion * 30;
-  }
-  rows.sort((a, b) => b.puntos - a.puntos || (b.nota || 0) - (a.nota || 0) || a.name.localeCompare(b.name));
-  return rows;
-}
-
 app.get('/ranking', needUser, async (req, res) => {
   const cur = thisMonth();
   const mes = MES_RE.test(req.query.mes || '') && req.query.mes <= cur ? req.query.mes : cur;
@@ -592,7 +598,8 @@ app.post('/admin/evaluaciones/:id/analizar', needAdmin, async (req, res) => {
 });
 
 app.post('/admin/evaluaciones/:id/publicar', needAdmin, async (req, res) => {
-  const ev = await one('UPDATE evaluations SET plan_published = NOT plan_published WHERE id = $1 AND report IS NOT NULL RETURNING user_id', [req.params.id]);
+  const ev = await one('UPDATE evaluations SET plan_published = NOT plan_published WHERE id = $1 AND report IS NOT NULL RETURNING user_id, plan_published', [req.params.id]);
+  if (ev?.plan_published) notifyPlanPublished(Number(req.params.id)).catch((e) => console.error('plan publicado', e.message));
   res.redirect(`/admin/personas/${ev?.user_id ?? ''}`);
 });
 

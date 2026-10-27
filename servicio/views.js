@@ -188,6 +188,9 @@ export function planView(user, r) {
   const p = r.plan || {};
   return `<section class="card plain"><p class="eyebrow">Mi plan de trabajo</p><h1>${esc(p.objetivo || 'Plan de trabajo')}</h1>
     ${p.mensaje ? `<p class="lead">${esc(p.mensaje)}</p>` : ''}
+    <div class="focus"><div class="focus-col good"><h3>Lo que haces muy bien</h3><ul>${(r.fortalezas || []).map((f) => `<li>${esc(f.titulo)}</li>`).join('')}</ul></div>
+      <div class="focus-col grow"><h3>Lo que vamos a reforzar</h3><ul>${(r.oportunidades || []).map((f) => `<li><strong>${esc(f.titulo)}</strong><span>${esc(f.impacto || '')}</span></li>`).join('')}</ul></div></div>
+    <h2>Cómo veremos tu avance</h2><ul class="measure">${(p.semanas || []).map((s) => `<li><span>${esc(s.semana)}</span>${esc(s.indicador)}</li>`).join('')}</ul>
     <h2>Ruta de 8 semanas</h2><div class="weeks">${(p.semanas || []).map((s) => `<div class="week"><p class="eyebrow">${esc(s.semana)}</p><h3>${esc(s.foco)}</h3><ul>${(s.acciones || []).map((a) => `<li>${esc(a)}</li>`).join('')}</ul><p class="muted small"><strong>Cómo lo mediremos:</strong> ${esc(s.indicador)}</p></div>`).join('')}</div>
     <h2>Temas de nuestras sesiones uno a uno</h2><ul class="topics">${(p.sesiones_1a1 || []).map((s) => `<li>${esc(s.tema)}</li>`).join('')}</ul></section>`;
 }
@@ -489,15 +492,22 @@ export function studyCard(m) {
     <a class="btn" href="/estudio/${m.id}">${st.estado === 'aprobado' ? 'Repasar' : 'Ir al módulo'}</a></section>`;
 }
 
-export function studyList(mods) {
-  const visible = mods.filter((m) => m.st.win !== 'proximo');
-  const next = mods.find((m) => m.st.win === 'proximo');
-  const ok = mods.filter((m) => m.st.passed).length;
-  return `<p class="eyebrow">Mi plan de estudio</p><h1>Módulos</h1>
-    <p class="muted">Cada mes se habilita un módulo nuevo. Tienes hasta el último día del mes para estudiarlo y presentar la evaluación: 2 intentos, se aprueba con 85%. Al cerrar el mes, la evaluación se bloquea.</p>
-    <div class="kpis small"><div class="kpi"><b>${ok}</b><span>módulos aprobados</span></div><div class="kpi"><b>${visible.length}</b><span>módulos habilitados</span></div></div>
-    <div class="modules">${visible.slice().reverse().map((m) => `<a class="module ${m.st.estado}" href="/estudio/${m.id}"><p class="eyebrow">${esc(fmonth(m.mes))}</p><h3>${esc(m.titulo)}</h3><p class="muted small">${esc(m.objetivo)}</p><div>${stBadge(m.st.estado)}${m.st.attempts.length ? ` <span class="muted small">Mejor nota: ${m.st.best}%</span>` : ''}</div></a>`).join('') || '<p class="muted">Aún no hay módulos habilitados para tu área.</p>'}</div>
-    ${next ? `<p class="muted small">Próximo módulo: <strong>${esc(next.titulo)}</strong>, se habilita en ${esc(fmonth(next.mes))}.</p>` : ''}`;
+export function studyList(mods, metodologia = []) {
+  const academy = mods.filter((m) => m.numero);
+  const ok = (academy.length ? academy : mods).filter((m) => m.st.passed).length;
+  const extra = mods.filter((m) => !m.numero && m.st.win !== 'proximo');
+  const item = (m) => {
+    const locked = m.st.win === 'proximo';
+    const tag = locked ? '<span class="badge muted">Próximamente</span>' : stBadge(m.st.estado);
+    const inner = `<span class="ac-num">${m.numero || '•'}</span><div><p class="eyebrow">${esc(fmonth(m.mes))}</p><h3>${esc(m.titulo)}</h3><p class="muted small">${esc(m.objetivo)}</p><div>${tag}${m.st.attempts.length ? ` <span class="muted small">Mejor nota: ${m.st.best}%</span>` : ''}</div></div>`;
+    return locked ? `<div class="route-step locked">${inner}</div>` : `<a class="route-step ${m.st.estado}" href="/estudio/${m.id}">${inner}</a>`;
+  };
+  return `<section class="greet academy-hero"><div class="greet-copy"><p class="hello">Academia Aural</p><h1>${academy.length ? `${ok} de ${academy.length} módulos aprobados` : 'Tu ruta de aprendizaje'}</h1>
+    <p class="greet-msg">Un módulo por mes, pensado para tu área. Estudias la teoría, presentas la evaluación y avanzas.</p></div>${arcs('draw')}</section>
+    <details class="card how-academy" ${ok ? '' : 'open'}><summary><h2>Cómo funciona</h2></summary><ul class="method">${metodologia.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></details>
+    ${academy.length ? `<section class="card"><h2>Tu ruta de 12 módulos</h2><div class="route">${academy.map(item).join('')}</div></section>` : ''}
+    ${extra.length ? `<section class="card"><h2>${academy.length ? 'Módulos adicionales' : 'Módulos'}</h2><div class="route">${extra.map(item).join('')}</div></section>` : ''}
+    ${!academy.length && !extra.length ? '<section class="card"><p class="muted">Tu líder está preparando la ruta de tu área. Te avisaremos por correo cuando se habilite tu primer módulo.</p></section>' : ''}`;
 }
 
 export function studyModule(m, st, last, imgs, isAdmin) {
@@ -537,15 +547,17 @@ export function adminStudy(area, mods, staff, mes, error) {
   return `<p class="eyebrow">Plan de estudio</p><h1>${esc(areaLabel(area))}</h1>
     <div class="tabs">${Object.keys(AREAS).map((k) => `<a href="/admin/estudio?area=${k}" class="${k === area ? 'on' : ''}">${esc(areaName(k))}</a>`).join('')}</div>
     ${error ? `<p class="notice err">${esc(error)}</p>` : ''}
-    <section class="card"><h2 style="margin-top:0">Nuevo módulo</h2>
+    ${mods.some((m) => m.numero) ? '' : `<section class="card academy-new"><h2>Crear la Academia de esta área</h2><p>La IA diseña una ruta de 12 módulos, de lo fundamental a lo avanzado, priorizando las oportunidades de mejora del área. Cada módulo queda en un mes. Desde el día 15 de cada mes se prepara el contenido del módulo siguiente y te llega un correo para revisarlo; se publica solo el día 1.</p>
+      <form method="post" action="/admin/estudio/academia" class="inline-form" onsubmit="const b=this.querySelector('button');b.disabled=true;b.textContent='Diseñando la ruta…'"><input type="hidden" name="area" value="${area}"><label>Primer mes<input type="month" name="inicio" value="${nextMes}" required></label><button class="btn">Crear ruta de 12 módulos</button></form></section>`}
+    <section class="card"><h2 style="margin-top:0">Módulo adicional</h2>
       <form method="post" action="/admin/estudio/generar" class="grid-gen" onsubmit="const b=this.querySelector('[data-ia]');if(event.submitter===b){b.disabled=true;b.textContent='Generando… (1-2 min)';}">
         <input type="hidden" name="area" value="${area}"><label>Mes<input type="month" name="mes" value="${nextMes}" required></label>
         <label>Tema (opcional)<input name="tema" placeholder="Si lo dejas vacío, la IA lo elige según los resultados del área"></label>
         <button class="btn" name="modo" value="ia" data-ia>Generar con IA</button><button class="btn ghost" name="modo" value="manual" formnovalidate>Crear vacío</button></form>
       <p class="muted small">La IA arma la teoría (4-6 partes) y una evaluación de 10 preguntas con base en el rol del área, las oportunidades de mejora de sus evaluaciones y los módulos anteriores. Luego tú lo revisas, le subes imágenes y lo publicas.</p></section>
     <section class="card"><table class="tbl"><thead><tr><th>Mes</th><th>Módulo</th><th>Estado</th><th>Aprobados</th><th>Presentaron</th><th></th></tr></thead><tbody>
-    ${mods.length ? mods.map((m) => `<tr><td><strong>${esc(fmonth(m.mes))}</strong><br><span class="muted small">${{ abierto: 'Abierto', proximo: 'Próximo', cerrado: 'Cerrado' }[windowStateView(m.mes, mes)]}</span></td><td>${esc(m.titulo)}<br><span class="muted small">${m.npreg} preguntas</span></td>
-      <td>${m.published ? '<span class="badge ok">Publicado</span>' : '<span class="badge warn">Borrador</span>'}</td><td>${m.aprobados}/${staff}</td><td>${m.presentaron}</td><td><a href="/admin/estudio/${m.id}">Editar</a> · <a href="/estudio/${m.id}">Ver</a></td></tr>`).join('') : '<tr><td colspan="6" class="muted">Aún no hay módulos para esta área.</td></tr>'}
+    ${mods.length ? mods.map((m) => `<tr><td><strong>${esc(fmonth(m.mes))}</strong><br><span class="muted small">${{ abierto: 'Abierto', proximo: 'Próximo', cerrado: 'Cerrado' }[windowStateView(m.mes, mes)]}</span></td><td>${m.numero ? `<span class="muted small">Módulo ${m.numero} de 12</span><br>` : ''}${esc(m.titulo)}<br><span class="muted small">${m.nsec ? `${m.nsec} partes · ${m.npreg} preguntas` : 'Contenido pendiente'}</span></td>
+      <td>${m.published ? '<span class="badge ok">Publicado</span>' : m.nsec ? `<span class="badge warn">Borrador${m.auto_publish && m.numero ? ' · se publica el día 1' : ''}</span>` : '<span class="badge muted">Por preparar</span>'}</td><td>${m.aprobados}/${staff}</td><td>${m.presentaron}</td><td><a href="/admin/estudio/${m.id}">Editar</a> · <a href="/estudio/${m.id}">Ver</a></td></tr>`).join('') : '<tr><td colspan="6" class="muted">Aún no hay módulos para esta área.</td></tr>'}
     </tbody></table></section>`;
 }
 const windowStateView = (mes, now) => (mes === now ? 'abierto' : mes > now ? 'proximo' : 'cerrado');
@@ -556,7 +568,9 @@ export function adminStudyEdit(m, imgs, results, attempted, ok) {
   return `<p><a href="/admin/estudio?area=${m.area}">← ${esc(areaLabel(m.area))}</a></p>
     ${ok ? '<p class="notice ok">Cambios guardados.</p>' : ''}
     <div class="row-head"><div><p class="eyebrow">${esc(fmonth(m.mes))} · ${esc(areaName(m.area))}</p><h1>${esc(m.titulo)}</h1></div>
-      <div class="actions"><a class="btn ghost" href="/estudio/${m.id}" target="_blank">Vista previa</a>
+      <div class="actions">${attempted ? '' : `<form method="post" action="/admin/estudio/${m.id}/contenido" class="inline" onsubmit="const b=this.querySelector('button');b.disabled=true;b.textContent='Generando… (1-2 min)'"><button class="btn ghost">${(m.secciones || []).length ? 'Regenerar contenido con IA' : 'Generar contenido con IA'}</button></form>`}
+      ${m.numero ? `<form method="post" action="/admin/estudio/${m.id}/auto" class="inline"><button class="btn ghost">${m.auto_publish ? 'Desactivar publicación automática' : 'Activar publicación automática'}</button></form>` : ''}
+      <a class="btn ghost" href="/estudio/${m.id}" target="_blank">Vista previa</a>
       <form method="post" action="/admin/estudio/${m.id}" class="inline"><input type="hidden" name="accion" value="publicar"><button class="btn ${m.published ? 'ghost' : ''}">${m.published ? 'Despublicar' : 'Publicar'}</button></form></div></div>
     ${m.published ? '<p class="notice ok">Publicado: el equipo del área lo verá durante su mes. El día 1 reciben el aviso por correo y desde el día 24 un recordatorio.</p>' : '<p class="notice warn">Borrador: el equipo aún no lo ve.</p>'}
     <section class="card"><h2 style="margin-top:0">Imágenes</h2>

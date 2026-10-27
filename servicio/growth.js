@@ -2,7 +2,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { q, one } from './db.js';
 import { AREAS } from './areas.js';
 import { sendMail, mailConfigured } from './mail.js';
-import { studyNotifications } from './study.js';
+import { academyAutomation } from './study.js';
+import { runReminders, announceWinners, emailHtml } from './notify.js';
+import { rankingFor } from './ranking.js';
 
 const MODEL = process.env.ANALYSIS_MODEL || 'claude-opus-5-5';
 const TZ = 'America/Bogota';
@@ -150,7 +152,16 @@ export async function sendMessage(messageId) {
 }
 
 export async function runDaily() {
-  const estudio = await studyNotifications(process.env.BASE_URL).catch((e) => { console.error('estudio', e); return 0; });
+  const safe = (p) => p.catch((e) => { console.error('diario', e); return null; });
+  const admins = (process.env.ADMIN_EMAILS || '').split(',').map((s) => s.trim()).filter(Boolean);
+  const academia = await safe(academyAutomation(async (m) => {
+    if (!mailConfigured()) return;
+    const link = `${process.env.BASE_URL}/admin/estudio/${m.id}`;
+    for (const a of admins) await sendMail(a, `Revisa el módulo de ${m.mes}: ${m.titulo}`, link, emailHtml({ title: `Módulo listo para revisar: ${m.titulo}`, paras: ['La IA preparó la teoría y la evaluación del módulo del próximo mes. Revísalo y agrégale imágenes; se publica solo el día 1 si no lo desactivas.'], cta: 'Revisar módulo', link }));
+  }));
+  const avisos = await safe(runReminders());
+  const ganadores = await safe(announceWinners(rankingFor, sendMessage));
+  const estudio = { academia, avisos, ganadores };
   if (!(await getSetting('mensajes_activos', true))) return { skipped: true, estudio };
   const fecha = today();
   const generated = await generateDailyMessages(fecha);
