@@ -158,6 +158,7 @@ export async function migrate() {
   await q('ALTER TABLE study_modules ADD COLUMN IF NOT EXISTS numero INT');
   await q('ALTER TABLE study_modules ADD COLUMN IF NOT EXISTS auto_publish BOOLEAN NOT NULL DEFAULT true');
   await q("CREATE TABLE IF NOT EXISTS team_insights (id SERIAL PRIMARY KEY, area TEXT NOT NULL DEFAULT '', mes TEXT NOT NULL, data JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())");
+  await q("CREATE TABLE IF NOT EXISTS knowledge (id SERIAL PRIMARY KEY, area TEXT NOT NULL, data JSONB NOT NULL, evaluaciones INT NOT NULL DEFAULT 0, respuestas INT NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT now())");
   await q('CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, key TEXT UNIQUE NOT NULL, sent_at TIMESTAMPTZ NOT NULL DEFAULT now())');
   await q(`CREATE OR REPLACE VIEW users_v AS SELECT id, email, name, role, cargo, sede, active, created_at, area, approved, telefono, (photo IS NOT NULL) AS has_photo FROM users`);
   await q("ALTER TABLE questions ADD COLUMN IF NOT EXISTS area TEXT NOT NULL DEFAULT ''");

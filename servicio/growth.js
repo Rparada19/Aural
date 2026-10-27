@@ -5,6 +5,7 @@ import { sendMail, mailConfigured } from './mail.js';
 import { academyAutomation } from './study.js';
 import { runReminders, announceWinners, emailHtml } from './notify.js';
 import { rankingFor } from './ranking.js';
+import { relearnIfNew } from './knowledge.js';
 
 const MODEL = process.env.ANALYSIS_MODEL || 'claude-opus-5-5';
 const TZ = 'America/Bogota';
@@ -161,7 +162,8 @@ export async function runDaily() {
   }));
   const avisos = await safe(runReminders());
   const ganadores = await safe(announceWinners(rankingFor, sendMessage));
-  const estudio = { academia, avisos, ganadores };
+  const aprendizaje = await safe(relearnIfNew());
+  const estudio = { academia, avisos, ganadores, aprendizaje };
   if (!(await getSetting('mensajes_activos', true))) return { skipped: true, estudio };
   const fecha = today();
   const generated = await generateDailyMessages(fecha);

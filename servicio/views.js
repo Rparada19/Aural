@@ -26,6 +26,7 @@ const ICON = {
   equipo: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.6-3.4 3-5.2 6-5.2s5.4 1.8 6 5.2M16 11.5a2.8 2.8 0 1 0 0-5.6M17.5 14.6c2 .5 3.2 2.2 3.5 5.4"/>',
   solicitudes: '<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>',
   evaluaciones: '<path d="M7 4h10v16H7z"/><path d="M10 9h4M10 13h4M10 17h2"/>',
+  aprendizaje: '<circle cx="5" cy="12" r="2"/><circle cx="12" cy="5" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="19" cy="12" r="2"/><path d="M7 11l3.5-4.5M7 13l3.5 4.5M14 6.5 17.5 11M14 17.5l3.5-4.5M7 12h10"/>',
   estudio: '<path d="M3 6.5 12 3l9 3.5-9 3.5z"/><path d="M7 8.5V14c0 1.6 2.2 3 5 3s5-1.4 5-3V8.5M21 6.5V12"/>',
   mensajes: '<path d="M4 5h16v11H9l-5 4z"/>',
   preguntas: '<path d="M9.2 9a2.9 2.9 0 1 1 4.2 2.6c-.9.5-1.4 1.1-1.4 2.1V14"/><circle cx="12" cy="17.6" r=".6"/><circle cx="12" cy="12" r="9"/>',
@@ -45,7 +46,7 @@ export function layout(title, body, user, { wide = false, path = '' } = {}) {
   if (!user) return `${head}<body class="auth-body"><main class="auth">${body}</main></body></html>`;
   const salir = `<form method="post" action="/salir"><button class="navlink as-btn">${icon('salir')}<span>Salir</span></button></form>`;
   if (user.role === 'admin') {
-    const items = [['/admin', 'Panel', 'panel'], ['/admin/equipo', 'Equipo', 'equipo'], ['/admin/evaluaciones', 'Evaluaciones', 'evaluaciones'], ['/admin/solicitudes', 'Solicitudes', 'solicitudes'], ['/admin/estudio', 'Estudio', 'estudio'], ['/ranking', 'Ranking', 'ranking'], ['/admin/mensajes', 'Mensajes', 'mensajes'], ['/admin/preguntas', 'Preguntas', 'preguntas']];
+    const items = [['/admin', 'Panel', 'panel'], ['/admin/equipo', 'Equipo', 'equipo'], ['/admin/evaluaciones', 'Evaluaciones', 'evaluaciones'], ['/admin/solicitudes', 'Solicitudes', 'solicitudes'], ['/admin/estudio', 'Estudio', 'estudio'], ['/ranking', 'Ranking', 'ranking'], ['/admin/aprendizaje', 'Aprendizaje', 'aprendizaje'], ['/admin/mensajes', 'Mensajes', 'mensajes'], ['/admin/preguntas', 'Preguntas', 'preguntas']];
     const on = (h) => (h === '/admin' ? path === '/admin' || path.startsWith('/admin/personas') : path.startsWith(h));
     return `${head}<body class="admin-body"><aside class="side"><a href="/admin" class="side-brand"><img src="/logo-aural-blanco.png" alt="Aural"><span>Servicio</span></a>
       <nav class="side-nav">${items.map(([h, l, k]) => `<a href="${h}" class="navlink ${on(h) ? 'on' : ''}">${icon(k)}<span>${l}</span></a>`).join('')}</nav>
@@ -405,7 +406,63 @@ const peek = (r) => `<tr class="peek-row" id="peek-${r.id}" hidden><td colspan="
     <p class="small">Academia: ${r.mod_total ? `${r.mod_ok}/${r.mod_total} módulos aprobados` : 'sin módulos aún'}</p>
     <a class="btn small" href="/admin/personas/${r.id}">Abrir informe completo</a></div></div></td></tr>`;
 
-export function dashboard(rows, mes, area, pending = 0, series = [], comments = [], pulse = [], insight = null, error = '') {
+// ---------- Gráficos del resumen ejecutivo ----------
+const COL = { navy: '#041E42', navy3: '#163E73', signal: '#1FA59A', amber: '#E2A03F', info: '#6B8CC7', gray: '#C4CEDB', err: '#C8473E' };
+
+function donut(segs, center, sub) {
+  const total = segs.reduce((a, x) => a + x.v, 0);
+  const R = 62, r = 42, cx = 80, cy = 80;
+  let a0 = -Math.PI / 2;
+  const arcs = total ? segs.filter((x) => x.v > 0).map((x) => {
+    const a1 = a0 + (x.v / total) * Math.PI * 2 - (x.v === total ? 0.0001 : 0);
+    const large = a1 - a0 > Math.PI ? 1 : 0;
+    const p = (rad, ang) => `${(cx + rad * Math.cos(ang)).toFixed(2)} ${(cy + rad * Math.sin(ang)).toFixed(2)}`;
+    const d = `M${p(R, a0)} A${R} ${R} 0 ${large} 1 ${p(R, a1)} L${p(r, a1)} A${r} ${r} 0 ${large} 0 ${p(r, a0)} Z`;
+    a0 = a1;
+    return `<path d="${d}" fill="${x.c}"><title>${esc(x.l)}: ${x.v}</title></path>`;
+  }).join('') : `<circle cx="${cx}" cy="${cy}" r="${(R + r) / 2}" fill="none" stroke="${COL.gray}" stroke-width="${R - r}"/>`;
+  return `<div class="donut"><svg viewBox="0 0 160 160" role="img" aria-label="${esc(sub)}">${arcs}<text x="80" y="80" class="d-num" text-anchor="middle">${esc(center)}</text><text x="80" y="98" class="d-sub" text-anchor="middle">${esc(sub)}</text></svg>
+    <ul class="d-legend">${segs.map((x) => `<li><i style="background:${x.c}"></i>${esc(x.l)}<b>${x.v}</b></li>`).join('')}</ul></div>`;
+}
+
+function hbars(items, { max = 100, unit = '', empty = 'Sin datos todavía', color = COL.navy3 } = {}) {
+  if (!items.length) return `<p class="muted small chart-empty">${empty}</p>`;
+  return `<div class="hbars">${items.map((x) => `<div class="hb"><div class="hb-l"><span>${esc(x.l)}</span>${x.note ? `<em>${esc(x.note)}</em>` : ''}</div>
+    <div class="hb-t"><span style="width:${x.v == null ? 0 : Math.max(2, Math.min(100, (x.v / max) * 100))}%;background:${x.c || color}"></span></div><b>${x.v == null ? '—' : `${x.v}${unit}`}</b></div>`).join('')}</div>`;
+}
+
+function execSummary(list, all, area, series, gaps) {
+  const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
+  const st = (k) => list.filter((r) => (k === 'sin' ? !r.status || r.status === 'pendiente' : k === 'curso' ? r.status === 'en_curso' : k === 'env' ? ['enviada', 'analizando'].includes(r.status) : r.status === 'analizada')).length;
+  const done = list.filter((r) => ['enviada', 'analizando', 'analizada'].includes(r.status)).length;
+  const evalDonut = donut([
+    { l: 'Con informe', v: st('inf'), c: COL.signal }, { l: 'Enviadas', v: st('env'), c: COL.info },
+    { l: 'En curso', v: st('curso'), c: COL.amber }, { l: 'Sin empezar', v: st('sin'), c: COL.gray },
+  ], list.length ? `${Math.round((done / list.length) * 100)}%` : '—', 'completadas');
+  const lv = ['Inicial', 'En desarrollo', 'Competente', 'Destacado'];
+  const lvCol = [COL.err, COL.amber, COL.info, COL.signal];
+  const levelDonut = donut(lv.map((l, i) => ({ l, v: list.filter((r) => r.nivel === l).length, c: lvCol[i] })), String(list.filter((r) => r.nivel).length), 'con nivel');
+  const groups = area ? [] : Object.keys(AREAS).map((k) => ({ k, g: all.filter((r) => r.area === k) })).filter((x) => x.g.length);
+  const byScore = groups.map(({ k, g }) => { const s = g.filter((r) => r.score != null).map((r) => r.score); return { l: areaName(k), v: avg(s), note: `${s.length}/${g.length} evaluados`, c: COL.navy3 }; }).sort((a, b) => (b.v ?? -1) - (a.v ?? -1));
+  const byProg = groups.map(({ k, g }) => { const p = g.filter((r) => r.items).map((r) => r.prog); return { l: areaName(k), v: avg(p), note: `${p.length} planes`, c: COL.signal }; }).sort((a, b) => (b.v ?? -1) - (a.v ?? -1));
+  const peopleScore = area ? list.filter((r) => r.score != null).sort((a, b) => b.score - a.score).map((r) => ({ l: r.name, v: r.score, c: r.score >= 80 ? COL.signal : r.score >= 65 ? COL.info : r.score >= 50 ? COL.amber : COL.err })) : [];
+  const last = series[series.length - 1] || {};
+  const labels = { servicio: 'Servicio', preparacion: 'Preparación', herramientas: 'Procesos y herramientas', acompanamiento: 'Acompañamiento', motivacion: 'Motivación' };
+  const pulseBars = Object.entries(labels).filter(([k]) => last[k] != null).map(([k, l]) => ({ l, v: last[k], c: last[k] >= 4 ? COL.signal : last[k] >= 3.3 ? COL.info : COL.amber }));
+  const maxGap = Math.max(1, ...gaps.map((g) => g.n));
+  const gapBars = gaps.map((g) => ({ l: g.t, v: g.n, c: COL.amber }));
+  return `<section class="exec" aria-label="Resumen ejecutivo">
+    <div class="chart-card"><h3>Avance de la evaluación</h3>${evalDonut}</div>
+    <div class="chart-card"><h3>Nivel de servicio</h3>${levelDonut}</div>
+    <div class="chart-card"><h3>Percepción del equipo${last.mes ? ` · ${esc(fmonth(last.mes).split(' ')[0])}` : ''}</h3>${hbars(pulseBars, { max: 5, empty: 'Aparece cuando el equipo responde el pulso del mes.' })}${pulseBars.length ? '<p class="muted small">Promedio de 1 a 5</p>' : ''}</div>
+    ${area ? `<div class="chart-card wide"><h3>Puntaje por persona</h3>${hbars(peopleScore, { empty: 'Aparece cuando haya informes.' })}</div>`
+      : `<div class="chart-card wide"><h3>Puntaje promedio por área</h3>${hbars(byScore, { empty: 'Aparece cuando haya informes.' })}</div>`}
+    <div class="chart-card wide"><h3>Brechas más frecuentes</h3>${hbars(gapBars, { max: maxGap, unit: '', empty: 'Aparecen con los informes de evaluación.' })}${gapBars.length ? '<p class="muted small">Número de personas con esa oportunidad de mejora</p>' : ''}</div>
+    ${area ? '' : `<div class="chart-card wide"><h3>Avance de planes del mes por área</h3>${hbars(byProg, { unit: '%', empty: 'Aparece cuando haya planes mensuales publicados.' })}</div>`}
+  </section>`;
+}
+
+export function dashboard(rows, mes, area, pending = 0, series = [], comments = [], pulse = [], insight = null, error = '', gaps = []) {
   const dayOfMonth = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(8, 10));
   const enrich = (r) => {
     const f = [];
@@ -448,6 +505,7 @@ export function dashboard(rows, mes, area, pending = 0, series = [], comments = 
   return `<section class="band"><div class="band-copy"><div class="row-head"><div><p class="band-sub">Panel de ${esc(fmonth(mes))}</p><h1>${area ? esc(areaLabel(area)) : 'Todo el equipo'}</h1></div>
     <div class="actions">${pending ? `<a class="btn light" href="/admin/solicitudes">${pending} solicitud${pending > 1 ? 'es' : ''} por aprobar</a>` : ''}<a class="btn outline-light" href="/admin/equipo">Agregar personas</a></div></div>
   <div class="kpis">${kpis.map(([l, v, h]) => `<a class="kpi" href="${h}"><b>${v}</b><span>${esc(l)}</span></a>`).join('')}</div></div></section>
+  ${execSummary(list, all, area, series, gaps)}
   <div class="areas"><a class="areacard all ${area ? '' : 'on'}" href="/admin"><p class="eyebrow">Todas las áreas</p><div class="ac-row"><div><b>${all.length}</b><span>personas</span></div></div></a>${byArea}</div>
   ${error ? `<p class="notice err">${esc(error)}</p>` : ''}
   ${evolution(series, comments, pulse)}
@@ -676,4 +734,39 @@ export function adminEvaluations(rows, estado, area, counts) {
       <td class="small">${r.resumen ? esc(r.resumen.length > 180 ? r.resumen.slice(0, 180) + '…' : r.resumen) : '<span class="muted">—</span>'}</td>
       <td>${fdate(r.submitted_at)}</td><td class="row-actions"><a class="btn ghost small" href="/admin/personas/${r.uid}">${r.score != null ? 'Ver informe' : 'Ver ficha'}</a>${r.score != null ? `<a href="/admin/personas/${r.uid}/informe.pdf">PDF</a>` : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="muted">No hay evaluaciones con este filtro.</td></tr>'}
     </tbody></table></section>`;
+}
+
+// ---------- Aprendizaje del equipo ----------
+export function learningPage(area, k, people, qs, counts, error) {
+  const d = k?.data;
+  const temas = d?.temas || [];
+  const net = {
+    center: areaName(area),
+    people: people.map((p) => ({ id: p.id, l: p.name.split(' ')[0], on: ['enviada', 'analizando', 'analizada'].includes(p.status) })),
+    questions: qs.map((x) => ({ id: x.id, l: x.text.slice(0, 40) })),
+    themes: temas.map((t) => ({ l: t.tema, t: t.tipo, w: t.peso })),
+    best: (d?.preguntas || []).flatMap((p) => (p.mejores || []).map((m) => [m.uid, p.id])),
+  };
+  const sent = counts[area] || 0;
+  const fort = temas.filter((t) => t.tipo === 'fortaleza').sort((a, b) => b.peso - a.peso);
+  const brec = temas.filter((t) => t.tipo === 'brecha').sort((a, b) => b.peso - a.peso);
+  const temaList = (xs, c) => xs.length ? `<div class="hbars">${xs.map((t) => `<div class="hb"><div class="hb-l"><span>${esc(t.tema)}</span><em>${esc(t.detalle)}</em></div><div class="hb-t"><span style="width:${t.peso * 10}%;background:${c}"></span></div><b>${t.peso}/10</b></div>`).join('')}</div>` : '<p class="muted small">Sin temas todavía.</p>';
+  return `<section class="band learn-band"><div class="band-copy"><p class="band-sub">Aprendizaje del equipo</p><h1>${esc(areaLabel(area))}</h1>
+    <p class="learn-copy">La IA lee las respuestas de todo el equipo, encuentra las mejores, arma la respuesta modelo de cada pregunta y detecta los temas fuertes y débiles. Lo aprendido alimenta la Academia y los planes.</p>
+    <div class="kpis"><div class="kpi"><b>${k?.evaluaciones ?? 0}</b><span>evaluaciones leídas</span></div><div class="kpi"><b>${k?.respuestas ?? 0}</b><span>respuestas analizadas</span></div><div class="kpi"><b>${temas.length}</b><span>temas detectados</span></div><div class="kpi"><b>${k ? fdate(k.created_at) : '—'}</b><span>último aprendizaje</span></div></div></div></section>
+    <div class="tabs">${Object.keys(AREAS).map((x) => `<a href="/admin/aprendizaje?area=${x}" class="${x === area ? 'on' : ''}">${esc(areaName(x))}${counts[x] ? ` <small>${counts[x]}</small>` : ''}</a>`).join('')}</div>
+    ${error ? `<p class="notice err">${esc(error)}</p>` : ''}
+    <section class="card net-card"><div class="row-head"><div><h2>Red de conocimiento</h2><p class="muted small">Personas que respondieron, preguntas y temas aprendidos. Las líneas brillantes son las mejores respuestas.</p></div>
+      <form method="post" action="/admin/aprendizaje" class="inline" onsubmit="const b=this.querySelector('button');b.disabled=true;b.textContent='Aprendiendo… (1-2 min)';document.querySelector('.net').classList.add('busy')"><input type="hidden" name="area" value="${area}"><button class="btn" ${sent < 2 ? 'disabled title="Se necesitan al menos 2 evaluaciones enviadas"' : ''}>${k ? 'Aprender de nuevo' : 'Aprender de las respuestas'}</button></form></div>
+      <canvas class="net" aria-label="Red de conocimiento del área" role="img"></canvas>
+      <div class="net-legend"><span><i class="lg-p"></i>Persona que respondió</span><span><i class="lg-q"></i>Pregunta</span><span><i class="lg-f"></i>Fortaleza</span><span><i class="lg-b"></i>Brecha</span></div>
+      ${sent < 2 ? `<p class="muted small">Esta área tiene ${sent} evaluación${sent === 1 ? '' : 'es'} enviada${sent === 1 ? '' : 's'}; se necesitan al menos 2 para aprender.</p>` : ''}
+      <script type="application/json" id="net-data">${JSON.stringify(net).replace(/</g, '\\u003c')}</script><script src="/net.js?v=${V}"></script></section>
+    ${d ? `<section class="card"><h2>Qué aprendimos</h2><p class="lead">${esc(d.resumen)}</p>
+      <div class="two"><div><h3>Temas fuertes</h3>${temaList(fort, '#1FA59A')}</div><div><h3>Temas por reforzar</h3>${temaList(brec, '#E2A03F')}</div></div></section>
+    <section class="card"><h2>Las mejores respuestas del equipo</h2><p class="muted small">Para cada pregunta abierta: la respuesta modelo construida con lo mejor del equipo, quiénes respondieron mejor y los errores más comunes.</p>
+      ${(d.preguntas || []).map((p, i) => `<details class="qbest" ${i ? '' : 'open'}><summary><span class="muted small">${esc(p.modulo)} · ${p.respuestas} respuestas</span><strong>${esc(p.pregunta)}</strong></summary>
+        <div class="model"><p class="eyebrow">Respuesta modelo</p><p>${esc(p.respuesta_modelo)}</p></div>
+        ${(p.mejores || []).length ? `<div class="bests">${p.mejores.map((m) => `<figure class="best"><blockquote>“${esc(m.text)}”</blockquote><figcaption><a href="/admin/personas/${m.uid}">${esc(m.name)}</a> · ${esc(m.por_que)}</figcaption></figure>`).join('')}</div>` : ''}
+        ${(p.errores_comunes || []).length ? `<p class="small"><strong>Errores comunes:</strong> ${p.errores_comunes.map(esc).join(' · ')}</p>` : ''}</details>`).join('')}</section>` : ''}`;
 }

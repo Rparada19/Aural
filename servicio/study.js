@@ -1,4 +1,5 @@
 import { createWithTool } from './ai.js';
+import { knowledgeContext } from './knowledge.js';
 import { q, one } from './db.js';
 import { AREAS } from './areas.js';
 
@@ -65,7 +66,9 @@ La teoría debe ser práctica, clara y aplicable, con ejemplos reales del día a
       content: `Mes del módulo: ${mes}.
 ${tema ? `Tema pedido por el líder: ${tema}` : 'Elige el tema más valioso para el área en este punto de la ruta.'}
 Módulos ya creados para esta área (da continuidad y no repitas): ${prev.map((p) => `${p.mes}: ${p.titulo}`).join(' | ') || 'ninguno, este es el primero'}.
-Oportunidades de mejora más frecuentes en las evaluaciones del área: ${gaps.map((g) => `${g.t} (${g.n})`).join('; ') || 'aún no hay evaluaciones analizadas'}.`,
+Oportunidades de mejora más frecuentes en las evaluaciones del área: ${gaps.map((g) => `${g.t} (${g.n})`).join('; ') || 'aún no hay evaluaciones analizadas'}.
+${await knowledgeContext(area)}
+Usa las mejores prácticas del propio equipo como ejemplos en la teoría cuando encajen.`,
     }],
   });
   const t = res.content.find((c) => c.type === 'tool_use');
@@ -124,7 +127,7 @@ export async function generateAcademy(area, inicio) {
     model: MODEL, max_tokens: 4000,
     system: `Eres un diseñador instruccional experto en servicio y salud auditiva. Diseñas la Academia Aural: una ruta de 12 módulos mensuales, de lo fundamental a lo avanzado, para el área "${a.label}" de Aural Colombia (distribuidor exclusivo de audífonos Widex). Rol: ${a.rol} Criterios de excelencia: ${a.criterios} Español de Colombia.`,
     tools: [ROUTE_TOOL], tool_choice: { type: 'tool', name: 'ruta_academia' },
-    messages: [{ role: 'user', content: `Diseña los 12 módulos en orden. Prioriza estas oportunidades de mejora detectadas en las evaluaciones del área: ${gaps.map((g) => `${g.t} (${g.n})`).join('; ') || 'aún no hay evaluaciones; usa los criterios del área'}.` }],
+    messages: [{ role: 'user', content: `Diseña los 12 módulos en orden. Prioriza estas oportunidades de mejora detectadas en las evaluaciones del área: ${gaps.map((g) => `${g.t} (${g.n})`).join('; ') || 'aún no hay evaluaciones; usa los criterios del área'}.\n${await knowledgeContext(area)}` }],
   });
   const t = res.content.find((c) => c.type === 'tool_use');
   if (!t) throw new Error('La IA no devolvió la ruta');

@@ -8,6 +8,7 @@ import { sendLoginLink, sendMail, mailConfigured } from './mail.js';
 import * as V from './views.js';
 import { AREA_KEYS } from './areas.js';
 import { newDoc, renderReport, footer } from './pdf.js';
+import { learnArea, latestKnowledge } from './knowledge.js';
 import { generateModule, generateAcademy, userModuleState, grade, windowState, PASS, MAX_ATTEMPTS } from './study.js';
 import { rankingFor } from './ranking.js';
 import { notifyPlanPublished, METODOLOGIA } from './notify.js';
@@ -288,7 +289,9 @@ app.get('/admin', needAdmin, async (req, res) => {
   const comments = (await q(`SELECT pu.mes, pu.area, pu.comentario FROM pulses pu JOIN users u ON u.id = pu.user_id
     WHERE pu.comentario <> '' AND pu.mes >= $1 ${af} ORDER BY pu.created_at DESC LIMIT 10`, [since, ...ap])).rows;
   const insight = await one('SELECT * FROM team_insights WHERE area = $1 ORDER BY id DESC LIMIT 1', [area]);
-  page(res, 'Panel', V.dashboard(rows, mes, area, pending, Object.values(series).sort((a, b) => a.mes.localeCompare(b.mes)), comments, PULSE, insight, req.query.error), req.user, { wide: true });
+  const gaps = (await q(`SELECT o->>'titulo' AS t, count(*)::int AS n FROM users u JOIN LATERAL (SELECT report FROM evaluations WHERE user_id = u.id AND report IS NOT NULL ORDER BY id DESC LIMIT 1) e ON true,
+      jsonb_array_elements(e.report->'oportunidades') o WHERE u.role = 'staff' AND u.active AND u.approved ${area ? 'AND u.area = $1' : ''} GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 7`, area ? [area] : [])).rows;
+  page(res, 'Panel', V.dashboard(rows, mes, area, pending, Object.values(series).sort((a, b) => a.mes.localeCompare(b.mes)), comments, PULSE, insight, req.query.error, gaps), req.user, { wide: true });
 });
 
 app.post('/admin/recomendaciones', needAdmin, async (req, res) => {
@@ -364,6 +367,27 @@ app.get('/admin/informes.pdf', needAdmin, async (req, res) => {
     WHERE u.role = 'staff' AND u.active AND u.approved ${area ? 'AND u.area = $1' : ''} ORDER BY u.area, u.name`, area ? [area] : []);
   if (!rows.length) return res.redirect('/admin/evaluaciones');
   sendPdf(res, `informes-${area || 'equipo'}-${thisMonth()}`, (doc) => rows.forEach((r, i) => { if (i) doc.addPage(); renderReport(doc, r, r); }));
+});
+
+app.get('/admin/aprendizaje', needAdmin, async (req, res) => {
+  const area = AREA_KEYS.includes(req.query.area) ? req.query.area : AREA_KEYS[0];
+  const k = await latestKnowledge(area);
+  const people = (await q(`SELECT u.id, u.name, (u.photo IS NOT NULL) AS has_photo, e.status FROM users u
+    LEFT JOIN LATERAL (SELECT status FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
+    WHERE u.role = 'staff' AND u.active AND u.approved AND u.area = $1 ORDER BY u.name`, [area])).rows;
+  const qs = (await q("SELECT id, module, text FROM questions WHERE area = $1 AND active AND type = 'open' ORDER BY position", [area])).rows;
+  const counts = Object.fromEntries((await q(`SELECT u.area, count(*)::int AS n FROM users u JOIN LATERAL (SELECT status FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
+    WHERE u.role = 'staff' AND u.approved AND e.status IN ('enviada','analizando','analizada') GROUP BY 1`)).rows.map((r) => [r.area, r.n]));
+  page(res, 'Aprendizaje', V.learningPage(area, k, people, qs, counts, req.query.error), req.user, { wide: true });
+});
+
+app.post('/admin/aprendizaje', needAdmin, async (req, res) => {
+  const area = AREA_KEYS.includes(req.body.area) ? req.body.area : AREA_KEYS[0];
+  try { await learnArea(area); } catch (e) {
+    console.error('aprendizaje', e);
+    return res.redirect(`/admin/aprendizaje?area=${area}&error=${encodeURIComponent(e.message)}`);
+  }
+  res.redirect(`/admin/aprendizaje?area=${area}`);
 });
 
 app.get('/admin/solicitudes', needAdmin, async (req, res) => {
