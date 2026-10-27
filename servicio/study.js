@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { createWithTool } from './ai.js';
 import { q, one } from './db.js';
 import { AREAS } from './areas.js';
 
@@ -55,7 +55,7 @@ export async function generateModule(area, mes, tema = '') {
   const prev = (await q('SELECT mes, titulo FROM study_modules WHERE area = $1 AND mes <> $2 ORDER BY mes', [area, mes])).rows;
   const gaps = (await q(`SELECT o->>'titulo' AS t, count(*)::int AS n FROM evaluations e JOIN users u ON u.id = e.user_id,
       jsonb_array_elements(e.report->'oportunidades') o WHERE u.area = $1 AND e.report IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 12`, [area])).rows;
-  const res = await new Anthropic().messages.create({
+  const res = await createWithTool({
     model: MODEL, max_tokens: 16000,
     system: `Eres un diseñador instruccional experto en servicio y salud auditiva. Creas módulos de estudio mensuales para Aural Colombia (distribuidor exclusivo de audífonos Widex) dirigidos al área "${a.label}". Rol del área: ${a.rol} Criterios de excelencia: ${a.criterios}
 La teoría debe ser práctica, clara y aplicable, con ejemplos reales del día a día del área y frases modelo cuando aplique. No inventes datos de producto, precios ni normas específicas: si mencionas normas (por ejemplo, protección de datos personales), hazlo de forma general. La evaluación tiene 10 preguntas de selección única, basadas solo en la teoría del módulo, con distractores plausibles; se aprueba con 85%. Español de Colombia, tuteo.`,
@@ -120,7 +120,7 @@ export async function generateAcademy(area, inicio) {
   const a = AREAS[area];
   const gaps = (await q(`SELECT o->>'titulo' AS t, count(*)::int AS n FROM evaluations e JOIN users u ON u.id = e.user_id,
       jsonb_array_elements(e.report->'oportunidades') o WHERE u.area = $1 AND e.report IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 15`, [area])).rows;
-  const res = await new Anthropic().messages.create({
+  const res = await createWithTool({
     model: MODEL, max_tokens: 4000,
     system: `Eres un diseñador instruccional experto en servicio y salud auditiva. Diseñas la Academia Aural: una ruta de 12 módulos mensuales, de lo fundamental a lo avanzado, para el área "${a.label}" de Aural Colombia (distribuidor exclusivo de audífonos Widex). Rol: ${a.rol} Criterios de excelencia: ${a.criterios} Español de Colombia.`,
     tools: [ROUTE_TOOL], tool_choice: { type: 'tool', name: 'ruta_academia' },

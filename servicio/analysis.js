@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { createWithTool } from './ai.js';
 import { q, one } from './db.js';
 import { AREAS } from './areas.js';
 import { notifyReportReady } from './notify.js';
@@ -87,8 +87,7 @@ export async function analyze(evaluationId) {
   const area = AREAS[ev.area] || { label: 'Servicio al cliente', rol: 'Atención a pacientes y clientes.', criterios: 'calidad de atención, comunicación, procesos y criterio.' };
   await q("UPDATE evaluations SET status = 'analizando', report_error = NULL WHERE id = $1", [evaluationId]);
   try {
-    const client = new Anthropic();
-    const res = await client.messages.create({
+    const res = await createWithTool({
       model: MODEL,
       max_tokens: 8000,
       system: `Eres un consultor experto en experiencia de paciente y servicio al cliente en salud auditiva. Evalúas a profesionales de Aural Colombia, distribuidor exclusivo de audífonos Widex en Colombia, con sedes de atención a pacientes y un canal mayorista de aliados.

@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { createWithTool } from './ai.js';
 import { q, one } from './db.js';
 import { AREAS } from './areas.js';
 import { sendMail, mailConfigured } from './mail.js';
@@ -14,7 +14,7 @@ export const monthLabel = (mes) => new Date(`${mes}-15T12:00:00`).toLocaleDateSt
 
 async function callTool(system, content, tool, maxTokens = 4000) {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('Falta configurar ANTHROPIC_API_KEY');
-  const res = await new Anthropic().messages.create({
+  const res = await createWithTool({
     model: MODEL, max_tokens: maxTokens, system,
     tools: [tool], tool_choice: { type: 'tool', name: tool.name },
     messages: [{ role: 'user', content }],
