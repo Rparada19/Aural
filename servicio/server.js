@@ -77,7 +77,14 @@ app.post('/login', async (req, res) => {
   page(res, 'Entrar', V.loginPage('Si tu correo está registrado, te enviamos un enlace de acceso. Revisa también la carpeta de spam.'));
 });
 
+// Los filtros de correo corporativo abren los enlaces para revisarlos; por eso el enlace solo se consume al confirmar.
 app.get('/entrar/:t', async (req, res) => {
+  const ok = await one('SELECT 1 FROM login_tokens WHERE token_hash = $1 AND expires_at > now() AND used_at IS NULL', [hash(req.params.t)]);
+  if (!ok) return page(res, 'Enlace vencido', V.loginPage('', 'Este enlace ya se usó o venció. Pide uno nuevo.'));
+  page(res, 'Entrar', V.enterPage(req.params.t));
+});
+
+app.post('/entrar/:t', async (req, res) => {
   const row = await one('UPDATE login_tokens SET used_at = now() WHERE token_hash = $1 AND expires_at > now() AND used_at IS NULL RETURNING user_id', [hash(req.params.t)]);
   if (!row) return page(res, 'Enlace vencido', V.loginPage('', 'Este enlace ya se usó o venció. Pide uno nuevo.'));
   const sid = token();
@@ -342,7 +349,7 @@ app.post('/admin/sedes', needAdmin, async (req, res) => {
 });
 
 app.get('/admin/equipo', needAdmin, async (req, res) => {
-  const { rows } = await q(`SELECT u.id, u.email, u.name, u.area, u.cargo, u.sede, u.active, (u.photo IS NOT NULL) AS has_photo, e.status, e.submitted_at, e.plan_published, (e.report->>'puntaje_global')::int AS score,
+  const { rows } = await q(`SELECT u.id, u.email, u.name, u.area, u.cargo, u.sede, u.active, u.telefono, u.last_seen, (u.photo IS NOT NULL) AS has_photo, e.status, e.submitted_at, e.plan_published, (e.report->>'puntaje_global')::int AS score,
       (SELECT count(*) FROM sessions_1a1 s WHERE s.user_id = u.id)::int AS sessions
     FROM users u LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
     WHERE u.role = 'staff' AND u.approved ORDER BY u.area, u.name`);
@@ -387,6 +394,16 @@ app.post('/admin/personas/:id/enlace', needAdmin, async (req, res) => {
   let sent = false;
   try { sent = await sendLoginLink(u.email, u.name, link, true); } catch (e) { console.error('mail', e); }
   res.redirect(`/admin/personas/${u.id}?link=${encodeURIComponent(link)}${sent ? '&sent=1' : ''}`);
+});
+
+app.post('/admin/personas/:id/whatsapp', needAdmin, async (req, res) => {
+  const u = await one('SELECT id, name, telefono FROM users_v WHERE id = $1', [req.params.id]);
+  if (!u) return res.redirect('/admin/equipo');
+  const link = await loginLink(u.id);
+  let tel = String(u.telefono || '').replace(/\D/g, '');
+  if (tel.length === 10) tel = '57' + tel;
+  const text = `Hola ${String(u.name).split(' ')[0]}, este es tu enlace personal para entrar al programa de servicio Aural y presentar tu evaluación: ${link}`;
+  res.redirect(`https://wa.me/${tel}?text=${encodeURIComponent(text)}`);
 });
 
 app.post('/admin/personas/:id/evaluacion', needAdmin, async (req, res) => {

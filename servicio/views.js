@@ -86,6 +86,10 @@ ${authArt('Cada atención cuenta.', 'Tu evaluación, tu plan de trabajo y tu rut
   <p class="muted small switch">¿Aún no tienes cuenta? <a href="/registro">Regístrate</a></p>
 </div></section></div>`;
 
+export const enterPage = (t) => `<div class="split">${authArt('Bienvenido.', 'Estás a un paso de entrar a tu espacio.')}
+<section class="auth-panel"><div class="auth-form"><h2>Entra a tu espacio</h2><p class="muted">Toca el botón para iniciar sesión en este dispositivo.</p>
+<form method="post" action="/entrar/${esc(t)}"><button class="btn block">Entrar</button></form></div></section></div>`;
+
 export const registerPage = (sedes, err = '', b = {}) => `<div class="split">
 ${authArt('Crece con nosotros en cada atención.', 'Una evaluación personal, un plan de trabajo mensual a tu medida, acompañamiento uno a uno con tu líder y un módulo de estudio cada mes.')}
 <section class="auth-panel"><div class="auth-form">
@@ -202,12 +206,16 @@ export function planView(user, r) {
 export function adminHome(people, mailOk, sedes = []) {
   const row = (p) => `<tr><td><a href="/admin/personas/${p.id}"><strong>${esc(p.name)}</strong></a><br><span class="muted small">${esc(p.email)}${p.cargo ? ` · ${esc(p.cargo)}` : ''}</span></td>
     <td>${esc(p.sede)}</td><td>${p.status ? badge(p.status) : '<span class="muted">Sin evaluación</span>'}${p.plan_published ? ' <span class="badge ok">Plan publicado</span>' : ''}</td>
-    <td>${p.score ?? '—'}</td><td>${fdate(p.submitted_at)}</td><td>${p.sessions || 0}</td><td><a href="/admin/personas/${p.id}">Ver</a></td></tr>`;
+    <td>${p.score ?? '—'}</td><td>${fdate(p.submitted_at)}</td><td>${p.sessions || 0}</td>
+    <td class="row-actions">${p.last_seen ? '<span class="badge ok">Ya entró</span>' : '<span class="badge warn">No ha entrado</span>'}
+      <form method="post" action="/admin/personas/${p.id}/enlace" class="inline"><button class="link">Ver enlace</button></form>
+      ${p.telefono ? `<form method="post" action="/admin/personas/${p.id}/whatsapp" class="inline" target="_blank"><button class="link">WhatsApp</button></form>` : ''}
+      <a href="/admin/personas/${p.id}">Ficha</a></td></tr>`;
   const groups = Object.entries(AREAS).map(([k, a]) => {
     const list = people.filter((p) => p.area === k);
     const done = list.filter((p) => ['enviada', 'analizando', 'analizada'].includes(p.status)).length;
     return `<section class="card"><div class="row-head"><h2>${esc(a.label)}</h2><span class="muted small">${list.length} personas · ${done} evaluaciones enviadas</span></div>
-      <table class="tbl"><thead><tr><th>Profesional</th><th>Sede</th><th>Estado</th><th>Puntaje</th><th>Enviada</th><th>1:1</th><th></th></tr></thead><tbody>
+      <table class="tbl"><thead><tr><th>Profesional</th><th>Sede</th><th>Estado</th><th>Puntaje</th><th>Enviada</th><th>1:1</th><th>Acceso</th></tr></thead><tbody>
       ${list.length ? list.map(row).join('') : '<tr><td colspan="7" class="muted">Aún no hay profesionales en esta área.</td></tr>'}</tbody></table></section>`;
   }).join('');
   return `<div class="row-head"><div><p class="eyebrow">Evaluación de servicio</p><h1>Equipo</h1></div></div>
@@ -266,6 +274,7 @@ export function adminPerson(person, evs, sessions, inviteLink, mailOk, plans = [
   return `<p><a href="/admin">← Panel</a></p>${error ? `<p class="notice err">${esc(error)}</p>` : ''}${person.active ? '' : '<p class="notice warn">Esta persona está desactivada: no puede entrar ni recibe mensajes.</p>'}
   <div class="row-head"><div><p class="eyebrow">${esc(areaLabel(person.area))}${person.cargo ? ` · ${esc(person.cargo)}` : ''}${person.sede ? ` · ${esc(person.sede)}` : ''}</p><div class="person-id">${avatar(person, 'lg')}<div><h1>${esc(person.name)}</h1><p class="muted">${esc(person.email)}</p></div></div></div>
     <div class="actions"><form method="post" action="/admin/personas/${person.id}/enlace" class="inline"><button class="btn ghost">${mailOk ? 'Reenviar enlace' : 'Generar enlace'}</button></form>
+    ${person.telefono ? `<form method="post" action="/admin/personas/${person.id}/whatsapp" class="inline" target="_blank"><button class="btn ghost">Enviar enlace por WhatsApp</button></form>` : ''}
     <form method="post" action="/admin/personas/${person.id}/evaluacion" class="inline" onsubmit="return confirm('¿Asignar una nueva evaluación? La anterior queda en el historial.')"><button class="btn ghost">Nueva evaluación</button></form>
     <form method="post" action="/admin/personas/${person.id}/desactivar" class="inline" onsubmit="return confirm('¿Cambiar el estado de esta persona?')"><button class="btn ghost">${person.active ? 'Desactivar' : 'Reactivar'}</button></form>
     ${person.has_photo ? `<form method="post" action="/admin/personas/${person.id}/foto" class="inline" onsubmit="return confirm('¿Quitar la foto de esta persona?')"><button class="btn ghost">Quitar foto</button></form>` : ''}</div></div>
