@@ -38,7 +38,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const page = (res, title, body, user, opts) => res.send(V.layout(title, body, user, opts));
+const page = (res, title, body, user, opts) => res.send(V.layout(title, body, user, { ...opts, path: res.req.path }));
 const needUser = (req, res, next) => (req.user ? next() : res.redirect('/login'));
 const needAdmin = (req, res, next) => (req.user?.role === 'admin' ? next() : res.redirect(req.user ? '/' : '/login'));
 

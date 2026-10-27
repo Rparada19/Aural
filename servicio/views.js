@@ -21,69 +21,93 @@ export const fmonth = (mes) => new Date(`${mes}-15T12:00:00`).toLocaleDateString
 const fdate = (d) => (d ? new Date(d).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Bogota' }) : '—');
 
 const V = Date.now().toString(36);
-export function layout(title, body, user, { wide = false } = {}) {
-  const nav = user
-    ? `<nav>${user.role === 'admin' ? '<a href="/admin">Panel</a><a href="/admin/equipo">Equipo</a><a href="/admin/solicitudes">Solicitudes</a><a href="/admin/estudio">Estudio</a><a href="/admin/mensajes">Mensajes</a><a href="/admin/preguntas">Preguntas</a>' : '<a href="/">Mi espacio</a><a href="/estudio">Estudio</a>'}
-       <form method="post" action="/salir"><button class="link">Salir</button></form></nav>`
-    : '';
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)} · Aural Servicio</title><link rel="icon" href="/logo-aural-simbolo.png"><link rel="stylesheet" href="/style.css?v=${V}"></head>
-<body><header class="top"><a href="/" class="brand"><img src="/logo-aural.png" alt="Aural"><span>Servicio</span></a>${nav}</header>
-<main class="${wide ? 'wide' : ''}">${body}</main></body></html>`;
+const ICON = {
+  panel: '<path d="M4 13h6V4H4zM14 20h6V11h-6zM4 20h6v-4H4zM14 4v4h6V4z"/>',
+  equipo: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.6-3.4 3-5.2 6-5.2s5.4 1.8 6 5.2M16 11.5a2.8 2.8 0 1 0 0-5.6M17.5 14.6c2 .5 3.2 2.2 3.5 5.4"/>',
+  solicitudes: '<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>',
+  estudio: '<path d="M3 6.5 12 3l9 3.5-9 3.5z"/><path d="M7 8.5V14c0 1.6 2.2 3 5 3s5-1.4 5-3V8.5M21 6.5V12"/>',
+  mensajes: '<path d="M4 5h16v11H9l-5 4z"/>',
+  preguntas: '<path d="M9.2 9a2.9 2.9 0 1 1 4.2 2.6c-.9.5-1.4 1.1-1.4 2.1V14"/><circle cx="12" cy="17.6" r=".6"/><circle cx="12" cy="12" r="9"/>',
+  inicio: '<path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/>',
+  salir: '<path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/>',
+};
+const icon = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true" class="ico">${ICON[k]}</svg>`;
+
+// Punto con ondas de sonido hacia la derecha (inspirado en el símbolo de Aural)
+export const arcs = (cls = '') => `<svg class="arcs ${cls}" viewBox="0 0 400 400" aria-hidden="true">
+  <circle cx="56" cy="200" r="20" class="dot"/>${[78, 138, 198, 258, 318].map((r, i) => `<path d="M${(56 + r * Math.cos(-0.82)).toFixed(1)} ${(200 + r * Math.sin(-0.82)).toFixed(1)} A ${r} ${r} 0 0 1 ${(56 + r * Math.cos(0.82)).toFixed(1)} ${(200 + r * Math.sin(0.82)).toFixed(1)}" style="--i:${i}"/>`).join('')}</svg>`;
+
+export function layout(title, body, user, { wide = false, path = '' } = {}) {
+  const head = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)} · Aural Servicio</title><link rel="icon" href="/logo-aural-simbolo.png"><link rel="stylesheet" href="/style.css?v=${V}"></head>`;
+  if (!user) return `${head}<body class="auth-body"><main class="auth">${body}</main></body></html>`;
+  const salir = `<form method="post" action="/salir"><button class="navlink as-btn">${icon('salir')}<span>Salir</span></button></form>`;
+  if (user.role === 'admin') {
+    const items = [['/admin', 'Panel', 'panel'], ['/admin/equipo', 'Equipo', 'equipo'], ['/admin/solicitudes', 'Solicitudes', 'solicitudes'], ['/admin/estudio', 'Estudio', 'estudio'], ['/admin/mensajes', 'Mensajes', 'mensajes'], ['/admin/preguntas', 'Preguntas', 'preguntas']];
+    const on = (h) => (h === '/admin' ? path === '/admin' || path.startsWith('/admin/personas') : path.startsWith(h));
+    return `${head}<body class="admin-body"><aside class="side"><a href="/admin" class="side-brand"><img src="/logo-aural-blanco.png" alt="Aural"><span>Servicio</span></a>
+      <nav class="side-nav">${items.map(([h, l, k]) => `<a href="${h}" class="navlink ${on(h) ? 'on' : ''}">${icon(k)}<span>${l}</span></a>`).join('')}</nav>
+      <div class="side-foot"><p class="who">${esc(user.email)}</p>${salir}</div></aside>
+      <main class="content ${wide ? 'wide' : ''}">${body}</main></body></html>`;
+  }
+  return `${head}<body class="staff-body"><header class="top"><a href="/" class="brand"><img src="/logo-aural.png" alt="Aural"><span>Servicio</span></a>
+    <nav class="top-nav"><a href="/" class="navlink ${path === '/' ? 'on' : ''}">${icon('inicio')}<span>Mi espacio</span></a><a href="/estudio" class="navlink ${path.startsWith('/estudio') ? 'on' : ''}">${icon('estudio')}<span>Estudio</span></a>${salir}</nav></header>
+    <main class="content staff">${body}</main></body></html>`;
 }
 
-export const loginPage = (msg = '', err = '') => `
-<section class="card narrow">
-  <p class="eyebrow">Evaluación de servicio</p>
-  <h1>Entra con tu correo</h1>
-  <p class="muted">Te enviaremos un enlace de acceso. No necesitas contraseña.</p>
+const authArt = (title, text) => `<aside class="auth-art"><img src="/logo-aural-blanco.png" alt="Aural" class="auth-logo">
+  <div class="auth-copy"><h1>${title}</h1><p>${text}</p></div>${arcs('draw')}</aside>`;
+
+export const loginPage = (msg = '', err = '') => `<div class="split">
+${authArt('Cada atención cuenta.', 'Tu evaluación, tu plan de trabajo y tu ruta de estudio en un solo lugar.')}
+<section class="auth-panel"><div class="auth-form">
+  <h2>Entra a tu espacio</h2>
+  <p class="muted">Escribe tu correo y te enviamos un enlace de acceso. No necesitas contraseña.</p>
   ${msg ? `<p class="notice ok">${esc(msg)}</p>` : ''}${err ? `<p class="notice err">${esc(err)}</p>` : ''}
   <form method="post" action="/login" class="stack">
     <label>Correo<input type="email" name="email" required autocomplete="email" placeholder="tu@correo.com"></label>
-    <button class="btn">Enviarme el enlace</button>
+    <button class="btn block">Enviarme el enlace</button>
   </form>
-  <p class="muted small" style="margin-top:18px">¿Aún no tienes cuenta? <a href="/registro">Regístrate aquí</a></p>
-</section>`;
+  <p class="muted small switch">¿Aún no tienes cuenta? <a href="/registro">Regístrate</a></p>
+</div></section></div>`;
 
-export const registerPage = (sedes, err = '', b = {}) => `
-<section class="hero"><p class="eyebrow">Aural · Programa de servicio</p>
-  <h1>Crece con nosotros en cada atención</h1>
-  <p class="lead">Regístrate para hacer parte del programa de servicio Aural: una evaluación personal, un plan de trabajo mensual hecho a tu medida, acompañamiento uno a uno con tu líder y tips diarios para tu día a día.</p>
-  <ul class="facts"><li><strong>1</strong> evaluación</li><li><strong>Plan</strong> mensual</li><li><strong>Tips</strong> diarios</li></ul></section>
-<section class="card narrow" style="margin-top:0">
+export const registerPage = (sedes, err = '', b = {}) => `<div class="split">
+${authArt('Crece con nosotros en cada atención.', 'Una evaluación personal, un plan de trabajo mensual a tu medida, acompañamiento uno a uno con tu líder y un módulo de estudio cada mes.')}
+<section class="auth-panel"><div class="auth-form">
   <h2>Regístrate</h2>
+  <p class="muted">Tu líder aprueba la solicitud y te llega un correo para entrar.</p>
   ${err ? `<p class="notice err">${esc(err)}</p>` : ''}
   <form method="post" action="/registro" class="stack">
     <label>Nombre completo<input name="name" required value="${esc(b.name)}" autocomplete="name"></label>
     <label>Correo<input type="email" name="email" required value="${esc(b.email)}" autocomplete="email"></label>
-    <label>Celular<input name="telefono" value="${esc(b.telefono)}" autocomplete="tel" placeholder="Opcional"></label>
-    <label>Área<select name="area" required><option value="">Selecciona…</option>${AREA_OPTS(b.area)}</select></label>
+    <div class="grid2"><label>Celular<input name="telefono" value="${esc(b.telefono)}" autocomplete="tel" placeholder="Opcional"></label><label>Cargo<input name="cargo" value="${esc(b.cargo)}" placeholder="Opcional"></label></div>
+    <label>Área<select name="area" required><option value="">Selecciona tu área</option>${AREA_OPTS(b.area)}</select></label>
     <label>Sede${sedeField(sedes, b.sede)}</label>
-    <label>Cargo<input name="cargo" value="${esc(b.cargo)}" placeholder="Opcional"></label>
     <input name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
-    <button class="btn">Enviar solicitud</button>
+    <button class="btn block">Enviar solicitud</button>
   </form>
-  <p class="muted small" style="margin-top:18px">¿Ya tienes cuenta? <a href="/login">Entra aquí</a></p>
-</section>`;
+  <p class="muted small switch">¿Ya tienes cuenta? <a href="/login">Entra aquí</a></p>
+</div></section></div>`;
 
-export const registerDone = (msg = '') => `<section class="card narrow"><p class="eyebrow">Solicitud recibida</p><h1>¡Gracias por registrarte!</h1>
-  <p>${esc(msg || 'Tu líder revisará tu solicitud. Cuando la apruebe te llegará un correo con el enlace para entrar a tu espacio.')}</p><a class="btn ghost" href="/login">Ir a la página de acceso</a></section>`;
+export const registerDone = (msg = '') => `<div class="split">${authArt('Solicitud recibida.', 'Gracias por sumarte al programa de servicio Aural.')}
+<section class="auth-panel"><div class="auth-form"><h2>¡Listo!</h2><p>${esc(msg || 'Tu líder revisará tu solicitud. Cuando la apruebe te llegará un correo con el enlace para entrar a tu espacio.')}</p><a class="btn ghost" href="/login">Ir a la página de acceso</a></div></section></div>`;
 
 // ---------- Profesional ----------
 
-const msgCard = (m) => (m ? `<section class="card tip"><p class="eyebrow">${m.tipo === 'manual' ? 'Mensaje de tu líder' : 'Mensaje del día'}</p><h2>${esc(m.titulo)}</h2><p>${esc(m.mensaje)}</p>${m.tip ? `<div class="tipbox"><strong>Tip para hoy</strong><p>${esc(m.tip)}</p></div>` : ''}</section>` : '');
+const greet = (user, m) => `<section class="greet"><div class="greet-copy"><p class="hello">Hola, ${esc((user.name || '').split(' ')[0])}</p>
+  ${m ? `<h1>${esc(m.titulo)}</h1><p class="greet-msg">${esc(m.mensaje)}</p>${m.tip ? `<div class="greet-tip"><strong>${m.tipo === 'manual' ? 'De tu líder' : 'Tip para hoy'}</strong><p>${esc(m.tip)}</p></div>` : ''}` : `<h1>Tu espacio de crecimiento</h1><p class="greet-msg">Aquí encuentras tu evaluación, tu plan del mes y tu módulo de estudio.</p>`}</div>${arcs('draw')}</section>`;
 
 const ESTADOS = { pendiente: 'Pendiente', en_curso: 'En curso', hecho: 'Hecho' };
 
 function monthlyPlanStaff(plan) {
   const done = plan.items.filter((i) => i.estado === 'hecho').length;
-  return `<section class="card" id="plan"><p class="eyebrow">Mi plan de ${esc(fmonth(plan.mes))}</p><h1>${esc(plan.objetivo || 'Plan del mes')}</h1>
+  return `<section class="card" id="plan"><p class="eyebrow">Mi plan de ${esc(fmonth(plan.mes))}</p><h2 class="plan-title">${esc(plan.objetivo || 'Plan del mes')}</h2>
     ${plan.mensaje ? `<p class="lead">${esc(plan.mensaje)}</p>` : ''}
     <div class="progress-row"><div class="bar"><span style="width:${pct(done, plan.items.length)}%"></span></div><span class="muted small">${done} de ${plan.items.length} acciones</span></div>
     <div class="items">${plan.items.map((i) => `<form method="post" action="/plan/items/${i.id}" class="item ${i.estado}">
       <div><p class="accion">${esc(i.accion)}</p>${i.indicador ? `<p class="muted small">Cómo se mide: ${esc(i.indicador)}</p>` : ''}
       <input name="nota" value="${esc(i.nota)}" placeholder="¿Cómo te fue? (opcional)"></div>
-      <div class="item-actions"><select name="estado">${Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}" ${i.estado === k ? 'selected' : ''}>${v}</option>`).join('')}</select><button class="btn small">Guardar</button></div></form>`).join('')}</div></section>`;
+      <div class="item-actions"><select name="estado">${Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}" ${i.estado === k ? 'selected' : ''}>${v}</option>`).join('')}</select><button class="btn ghost small">Guardar</button></div></form>`).join('')}</div></section>`;
 }
 
 const pulseCard = (pulse) => (pulse ? `<section class="card pulse"><p class="eyebrow">Pulso del mes · 1 minuto</p><h2>¿Cómo vivimos el servicio este mes?</h2>
@@ -94,27 +118,27 @@ const pulseCard = (pulse) => (pulse ? `<section class="card pulse"><p class="eye
 
 export function staffHome(user, ev, plan, msg, pulse, mod) {
   const first = esc((user.name || '').split(' ')[0]);
-  const top = msgCard(msg) + studyCard(mod) + (ev && ['enviada', 'analizando', 'analizada'].includes(ev.status) ? pulseCard(pulse) : '');
-  if (!ev) return `${top}<section class="card narrow"><h1>Hola${first ? ` ${first}` : ''}</h1><p class="muted">Aún no tienes una evaluación asignada. Tu líder te avisará cuando esté lista.</p></section>`;
+  const top = greet(user, msg) + studyCard(mod) + (ev && ['enviada', 'analizando', 'analizada'].includes(ev.status) ? pulseCard(pulse) : '');
+  if (!ev) return `${top}<section class="card"><h2>Tu evaluación</h2><p class="muted">Aún no tienes una evaluación asignada. Tu líder te avisará cuando esté lista.</p></section>`;
   if (ev.plan_published && ev.report) {
     return `${top}${plan ? monthlyPlanStaff(plan) : ''}${plan ? `<details class="card"><summary><h2>Mi ruta de 8 semanas</h2></summary>${planView(user, ev.report)}</details>` : planView(user, ev.report)}`;
   }
   if (['enviada', 'analizando', 'analizada'].includes(ev.status)) {
-    return `${top}<section class="card narrow"><p class="eyebrow">Evaluación enviada</p><h1>¡Gracias${first ? `, ${first}` : ''}!</h1>
+    return `${top}<section class="card"><p class="eyebrow">Evaluación enviada</p><h2>¡Gracias${first ? `, ${first}` : ''}!</h2>
       <p>Recibimos tus respuestas el ${fdate(ev.submitted_at)}. Tu líder revisará los resultados y en los próximos días tendrás aquí tu plan de trabajo personal.</p></section>`;
   }
   const total = ev.questions.length;
   const done = Object.keys(ev.answers || {}).filter((k) => !empty(ev.answers[k])).length;
   if (ev.status === 'pendiente' || done === 0) {
     const mods = [...new Set(ev.questions.map((x) => x.module))];
-    return `${top}<section class="card narrow"><p class="eyebrow">Evaluación · ${esc(areaLabel(ev.area))}</p><h1>Hola${first ? ` ${first}` : ''}</h1>
+    return `${top}<section class="card"><p class="eyebrow">${esc(areaLabel(ev.area))}</p><h2>Tu evaluación de servicio</h2>
       <p>Esta evaluación nos ayuda a conocer cómo atiendes hoy, reconocer lo que haces bien y construir contigo un plan de crecimiento que trabajaremos uno a uno.</p>
       <ul class="facts"><li><strong>${total}</strong> preguntas</li><li><strong>~40</strong> minutos</li><li>Se guarda sola</li></ul>
       <p class="muted">Responde con sinceridad y con tus propias palabras: no hay respuestas "para quedar bien", y lo importante es cómo trabajas en la realidad.</p>
       <ol class="modlist">${mods.map((m) => `<li>${esc(m)}</li>`).join('')}</ol>
       <a class="btn" href="/evaluacion">Comenzar</a></section>`;
   }
-  return `${top}<section class="card narrow"><h1>Continúa tu evaluación</h1><p>Llevas ${done} de ${total} preguntas respondidas.</p>
+  return `${top}<section class="card"><h2>Continúa tu evaluación</h2><p>Llevas ${done} de ${total} preguntas respondidas.</p>
     <div class="bar"><span style="width:${Math.round((done / total) * 100)}%"></span></div><a class="btn" href="/evaluacion">Continuar</a></section>`;
 }
 
@@ -324,9 +348,9 @@ function evolution(series, comments, pulse) {
       <div class="kpi"><b>${last.estudio != null ? last.estudio + '%' : '—'}</b><span>Aprobación de módulos ${arrow(delta('estudio'), ' pts')}</span></div>
     </div>
     ${lineChart(series)}
-    <div class="scroll"><table class="tbl"><thead><tr><th>Mes</th>${pulse.map(([k]) => `<th>${labels[k]}</th>`).join('')}<th>Avance planes</th><th>Puntaje eval.</th><th>Aprobación módulos</th><th>Sesiones 1:1</th><th>Pulsos</th></tr></thead><tbody>
-    ${series.slice().reverse().map((r) => `<tr><td><strong>${esc(fmonth(r.mes))}</strong></td>${pulse.map(([k]) => `<td>${r[k] ?? '—'}</td>`).join('')}<td>${r.avance != null ? r.avance + '%' : '—'}</td><td>${r.puntaje ?? '—'}</td><td>${r.estudio != null ? r.estudio + '%' : '—'}</td><td>${r.sesiones ?? 0}</td><td>${r.pulsos ?? 0}</td></tr>`).join('')}</tbody></table></div>
-    ${comments.length ? `<h3>Lo que dice el equipo</h3><ul class="quotes">${comments.map((c) => `<li>“${esc(c.comentario)}”<span class="muted small"> — ${esc(areaName(c.area))}, ${esc(fmonth(c.mes))}</span></li>`).join('')}</ul>` : ''}
+    <details class="monthly"><summary><h3>Detalle por mes</h3></summary><div class="scroll"><table class="tbl"><thead><tr><th>Mes</th>${pulse.map(([k]) => `<th>${labels[k]}</th>`).join('')}<th>Avance planes</th><th>Puntaje eval.</th><th>Aprobación módulos</th><th>Sesiones 1:1</th><th>Pulsos</th></tr></thead><tbody>
+    ${series.slice().reverse().map((r) => `<tr><td><strong>${esc(fmonth(r.mes))}</strong></td>${pulse.map(([k]) => `<td>${r[k] ?? '—'}</td>`).join('')}<td>${r.avance != null ? r.avance + '%' : '—'}</td><td>${r.puntaje ?? '—'}</td><td>${r.estudio != null ? r.estudio + '%' : '—'}</td><td>${r.sesiones ?? 0}</td><td>${r.pulsos ?? 0}</td></tr>`).join('')}</tbody></table></div></details>
+    ${comments.length ? `<h3>Lo que dice el equipo</h3><ul class="quotes">${comments.slice(0, 6).map((c) => `<li>“${esc(c.comentario)}”<span class="muted small"> — ${esc(areaName(c.area))}, ${esc(fmonth(c.mes))}</span></li>`).join('')}</ul>` : ''}
   </section>`;
 }
 
@@ -357,7 +381,7 @@ export function dashboard(rows, mes, area, pending = 0, series = [], comments = 
     ['Personas', list.length],
     ['Evaluaciones completas', `${list.filter((r) => ['enviada', 'analizando', 'analizada'].includes(r.status)).length}/${list.length}`],
     ['Puntaje promedio', avg(scores) ?? '—'],
-    [`Avance planes · ${fmonth(mes).split(' ')[0]}`, progs.length ? `${avg(progs)}%` : '—'],
+    ['Avance de planes del mes', progs.length ? `${avg(progs)}%` : '—'],
     ['Sesiones 1:1 del mes', list.reduce((a, r) => a + r.sessions_month, 0)],
     ['Requieren atención', list.filter((r) => r.flags.some(([, c]) => c === 'err' || c === 'warn')).length],
   ];
@@ -365,17 +389,17 @@ export function dashboard(rows, mes, area, pending = 0, series = [], comments = 
     const g = all.filter((r) => r.area === k);
     const s = g.filter((r) => r.score !== null).map((r) => r.score);
     const pr = g.filter((r) => r.items).map((r) => r.prog);
-    return `<a class="areacard ${area === k ? 'on' : ''}" href="/admin?area=${k}"><p class="eyebrow">${esc(areaName(k))}</p><div class="ac-row"><div><b>${g.length}</b><span>personas</span></div><div><b>${avg(s) ?? '—'}</b><span>puntaje</span></div><div><b>${pr.length ? avg(pr) + '%' : '—'}</b><span>plan</span></div></div><div class="bar"><span style="width:${pr.length ? avg(pr) : 0}%"></span></div></a>`;
+    return `<a class="areacard ${area === k ? 'on' : ''}" href="/admin?area=${k}"><p class="eyebrow">${esc(areaName(k))}</p><div class="ac-row"><div><b>${g.length}</b><span>personas</span></div><div><b>${avg(s) ?? '—'}</b><span>puntaje</span></div></div><div class="bar" title="Avance de planes"><span style="width:${pr.length ? avg(pr) : 0}%"></span></div><span class="ac-foot">${pr.length ? `Planes al ${avg(pr)}%` : 'Sin planes este mes'}</span></a>`;
   }).join('');
   const trend = (r) => (r.score !== null && r.prev_score !== null ? (r.score > r.prev_score ? ` <span class="up">▲ ${r.score - r.prev_score}</span>` : r.score < r.prev_score ? ` <span class="down">▼ ${r.prev_score - r.score}</span>` : '') : '');
   const attention = list.filter((r) => r.flags.some(([, c]) => c === 'err' || c === 'warn'));
-  return `<div class="row-head"><div><p class="eyebrow">Panel general · ${esc(fmonth(mes))}</p><h1>${area ? esc(areaLabel(area)) : 'Todo el equipo'}</h1></div>
-    <div class="actions">${pending ? `<a class="btn" href="/admin/solicitudes">${pending} solicitud${pending > 1 ? 'es' : ''} por aprobar</a>` : ''}<a class="btn ghost" href="/admin/equipo">Agregar personas</a></div></div>
-  <div class="kpis">${kpis.map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${esc(l)}</span></div>`).join('')}</div>
-  ${evolution(series, comments, pulse)}
+  return `<section class="band"><div class="band-copy"><div class="row-head"><div><p class="band-sub">Panel de ${esc(fmonth(mes))}</p><h1>${area ? esc(areaLabel(area)) : 'Todo el equipo'}</h1></div>
+    <div class="actions">${pending ? `<a class="btn light" href="/admin/solicitudes">${pending} solicitud${pending > 1 ? 'es' : ''} por aprobar</a>` : ''}<a class="btn outline-light" href="/admin/equipo">Agregar personas</a></div></div>
+  <div class="kpis">${kpis.map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${esc(l)}</span></div>`).join('')}</div></div></section>
   <div class="areas"><a class="areacard all ${area ? '' : 'on'}" href="/admin"><p class="eyebrow">Todas las áreas</p><div class="ac-row"><div><b>${all.length}</b><span>personas</span></div></div></a>${byArea}</div>
+  ${evolution(series, comments, pulse)}
   ${attention.length ? `<section class="card"><h2 style="margin-top:0">Requieren atención (${attention.length})</h2><div class="attn">${attention.map((r) => `<a href="/admin/personas/${r.id}" class="attn-item"><strong>${esc(r.name)}</strong><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span><div>${r.flags.filter(([, c]) => c === 'err' || c === 'warn').map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ')}</div></a>`).join('')}</div></section>` : ''}
-  <section class="card"><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Estudio</th><th>Último 1:1</th><th>Señales</th></tr></thead><tbody>
+  <section class="card"><h2>Personas</h2><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Estudio</th><th>Último 1:1</th><th>Señales</th></tr></thead><tbody>
   ${list.length ? list.map((r) => `<tr><td><a href="/admin/personas/${r.id}"><strong>${esc(r.name)}</strong></a><br><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span></td>
     <td>${r.status ? badge(r.status) : '<span class="muted">—</span>'}</td><td>${r.score ?? '—'}${trend(r)}</td>
     <td>${r.plan_id ? `<div class="bar slim"><span style="width:${r.prog}%"></span></div><span class="muted small">${r.done}/${r.items} hechas${r.doing ? ` · ${r.doing} en curso` : ''}</span>` : '<span class="muted">—</span>'}</td>
