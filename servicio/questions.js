@@ -21,7 +21,106 @@ const PERDIDA_SUBITA = S('Un paciente cuenta que desde ayer oye mucho peor por u
 const HABEAS = S('El hijo de un paciente adulto pide los resultados de la audiometría de su papá. ¿Qué haces?',
   ['Se los envío porque es familiar', 'Verifico que exista autorización del paciente (titular de los datos) antes de compartir información', 'Se los leo pero no los envío', 'Le pido que los busque en internet'], 1);
 
+const PROMESA = S('Te comprometiste con un cliente o especialista a enviar una información hoy y aún no la tienes. ¿Qué haces?',
+  ['No respondo hasta tenerla completa', 'Respondo en el plazo, explico en qué va y doy una nueva fecha concreta', 'Le pido a otra persona que responda', 'Envío un mensaje genérico'], 1);
+
 export const SEED = {
+  visitadores: [
+    ['Conocimiento para conversar con especialistas', [
+      S('Un otorrino te pregunta en qué tipo de pérdida auditiva tienen mejor resultado los audífonos. ¿Qué respondes?',
+        ['Solo en pérdidas conductivas', 'Principalmente en pérdidas neurosensoriales leves a severas, y que la indicación final la define la valoración audiológica', 'En cualquier pérdida, incluida la cofosis', 'Solo en pérdidas profundas'], 1),
+      O('Explica, como se lo dirías a un médico general, por qué es importante tratar a tiempo la pérdida auditiva en adultos mayores.'),
+      O('¿Cómo le explicas a un especialista el proceso que vive su paciente remitido en Aural, desde la valoración hasta el seguimiento?'),
+      E('mi conocimiento técnico para conversar con especialistas con seguridad.'),
+    ]],
+    ['Propuesta de valor y objeciones', [
+      O('Tienes 3 minutos con un otorrino que no te conoce. Escribe lo que le dirías para que considere remitir pacientes a Aural.'),
+      S('El especialista dice: "Mis pacientes no pueden pagar audífonos". ¿Qué haces?',
+        ['Le doy la razón y me despido', 'Indago qué tipo de pacientes atiende, le cuento opciones de portafolio y financiación, y le propongo un piloto con pocos pacientes para que vea el proceso', 'Le ofrezco un incentivo por cada paciente', 'Le dejo un folleto y no vuelvo'], 1),
+      O('¿Cuáles son las tres objeciones más frecuentes de los especialistas que visitas y cómo respondes a cada una?'),
+      S('Un especialista te sugiere un beneficio personal a cambio de remitir pacientes. ¿Qué haces?',
+        ['Lo acepto si es pequeño', 'Declino con respeto, explico que trabajamos con transparencia y escalo a mi líder si es necesario', 'Le digo que lo consulto y lo dejo pasar', 'Se lo ofrezco a otros especialistas'], 1),
+      E('mi capacidad para presentar la propuesta de valor y manejar objeciones médicas.'),
+    ]],
+    ['Planeación, registro y seguimiento', [
+      O('Describe cómo planeas tu semana de visitas: cómo priorizas a quién visitar, con qué frecuencia y qué preparas antes de cada visita.'),
+      M('¿Qué debe quedar registrado después de cada visita? (Todas las que apliquen)',
+        ['Especialista, institución y fecha', 'Temas tratados y material entregado', 'Compromisos y próxima acción con fecha', 'Pacientes remitidos o potenciales', 'Solo si la visita "salió bien"'], [0, 1, 2, 3]),
+      O('Un especialista remitió a tres pacientes el mes pasado. ¿Cómo cierras el ciclo con él sobre lo que pasó con esos pacientes, cuidando los datos personales?'),
+      PROMESA,
+      E('mi disciplina de planeación, registro y seguimiento.'),
+    ]],
+    ['Servicio al especialista', [
+      O('¿Qué haces para que un especialista sienta que Aural le presta un servicio a él (no solo que le pide pacientes)?'),
+      S('Un especialista se queja porque un paciente remitido esperó mucho para su cita. ¿Qué haces?',
+        ['Le digo que eso es de otra área', 'Escucho, me disculpo, reviso el caso con la sede, le informo qué pasó y qué cambiamos, y le doy un canal directo para sus próximos pacientes', 'Le prometo que no volverá a pasar sin revisar nada', 'No hago nada para no empeorar la situación'], 1),
+    ]],
+    CRECIMIENTO,
+  ],
+
+  wholesale: [
+    ['Gestión de cuenta B2B', [
+      O('Elige uno de tus clientes B2B y describe su negocio: qué vende, a quién, cómo le va con nuestro portafolio y cuál es su principal necesidad hoy.'),
+      S('Un cliente compra mucho pero su rotación (sell-out) es baja y acumula inventario. ¿Qué haces?',
+        ['Le ofrezco más descuento para que compre más', 'Analizo con él su rotación, identifico qué referencias no salen y armamos un plan (capacitación, exhibición, actividades con pacientes) antes del próximo pedido', 'Espero a que se le acabe', 'Le recojo el inventario sin analizar'], 1),
+      O('¿Cómo preparas una visita de seguimiento a un cliente B2B importante? ¿Qué llevas y qué buscas lograr?'),
+      E('mi conocimiento del negocio de mis clientes B2B.'),
+    ]],
+    ['Producto y capacitación', [
+      O('Explica cómo capacitarías al equipo de una óptica aliada en la primera adaptación con nuestro software, en una sesión de 45 minutos.'),
+      O('Una audióloga de un cliente no logra resolver la retroalimentación en una adaptación. ¿Cómo la acompañas y qué información le pides?'),
+      S('El cliente pide comparar nuestro audífono con el de la competencia. ¿Qué haces?',
+        ['Hablo mal de la competencia', 'Me enfoco en las necesidades de sus pacientes y en los beneficios demostrables de nuestro producto y servicio, con datos y sin descalificar a nadie', 'Le digo que todos son iguales', 'Evito el tema'], 1),
+      E('mi dominio del portafolio y mi capacidad para capacitar.'),
+    ]],
+    ['Posventa: pedidos, garantías y tiempos', [
+      O('El pedido de un cliente llegó incompleto y él tiene un paciente esperando. ¿Qué haces y cómo le comunicas la solución?'),
+      S('Un cliente pide una condición comercial (descuento o plazo) que no puedes autorizar. ¿Qué haces?',
+        ['La concedo para no perder la relación', 'Le digo que no y cierro el tema', 'Tomo la solicitud, la escalo con argumentos y le doy una fecha de respuesta', 'Le sugiero que compre a otro proveedor'], 2),
+      M('Antes de tramitar una garantía de un cliente B2B, ¿qué verificas? (Todas las que apliquen)',
+        ['Serial y fecha de compra', 'Descripción y comprobación de la falla', 'Señales de golpe, humedad o manipulación', 'Datos del cliente y del paciente según autorización', 'Solo lo que diga el cliente'], [0, 1, 2, 3]),
+      PROMESA,
+    ]],
+    ['Éxito del cliente', [
+      O('¿Qué indicadores usas para saber si un cliente B2B está bien atendido y creciendo? ¿Cómo están tus cuentas hoy?'),
+      O('Cuéntanos un caso en que ayudaste a un cliente a crecer. ¿Qué hiciste?'),
+      O('¿Cómo haces seguimiento a un cliente B2B que dejó de comprar en los últimos dos meses?'),
+      E('mi foco en el éxito y la satisfacción de mis clientes.'),
+    ]],
+    CRECIMIENTO,
+  ],
+
+  lideres: [
+    ['Liderazgo y modelo de servicio', [
+      O('¿Cómo describirías el servicio de excelencia que esperas de tu equipo? Dalo en tres comportamientos concretos que se puedan observar.'),
+      O('¿Qué haces tú, personalmente, cada semana para ser ejemplo de ese servicio frente a tu equipo?'),
+      O('¿Cómo te aseguras de que todas las personas a tu cargo den la misma información sobre precios, garantías y procesos?'),
+      E('mi coherencia entre lo que pido y lo que hago en servicio.'),
+    ]],
+    ['Indicadores y seguimiento', [
+      M('¿Qué indicadores revisas al menos cada semana? (Todas las que uses)',
+        ['Citas agendadas y asistencia', 'Conversión de valoración a adaptación', 'Devoluciones y garantías', 'Quejas y PQRS', 'Satisfacción o recomendación de pacientes', 'Cumplimiento de metas de venta']),
+      O('Uno de tus indicadores de servicio empeoró dos semanas seguidas. Describe paso a paso qué haces.'),
+      S('Una persona de tu equipo cumple la meta de ventas pero recibe quejas frecuentes por trato. ¿Qué haces?',
+        ['Nada, lo importante es la meta', 'Lo hablo en un uno a uno con ejemplos concretos, acordamos acciones y hago seguimiento, porque el servicio también es parte del resultado', 'Le llamo la atención frente al equipo', 'Lo cambio de sede'], 1),
+      S('Faltando 10 días para el cierre del mes, el equipo va en 60% de la meta. ¿Qué haces?',
+        ['Presiono el cierre de ventas sin importar la experiencia del paciente', 'Reviso el embudo con el equipo, priorizamos las oportunidades reales, acompaño los casos clave y cuido que no se sacrifique el servicio', 'Ofrezco descuentos a todos los pacientes', 'Espero el siguiente mes'], 1),
+      E('mi uso de indicadores para tomar decisiones.'),
+    ]],
+    ['Coaching y desarrollo del equipo', [
+      O('¿Cómo estructuras una sesión uno a uno con una persona de tu equipo? Indica frecuencia, duración, temas y cómo haces seguimiento.'),
+      O('Escribe, tal como la dirías, una retroalimentación a alguien que atendió mal a un paciente ayer.'),
+      S('¿Cuál es la mejor forma de reconocer un buen servicio?',
+        ['Esperar a la evaluación anual', 'De forma oportuna y específica: qué hizo, por qué importa y su impacto en el paciente', 'Solo con incentivos económicos', 'No hace falta reconocer lo que es su obligación'], 1),
+      E('mi capacidad de acompañar y desarrollar a mi equipo.'),
+    ]],
+    ['Casos escalados y clima', [
+      O('Te escalan la queja de un paciente muy molesto que ya habló con dos personas de tu equipo. ¿Cómo la manejas y qué haces después con tu equipo?'),
+      O('¿Cómo identificas que el clima de tu equipo se está deteriorando y qué haces cuando lo notas?'),
+      PROMESA,
+    ]],
+    CRECIMIENTO,
+  ],
   audiologia: [
     ['Valoración y criterio clínico', [
       O('Describe tu protocolo de valoración en la primera consulta de un paciente adulto: qué haces, en qué orden y qué registras.'),

@@ -101,6 +101,43 @@ export async function migrate() {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS messages_diario_uniq ON messages (area, fecha) WHERE tipo = 'diario';
     CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value JSONB NOT NULL);
+    CREATE TABLE IF NOT EXISTS study_modules (
+      id SERIAL PRIMARY KEY,
+      area TEXT NOT NULL,
+      mes TEXT NOT NULL,
+      titulo TEXT NOT NULL DEFAULT '',
+      objetivo TEXT NOT NULL DEFAULT '',
+      secciones JSONB NOT NULL DEFAULT '[]',
+      preguntas JSONB NOT NULL DEFAULT '[]',
+      published BOOLEAN NOT NULL DEFAULT false,
+      notified_at TIMESTAMPTZ,
+      reminded_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      UNIQUE (area, mes)
+    );
+    CREATE TABLE IF NOT EXISTS study_images (
+      id SERIAL PRIMARY KEY,
+      module_id INT NOT NULL REFERENCES study_modules(id) ON DELETE CASCADE,
+      nombre TEXT NOT NULL DEFAULT '',
+      mime TEXT NOT NULL,
+      data BYTEA NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS study_reads (
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      module_id INT NOT NULL REFERENCES study_modules(id) ON DELETE CASCADE,
+      read_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (user_id, module_id)
+    );
+    CREATE TABLE IF NOT EXISTS study_attempts (
+      id SERIAL PRIMARY KEY,
+      user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      module_id INT NOT NULL REFERENCES study_modules(id) ON DELETE CASCADE,
+      answers JSONB NOT NULL,
+      score INT NOT NULL,
+      passed BOOLEAN NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
     CREATE TABLE IF NOT EXISTS pulses (
       id SERIAL PRIMARY KEY,
       user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

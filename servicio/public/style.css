@@ -198,3 +198,30 @@ details summary h2 { display: inline; }
   nav { gap: 10px; font-size: .85rem; overflow-x: auto; }
   .top { gap: 10px; } .brand span { display: none; }
 }
+
+/* Estudio */
+.modules { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin: 16px 0; }
+.module { display: grid; gap: 6px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-decoration: none; color: var(--navy); }
+.module h3 { margin: 0; }
+.module:hover { border-color: var(--navy); }
+.lessons { padding: 32px; }
+.lesson + .lesson { border-top: 1px solid var(--border); margin-top: 28px; padding-top: 24px; }
+.lesson h2 { margin-top: 4px; font-size: 1.35rem; }
+.lesson p, .lesson li { font-size: 1rem; line-height: 1.7; }
+.lesson h4 { margin: 1.4em 0 .4em; font-size: 1.02rem; }
+.lesson blockquote { margin: 16px 0; padding: 14px 18px; background: #eef3fa; border-left: 4px solid var(--navy); border-radius: 8px; font-weight: 500; }
+.lesson figure { margin: 18px 0; }
+.lesson figure img { width: 100%; border-radius: 12px; border: 1px solid var(--border); }
+.lesson figcaption { font-size: .82rem; color: var(--gray); margin-top: 6px; }
+.toc { columns: 2; color: var(--gray); } .toc a { text-decoration: none; }
+.result.pass { border-left: 5px solid var(--ok); } .result.fail { border-left: 5px solid var(--err); }
+.result h2 { margin-top: 4px; }
+.review li { margin-bottom: 12px; } .review li.bad strong { color: var(--err); }
+.study-card { border-left: 4px solid #7a4fb5; }
+.grid-gen { display: grid; grid-template-columns: 170px 1fr auto auto; gap: 12px; align-items: end; }
+.imgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 12px; }
+.imgitem img { width: 100%; height: 120px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+.secedit, .qedit2 { border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin: 12px 0; }
+.secedit label, .qedit2 label { margin-bottom: 8px; }
+.qedit2 { border-style: solid; }
+@media (max-width: 760px) { .grid-gen { grid-template-columns: 1fr; } .toc { columns: 1; } .lessons { padding: 20px; } }

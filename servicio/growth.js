@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { q, one } from './db.js';
 import { AREAS } from './areas.js';
 import { sendMail, mailConfigured } from './mail.js';
+import { studyNotifications } from './study.js';
 
 const MODEL = process.env.ANALYSIS_MODEL || 'claude-opus-5-5';
 const TZ = 'America/Bogota';
@@ -149,11 +150,12 @@ export async function sendMessage(messageId) {
 }
 
 export async function runDaily() {
-  if (!(await getSetting('mensajes_activos', true))) return { skipped: true };
+  const estudio = await studyNotifications(process.env.BASE_URL).catch((e) => { console.error('estudio', e); return 0; });
+  if (!(await getSetting('mensajes_activos', true))) return { skipped: true, estudio };
   const fecha = today();
   const generated = await generateDailyMessages(fecha);
   const pending = (await q("SELECT id FROM messages WHERE fecha = $1 AND tipo = 'diario' AND sent_at IS NULL", [fecha])).rows;
   let sent = 0;
   for (const { id } of pending) sent += await sendMessage(id);
-  return { generated, sent };
+  return { generated, sent, estudio };
 }

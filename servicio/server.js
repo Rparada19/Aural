@@ -7,6 +7,7 @@ import { analyze } from './analysis.js';
 import { sendLoginLink, sendMail, mailConfigured } from './mail.js';
 import * as V from './views.js';
 import { AREA_KEYS } from './areas.js';
+import { generateModule, userModuleState, grade, windowState, PASS, MAX_ATTEMPTS } from './study.js';
 import { generateMonthlyPlan, runDaily, sendMessage, getSetting, setSetting, today, thisMonth, PULSE } from './growth.js';
 
 const app = express();
@@ -19,6 +20,7 @@ const token = () => crypto.randomBytes(32).toString('base64url');
 app.set('trust proxy', 1);
 app.use(express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), 'public'), { maxAge: '7d' }));
 app.use(express.urlencoded({ extended: false, limit: '200kb' }));
+app.use('/admin/estudio', express.json({ limit: '8mb' }));
 app.use(express.json({ limit: '200kb' }));
 
 // Sesión
@@ -126,7 +128,9 @@ async function currentPlan(userId, onlyPublished) {
 app.get('/', needUser, async (req, res) => {
   if (req.user.role === 'admin') return res.redirect('/admin');
   const pulseDone = await one('SELECT 1 FROM pulses WHERE user_id = $1 AND mes = $2', [req.user.id, thisMonth()]);
-  page(res, 'Mi espacio', V.staffHome(req.user, await currentEval(req.user.id), await currentPlan(req.user.id, true), await todayMessage(req.user.area), pulseDone ? null : PULSE), req.user);
+  const mod = await one('SELECT * FROM study_modules WHERE area = $1 AND mes = $2 AND published', [req.user.area, thisMonth()]);
+  if (mod) mod.st = await userModuleState(req.user.id, mod);
+  page(res, 'Mi espacio', V.staffHome(req.user, await currentEval(req.user.id), await currentPlan(req.user.id, true), await todayMessage(req.user.area), pulseDone ? null : PULSE, mod), req.user);
 });
 
 app.post('/pulso', needUser, async (req, res) => {
@@ -197,10 +201,16 @@ app.get('/admin', needAdmin, async (req, res) => {
       (SELECT count(*) FROM plan_items WHERE plan_id = p.id AND estado = 'hecho')::int AS done,
       (SELECT count(*) FROM plan_items WHERE plan_id = p.id AND estado = 'en_curso')::int AS doing,
       (SELECT max(fecha) FROM sessions_1a1 WHERE user_id = u.id) AS last_session,
-      (SELECT count(*) FROM sessions_1a1 WHERE user_id = u.id AND to_char(fecha, 'YYYY-MM') = $1)::int AS sessions_month
+      (SELECT count(*) FROM sessions_1a1 WHERE user_id = u.id AND to_char(fecha, 'YYYY-MM') = $1)::int AS sessions_month,
+      (SELECT count(DISTINCT module_id) FROM study_attempts WHERE user_id = u.id AND passed)::int AS mod_ok,
+      (SELECT count(*) FROM study_modules WHERE area = u.area AND published AND mes <= $1)::int AS mod_total,
+      sm.id AS mod_id,
+      (SELECT bool_or(passed) FROM study_attempts WHERE user_id = u.id AND module_id = sm.id) AS mod_passed,
+      (SELECT count(*) FROM study_attempts WHERE user_id = u.id AND module_id = sm.id)::int AS mod_attempts
     FROM users u
     LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
     LEFT JOIN plans p ON p.user_id = u.id AND p.mes = $1
+    LEFT JOIN study_modules sm ON sm.area = u.area AND sm.mes = $1 AND sm.published
     WHERE u.role = 'staff' AND u.active AND u.approved ORDER BY u.area, u.name`, [mes]);
   const pending = (await one('SELECT count(*)::int AS n FROM users WHERE approved = false')).n;
   const area = AREA_KEYS.includes(req.query.area) ? req.query.area : '';
@@ -218,6 +228,11 @@ app.get('/admin', needAdmin, async (req, res) => {
     FROM evaluations e JOIN users u ON u.id = e.user_id WHERE e.report IS NOT NULL AND to_char(e.analyzed_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') >= $1 ${af} GROUP BY 1`, [since, ...ap])).rows);
   add((await q(`SELECT to_char(s.fecha, 'YYYY-MM') AS mes, count(*)::int AS sesiones FROM sessions_1a1 s JOIN users u ON u.id = s.user_id
     WHERE to_char(s.fecha, 'YYYY-MM') >= $1 ${af} GROUP BY 1`, [since, ...ap])).rows);
+  add((await q(`SELECT mes, round(avg(pct))::int AS estudio FROM (
+      SELECT m.mes, 100.0 * (SELECT count(DISTINCT a.user_id) FROM study_attempts a WHERE a.module_id = m.id AND a.passed)
+        / nullif((SELECT count(*) FROM users u WHERE u.role = 'staff' AND u.active AND u.approved AND u.area = m.area), 0) AS pct
+      FROM study_modules m WHERE m.published AND m.mes >= $1 ${area ? 'AND m.area = $2' : ''}) x
+    WHERE pct IS NOT NULL GROUP BY mes`, [since, ...ap])).rows);
   const comments = (await q(`SELECT pu.mes, pu.area, pu.comentario FROM pulses pu JOIN users u ON u.id = pu.user_id
     WHERE pu.comentario <> '' AND pu.mes >= $1 ${af} ORDER BY pu.created_at DESC LIMIT 10`, [since, ...ap])).rows;
   page(res, 'Panel', V.dashboard(rows, mes, area, pending, Object.values(series).sort((a, b) => a.mes.localeCompare(b.mes)), comments, PULSE), req.user, { wide: true });
@@ -341,6 +356,133 @@ app.post('/admin/items/:id', needAdmin, async (req, res) => {
     await q('UPDATE plan_items SET estado = $2, updated_at = now() WHERE id = $1', [req.params.id, estado]);
   }
   res.redirect(`/admin/personas/${await planOwner(item.plan_id)}#planes`);
+});
+
+// ---------- Plan de estudio ----------
+const loadModule = (id) => one('SELECT * FROM study_modules WHERE id = $1', [id]);
+const canSee = (u, m) => u.role === 'admin' || (m.published && m.area === u.area && windowState(m.mes) !== 'proximo');
+
+app.get('/estudio', needUser, async (req, res) => {
+  if (req.user.role === 'admin') return res.redirect('/admin/estudio');
+  const mods = (await q("SELECT * FROM study_modules WHERE area = $1 AND published ORDER BY mes", [req.user.area])).rows;
+  for (const m of mods) m.st = await userModuleState(req.user.id, m);
+  page(res, 'Plan de estudio', V.studyList(mods), req.user);
+});
+
+app.get('/estudio/:id', needUser, async (req, res) => {
+  const m = await loadModule(req.params.id);
+  if (!m || !canSee(req.user, m)) return res.redirect('/estudio');
+  const imgs = (await q('SELECT id, nombre FROM study_images WHERE module_id = $1', [m.id])).rows;
+  const st = req.user.role === 'admin' ? null : await userModuleState(req.user.id, m);
+  const last = st && req.query.intento ? await one('SELECT * FROM study_attempts WHERE id = $1 AND user_id = $2 AND module_id = $3', [req.query.intento, req.user.id, m.id]) : null;
+  page(res, m.titulo, V.studyModule(m, st, last, imgs, req.user.role === 'admin'), req.user);
+});
+
+app.post('/estudio/:id/leido', needUser, async (req, res) => {
+  const m = await loadModule(req.params.id);
+  if (m && canSee(req.user, m)) await q('INSERT INTO study_reads (user_id, module_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [req.user.id, m.id]);
+  res.redirect(`/estudio/${req.params.id}#evaluacion`);
+});
+
+app.get('/estudio/:id/evaluacion', needUser, async (req, res) => {
+  const m = await loadModule(req.params.id);
+  if (!m || !canSee(req.user, m) || req.user.role === 'admin') return res.redirect(`/estudio/${req.params.id}`);
+  const st = await userModuleState(req.user.id, m);
+  if (!st.canTake) return res.redirect(`/estudio/${m.id}`);
+  page(res, `Evaluación · ${m.titulo}`, V.studyQuiz(m, st), req.user);
+});
+
+app.post('/estudio/:id/evaluacion', needUser, async (req, res) => {
+  const m = await loadModule(req.params.id);
+  if (!m || !canSee(req.user, m) || req.user.role === 'admin') return res.redirect('/estudio');
+  const st = await userModuleState(req.user.id, m);
+  if (!st.canTake) return res.redirect(`/estudio/${m.id}`);
+  const g = grade(m, req.body);
+  const a = await one('INSERT INTO study_attempts (user_id, module_id, answers, score, passed) VALUES ($1,$2,$3,$4,$5) RETURNING id', [req.user.id, m.id, JSON.stringify(g.answers), g.score, g.passed]);
+  res.redirect(`/estudio/${m.id}?intento=${a.id}#resultado`);
+});
+
+app.get('/img/:id', needUser, async (req, res) => {
+  const im = await one('SELECT mime, data FROM study_images WHERE id = $1', [req.params.id]);
+  if (!im) return res.status(404).end();
+  res.setHeader('Content-Type', im.mime);
+  res.setHeader('Cache-Control', 'private, max-age=604800');
+  res.send(im.data);
+});
+
+app.get('/admin/estudio', needAdmin, async (req, res) => {
+  const area = AREA_KEYS.includes(req.query.area) ? req.query.area : AREA_KEYS[0];
+  const mods = (await q(`SELECT m.id, m.mes, m.titulo, m.published, jsonb_array_length(m.preguntas) AS npreg,
+      (SELECT count(DISTINCT user_id) FROM study_attempts a WHERE a.module_id = m.id AND a.passed)::int AS aprobados,
+      (SELECT count(DISTINCT user_id) FROM study_attempts a WHERE a.module_id = m.id)::int AS presentaron
+    FROM study_modules m WHERE m.area = $1 ORDER BY m.mes`, [area])).rows;
+  const staff = (await one("SELECT count(*)::int AS n FROM users WHERE role = 'staff' AND active AND approved AND area = $1", [area])).n;
+  page(res, 'Plan de estudio', V.adminStudy(area, mods, staff, thisMonth(), req.query.error), req.user, { wide: true });
+});
+
+app.post('/admin/estudio/generar', needAdmin, async (req, res) => {
+  const area = AREA_KEYS.includes(req.body.area) ? req.body.area : AREA_KEYS[0];
+  const mes = MES_RE.test(req.body.mes) ? req.body.mes : thisMonth();
+  try {
+    if (req.body.modo === 'manual') {
+      const m = await one("INSERT INTO study_modules (area, mes, titulo) VALUES ($1,$2,'Nuevo módulo') ON CONFLICT (area, mes) DO UPDATE SET area = EXCLUDED.area RETURNING id", [area, mes]);
+      return res.redirect(`/admin/estudio/${m.id}`);
+    }
+    const m = await generateModule(area, mes, String(req.body.tema || '').trim());
+    res.redirect(`/admin/estudio/${m.id}`);
+  } catch (e) {
+    console.error('modulo', e);
+    res.redirect(`/admin/estudio?area=${area}&error=${encodeURIComponent('No se pudo generar el módulo: ' + e.message)}`);
+  }
+});
+
+app.get('/admin/estudio/:id', needAdmin, async (req, res) => {
+  const m = await loadModule(req.params.id);
+  if (!m) return res.redirect('/admin/estudio');
+  const imgs = (await q('SELECT id, nombre FROM study_images WHERE module_id = $1 ORDER BY id', [m.id])).rows;
+  const results = (await q(`SELECT u.id, u.name, u.sede, count(a.id)::int AS intentos, max(a.score) AS mejor, bool_or(a.passed) AS aprobado,
+      (SELECT 1 FROM study_reads r WHERE r.user_id = u.id AND r.module_id = $1) AS leyo
+    FROM users u LEFT JOIN study_attempts a ON a.user_id = u.id AND a.module_id = $1
+    WHERE u.role = 'staff' AND u.active AND u.approved AND u.area = $2 GROUP BY u.id ORDER BY u.name`, [m.id, m.area])).rows;
+  const attempted = (await one('SELECT count(*)::int AS n FROM study_attempts WHERE module_id = $1', [m.id])).n;
+  page(res, m.titulo, V.adminStudyEdit(m, imgs, results, attempted, req.query.ok), req.user, { wide: true });
+});
+
+app.post('/admin/estudio/:id', needAdmin, async (req, res) => {
+  const m = await loadModule(req.params.id);
+  if (!m) return res.redirect('/admin/estudio');
+  const b = req.body;
+  if (b.accion === 'publicar') {
+    await q('UPDATE study_modules SET published = NOT published WHERE id = $1', [m.id]);
+    return res.redirect(`/admin/estudio/${m.id}`);
+  }
+  if (b.accion === 'borrar') {
+    await q('DELETE FROM study_modules WHERE id = $1 AND NOT EXISTS (SELECT 1 FROM study_attempts WHERE module_id = $1)', [m.id]);
+    return res.redirect(`/admin/estudio?area=${m.area}`);
+  }
+  const arr = (k) => [].concat(b[k] ?? []);
+  const secciones = arr('s_titulo').map((t, i) => ({ titulo: String(t).trim(), contenido: String(arr('s_contenido')[i] || '').trim(), imagen_sugerida: String(arr('s_imagen')[i] || '') }))
+    .filter((x) => x.titulo || x.contenido);
+  const preguntas = arr('p_texto').map((t, i) => {
+    const opciones = String(arr('p_opciones')[i] || '').split('\n').map((x) => x.trim()).filter(Boolean);
+    const c = parseInt(arr('p_correcta')[i], 10) - 1;
+    return { texto: String(t).trim(), opciones, correcta: c >= 0 && c < opciones.length ? c : 0, explicacion: String(arr('p_explicacion')[i] || '').trim() };
+  }).filter((x) => x.texto && x.opciones.length >= 2);
+  const attempted = (await one('SELECT count(*)::int AS n FROM study_attempts WHERE module_id = $1', [m.id])).n;
+  const mes = MES_RE.test(b.mes) ? b.mes : m.mes;
+  await q(`UPDATE study_modules SET titulo = $2, objetivo = $3, secciones = $4, mes = $5 ${attempted ? '' : ', preguntas = $6'} WHERE id = $1`,
+    attempted ? [m.id, String(b.titulo || '').trim(), String(b.objetivo || '').trim(), JSON.stringify(secciones), mes]
+      : [m.id, String(b.titulo || '').trim(), String(b.objetivo || '').trim(), JSON.stringify(secciones), mes, JSON.stringify(preguntas)]);
+  res.redirect(`/admin/estudio/${m.id}?ok=1`);
+});
+
+app.post('/admin/estudio/:id/imagen', needAdmin, async (req, res) => {
+  const { nombre, mime, data } = req.body || {};
+  if (!/^image\/(png|jpeg|webp|gif)$/.test(mime || '') || !data) return res.status(400).json({ ok: false });
+  const buf = Buffer.from(String(data), 'base64');
+  if (buf.length > 4 * 1024 * 1024) return res.status(413).json({ ok: false });
+  const im = await one('INSERT INTO study_images (module_id, nombre, mime, data) VALUES ($1,$2,$3,$4) RETURNING id', [req.params.id, String(nombre || '').slice(0, 120), mime, buf]);
+  res.json({ ok: true, id: im.id });
 });
 
 // ---------- Mensajes ----------

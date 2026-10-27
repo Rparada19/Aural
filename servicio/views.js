@@ -10,7 +10,7 @@ const STATUS = {
   analizada: ['Informe listo', 'ok'],
 };
 export const badge = (s) => { const [l, c] = STATUS[s] || [s, 'muted']; return `<span class="badge ${c}">${esc(l)}</span>`; };
-export const areaName = (k) => (AREAS[k]?.label || k).replace('Servicio al cliente · ', '').replace('Servicio al cliente ', 'SAC ').replace('Audiología · Atención a pacientes', 'Audiología');
+export const areaName = (k) => (AREAS[k]?.label || k).replace('Servicio al cliente · ', '').replace('Servicio al cliente ', 'SAC ').replace('Audiología · Atención a pacientes', 'Audiología').replace('Comercial · ', '').replace(' (especialistas de producto B2B)', ' B2B');
 const AREA_OPTS = (sel = '') => Object.keys(AREAS).map((k) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(areaName(k))}</option>`).join('');
 const sedeField = (sedes, val = '') => sedes.length
   ? `<select name="sede" required><option value="">Selecciona…</option>${sedes.map((x) => `<option ${x === val ? 'selected' : ''}>${esc(x)}</option>`).join('')}${val && !sedes.includes(val) ? `<option selected>${esc(val)}</option>` : ''}</select>`
@@ -22,7 +22,7 @@ const fdate = (d) => (d ? new Date(d).toLocaleDateString('es-CO', { day: 'numeri
 
 export function layout(title, body, user, { wide = false } = {}) {
   const nav = user
-    ? `<nav>${user.role === 'admin' ? '<a href="/admin">Panel</a><a href="/admin/equipo">Equipo</a><a href="/admin/solicitudes">Solicitudes</a><a href="/admin/mensajes">Mensajes</a><a href="/admin/preguntas">Preguntas</a>' : '<a href="/">Mi espacio</a>'}
+    ? `<nav>${user.role === 'admin' ? '<a href="/admin">Panel</a><a href="/admin/equipo">Equipo</a><a href="/admin/solicitudes">Solicitudes</a><a href="/admin/estudio">Estudio</a><a href="/admin/mensajes">Mensajes</a><a href="/admin/preguntas">Preguntas</a>' : '<a href="/">Mi espacio</a><a href="/estudio">Estudio</a>'}
        <form method="post" action="/salir"><button class="link">Salir</button></form></nav>`
     : '';
   return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -91,9 +91,9 @@ const pulseCard = (pulse) => (pulse ? `<section class="card pulse"><p class="eye
   <label>¿Qué fue lo que más ayudó o afectó el servicio este mes?<textarea name="comentario" rows="3" placeholder="Opcional"></textarea></label>
   <div><button class="btn">Enviar pulso</button></div></form></section>` : '');
 
-export function staffHome(user, ev, plan, msg, pulse) {
+export function staffHome(user, ev, plan, msg, pulse, mod) {
   const first = esc((user.name || '').split(' ')[0]);
-  const top = msgCard(msg) + (ev && ['enviada', 'analizando', 'analizada'].includes(ev.status) ? pulseCard(pulse) : '');
+  const top = msgCard(msg) + studyCard(mod) + (ev && ['enviada', 'analizando', 'analizada'].includes(ev.status) ? pulseCard(pulse) : '');
   if (!ev) return `${top}<section class="card narrow"><h1>Hola${first ? ` ${first}` : ''}</h1><p class="muted">Aún no tienes una evaluación asignada. Tu líder te avisará cuando esté lista.</p></section>`;
   if (ev.plan_published && ev.report) {
     return `${top}${plan ? monthlyPlanStaff(plan) : ''}${plan ? `<details class="card"><summary><h2>Mi ruta de 8 semanas</h2></summary>${planView(user, ev.report)}</details>` : planView(user, ev.report)}`;
@@ -171,7 +171,7 @@ export function adminHome(people, mailOk, sedes = []) {
   <section class="card"><h2>Agregar profesional</h2>
     <form method="post" action="/admin/personas" class="grid5">
       <label>Nombre<input name="name" required></label><label>Correo<input type="email" name="email" required></label>
-      <label>Área<select name="area" required><option value="">Selecciona…</option>${Object.entries(AREAS).map(([k, a]) => `<option value="${k}">${esc(a.label.replace('Servicio al cliente · ', '').replace('Servicio al cliente ', ''))}</option>`).join('')}</select></label>
+      <label>Área<select name="area" required><option value="">Selecciona…</option>${Object.entries(AREAS).map(([k, a]) => `<option value="${k}">${esc(areaName(k))}</option>`).join('')}</select></label>
       <label>Cargo<input name="cargo" placeholder="Opcional"></label><label>Sede${sedeField(sedes)}</label>
       <button class="btn">Agregar e invitar</button></form>
     <p class="muted small">También pueden registrarse solos en <a href="/registro">/registro</a> y tú apruebas la solicitud.</p></section>
@@ -252,7 +252,7 @@ export function adminQuestions(qs, area) {
     <label>Respuesta(s) esperada(s): número de opción empezando en 1, separadas por coma. Vacío si es de criterio.<input name="correct" value="${esc(x.correct === null || x.correct === undefined ? '' : [].concat(x.correct).map((c) => c + 1).join(', '))}"></label>
     <div class="nav">${x.id ? `<label class="check"><input type="checkbox" name="active" ${x.active ? 'checked' : ''}> Activa</label>` : '<span></span>'}<button class="btn">${x.id ? 'Guardar' : 'Agregar pregunta'}</button></div></form>`;
   return `<p class="eyebrow">Banco de preguntas</p><h1>${esc(areaLabel(area))}</h1>
-    <div class="tabs">${Object.entries(AREAS).map(([k, a]) => `<a href="/admin/preguntas?area=${k}" class="${k === area ? 'on' : ''}">${esc(a.label.replace('Servicio al cliente · ', '').replace('Servicio al cliente ', ''))}</a>`).join('')}</div>
+    <div class="tabs">${Object.entries(AREAS).map(([k, a]) => `<a href="/admin/preguntas?area=${k}" class="${k === area ? 'on' : ''}">${esc(areaName(k))}</a>`).join('')}</div>
     <p><strong>${qs.filter((x) => x.active).length}</strong> preguntas activas.</p>
     <p class="muted">Los cambios aplican a las evaluaciones que se asignen desde ahora; las ya asignadas conservan sus preguntas.</p>
     ${qs.map(row).join('')}<h2>Nueva pregunta</h2>${row({ module: '', type: 'open', text: '', options: [], correct: null })}`;
@@ -291,6 +291,7 @@ function lineChart(series) {
     ['Percepción del servicio', (r) => (r.servicio ? Math.round(r.servicio * 20) : null), 'var(--navy)'],
     ['Avance de planes', (r) => r.avance ?? null, '#2f8f5b'],
     ['Puntaje evaluaciones', (r) => r.puntaje ?? null, '#c27a1a'],
+    ['Aprobación de módulos', (r) => r.estudio ?? null, '#7a4fb5'],
   ];
   const W = 640, H = 220, L = 34, R = 12, T = 14, B = 30;
   const n = series.length;
@@ -319,11 +320,11 @@ function evolution(series, comments, pulse) {
       <div class="kpi"><b>${last.servicio ?? '—'}<small>/5</small></b><span>Percepción del servicio ${arrow(delta('servicio'))}</span></div>
       <div class="kpi"><b>${last.avance != null ? last.avance + '%' : '—'}</b><span>Avance de planes ${arrow(delta('avance'), ' pts')}</span></div>
       <div class="kpi"><b>${last.puntaje ?? '—'}</b><span>Puntaje evaluaciones ${arrow(delta('puntaje'))}</span></div>
-      <div class="kpi"><b>${last.pulsos ?? 0}</b><span>Respuestas del pulso</span></div>
+      <div class="kpi"><b>${last.estudio != null ? last.estudio + '%' : '—'}</b><span>Aprobación de módulos ${arrow(delta('estudio'), ' pts')}</span></div>
     </div>
     ${lineChart(series)}
-    <div class="scroll"><table class="tbl"><thead><tr><th>Mes</th>${pulse.map(([k]) => `<th>${labels[k]}</th>`).join('')}<th>Avance planes</th><th>Puntaje eval.</th><th>Sesiones 1:1</th><th>Pulsos</th></tr></thead><tbody>
-    ${series.slice().reverse().map((r) => `<tr><td><strong>${esc(fmonth(r.mes))}</strong></td>${pulse.map(([k]) => `<td>${r[k] ?? '—'}</td>`).join('')}<td>${r.avance != null ? r.avance + '%' : '—'}</td><td>${r.puntaje ?? '—'}</td><td>${r.sesiones ?? 0}</td><td>${r.pulsos ?? 0}</td></tr>`).join('')}</tbody></table></div>
+    <div class="scroll"><table class="tbl"><thead><tr><th>Mes</th>${pulse.map(([k]) => `<th>${labels[k]}</th>`).join('')}<th>Avance planes</th><th>Puntaje eval.</th><th>Aprobación módulos</th><th>Sesiones 1:1</th><th>Pulsos</th></tr></thead><tbody>
+    ${series.slice().reverse().map((r) => `<tr><td><strong>${esc(fmonth(r.mes))}</strong></td>${pulse.map(([k]) => `<td>${r[k] ?? '—'}</td>`).join('')}<td>${r.avance != null ? r.avance + '%' : '—'}</td><td>${r.puntaje ?? '—'}</td><td>${r.estudio != null ? r.estudio + '%' : '—'}</td><td>${r.sesiones ?? 0}</td><td>${r.pulsos ?? 0}</td></tr>`).join('')}</tbody></table></div>
     ${comments.length ? `<h3>Lo que dice el equipo</h3><ul class="quotes">${comments.map((c) => `<li>“${esc(c.comentario)}”<span class="muted small"> — ${esc(areaName(c.area))}, ${esc(fmonth(c.mes))}</span></li>`).join('')}</ul>` : ''}
   </section>`;
 }
@@ -342,6 +343,8 @@ export function dashboard(rows, mes, area, pending = 0, series = [], comments = 
     const prog = pct(r.done, r.items);
     if (r.plan_id && r.items && ((dayOfMonth >= 15 && prog < 40) || (dayOfMonth >= 25 && prog < 70))) f.push(['Plan atrasado', 'err']);
     if (r.plan_published && days(r.last_session) > 30) f.push(['Sin 1:1 en 30 días', 'warn']);
+    if (r.mod_id && !r.mod_passed && r.mod_attempts >= 2) f.push(['Perdió el módulo del mes', 'err']);
+    else if (r.mod_id && !r.mod_passed && dayOfMonth >= 20) f.push(['Módulo del mes pendiente', 'warn']);
     return { ...r, flags: f, prog };
   };
   const all = rows.map(enrich);
@@ -371,12 +374,13 @@ export function dashboard(rows, mes, area, pending = 0, series = [], comments = 
   ${evolution(series, comments, pulse)}
   <div class="areas"><a class="areacard all ${area ? '' : 'on'}" href="/admin"><p class="eyebrow">Todas las áreas</p><div class="ac-row"><div><b>${all.length}</b><span>personas</span></div></div></a>${byArea}</div>
   ${attention.length ? `<section class="card"><h2 style="margin-top:0">Requieren atención (${attention.length})</h2><div class="attn">${attention.map((r) => `<a href="/admin/personas/${r.id}" class="attn-item"><strong>${esc(r.name)}</strong><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span><div>${r.flags.filter(([, c]) => c === 'err' || c === 'warn').map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ')}</div></a>`).join('')}</div></section>` : ''}
-  <section class="card"><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Último 1:1</th><th>Señales</th></tr></thead><tbody>
+  <section class="card"><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Estudio</th><th>Último 1:1</th><th>Señales</th></tr></thead><tbody>
   ${list.length ? list.map((r) => `<tr><td><a href="/admin/personas/${r.id}"><strong>${esc(r.name)}</strong></a><br><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span></td>
     <td>${r.status ? badge(r.status) : '<span class="muted">—</span>'}</td><td>${r.score ?? '—'}${trend(r)}</td>
     <td>${r.plan_id ? `<div class="bar slim"><span style="width:${r.prog}%"></span></div><span class="muted small">${r.done}/${r.items} hechas${r.doing ? ` · ${r.doing} en curso` : ''}</span>` : '<span class="muted">—</span>'}</td>
+    <td>${r.mod_total ? `${r.mod_ok}/${r.mod_total} aprobados${r.mod_id ? `<br><span class="small ${r.mod_passed ? 'up' : 'muted'}">${r.mod_passed ? 'Mes aprobado' : `Mes: ${r.mod_attempts}/2 intentos`}</span>` : ''}` : '<span class="muted">—</span>'}</td>
     <td>${r.last_session ? fdate(r.last_session) : '<span class="muted">—</span>'}</td>
-    <td>${r.flags.map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ') || '<span class="badge ok">Al día</span>'}</td></tr>`).join('') : '<tr><td colspan="6" class="muted">Aún no hay personas en el equipo.</td></tr>'}
+    <td>${r.flags.map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ') || '<span class="badge ok">Al día</span>'}</td></tr>`).join('') : '<tr><td colspan="7" class="muted">Aún no hay personas en el equipo.</td></tr>'}
   </tbody></table></section>`;
 }
 
@@ -406,4 +410,133 @@ export function adminMessages(msgs, activos, counts, mailOk, ok, error) {
         <div><button class="btn" onclick="return confirm('¿Enviar este mensaje ahora?')">Enviar</button></div></form></section>
     </div>
     <section class="card"><h2 style="margin-top:0">Historial</h2>${Object.keys(grouped).length ? Object.entries(grouped).map(([f, ms]) => `<h3>${fdate(f + 'T12:00:00')}</h3><div class="msgs">${ms.map((m) => `<div class="msg"><div class="row-head"><span class="badge ${m.tipo === 'manual' ? 'info' : 'muted'}">${m.area === 'todas' ? 'Todo el equipo' : esc(areaName(m.area))}${m.tipo === 'manual' ? ' · propio' : ''}</span><span class="muted small">${m.sent_at ? `Enviado a ${m.recipients}` : 'Sin enviar'}</span></div><p><strong>${esc(m.titulo)}</strong></p><p class="small">${esc(m.mensaje)}</p>${m.tip ? `<p class="small muted"><strong>Tip:</strong> ${esc(m.tip)}</p>` : ''}</div>`).join('')}</div>`).join('') : '<p class="muted">Aún no se han generado mensajes.</p>'}</section>`;
+}
+
+// ---------- Plan de estudio ----------
+
+const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/(^|[^*])\*(?!\s)(.+?)\*/g, '$1<em>$2</em>');
+export function md(src) {
+  const out = [];
+  let list = null;
+  const close = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of String(src || '').split('\n')) {
+    const l = raw.trim();
+    const img = l.match(/^!\[([^\]]*)\]\((\/img\/\d+|https:\/\/[^\s)]+)\)$/);
+    if (!l) { close(); continue; }
+    if (img) { close(); out.push(`<figure><img src="${esc(img[2])}" alt="${esc(img[1])}" loading="lazy">${img[1] ? `<figcaption>${esc(img[1])}</figcaption>` : ''}</figure>`); continue; }
+    if (/^#{2,4}\s/.test(l)) { close(); out.push(`<h4>${inline(l.replace(/^#+\s/, ''))}</h4>`); continue; }
+    if (/^>\s?/.test(l)) { close(); out.push(`<blockquote>${inline(l.replace(/^>\s?/, ''))}</blockquote>`); continue; }
+    if (/^[-*]\s/.test(l)) { if (list !== 'ul') { close(); out.push('<ul>'); list = 'ul'; } out.push(`<li>${inline(l.slice(2))}</li>`); continue; }
+    if (/^\d+[.)]\s/.test(l)) { if (list !== 'ol') { close(); out.push('<ol>'); list = 'ol'; } out.push(`<li>${inline(l.replace(/^\d+[.)]\s/, ''))}</li>`); continue; }
+    close(); out.push(`<p>${inline(l)}</p>`);
+  }
+  close();
+  return out.join('');
+}
+
+const ST_LABEL = {
+  aprobado: ['Aprobado', 'ok'], no_aprobado: ['No aprobado', 'err'], cerrado: ['Cerrado sin presentar', 'err'],
+  proximo: ['Próximamente', 'muted'], reintento: ['Segundo intento disponible', 'warn'], listo: ['Listo para evaluación', 'info'], estudiando: ['Por estudiar', 'info'],
+};
+const stBadge = (e) => { const [l, c] = ST_LABEL[e] || [e, 'muted']; return `<span class="badge ${c}">${l}</span>`; };
+
+export function studyCard(m) {
+  if (!m) return '';
+  const st = m.st;
+  const daysLeft = (() => { const d = new Date(); const ld = new Date(Number(m.mes.slice(0, 4)), Number(m.mes.slice(5)), 0).getDate(); return ld - Number(d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(8, 10)); })();
+  return `<section class="card study-card"><p class="eyebrow">Módulo de estudio · ${esc(fmonth(m.mes))}</p><div class="row-head"><h2 style="margin:4px 0">${esc(m.titulo)}</h2>${stBadge(st.estado)}</div>
+    <p class="muted">${esc(m.objetivo)}</p>${['estudiando', 'listo', 'reintento'].includes(st.estado) ? `<p class="small">Tienes ${daysLeft + 1} día${daysLeft ? 's' : ''} para completarlo · intentos usados ${st.attempts.length} de ${2}</p>` : ''}
+    <a class="btn" href="/estudio/${m.id}">${st.estado === 'aprobado' ? 'Repasar' : 'Ir al módulo'}</a></section>`;
+}
+
+export function studyList(mods) {
+  const visible = mods.filter((m) => m.st.win !== 'proximo');
+  const next = mods.find((m) => m.st.win === 'proximo');
+  const ok = mods.filter((m) => m.st.passed).length;
+  return `<p class="eyebrow">Mi plan de estudio</p><h1>Módulos</h1>
+    <p class="muted">Cada mes se habilita un módulo nuevo. Tienes hasta el último día del mes para estudiarlo y presentar la evaluación: 2 intentos, se aprueba con 85%. Al cerrar el mes, la evaluación se bloquea.</p>
+    <div class="kpis small"><div class="kpi"><b>${ok}</b><span>módulos aprobados</span></div><div class="kpi"><b>${visible.length}</b><span>módulos habilitados</span></div></div>
+    <div class="modules">${visible.slice().reverse().map((m) => `<a class="module ${m.st.estado}" href="/estudio/${m.id}"><p class="eyebrow">${esc(fmonth(m.mes))}</p><h3>${esc(m.titulo)}</h3><p class="muted small">${esc(m.objetivo)}</p><div>${stBadge(m.st.estado)}${m.st.attempts.length ? ` <span class="muted small">Mejor nota: ${m.st.best}%</span>` : ''}</div></a>`).join('') || '<p class="muted">Aún no hay módulos habilitados para tu área.</p>'}</div>
+    ${next ? `<p class="muted small">Próximo módulo: <strong>${esc(next.titulo)}</strong>, se habilita en ${esc(fmonth(next.mes))}.</p>` : ''}`;
+}
+
+export function studyModule(m, st, last, imgs, isAdmin) {
+  const sections = (m.secciones || []).map((x, i) => `<section class="lesson" id="s${i + 1}"><p class="eyebrow">Parte ${i + 1}</p><h2>${esc(x.titulo)}</h2>${md(x.contenido)}</section>`).join('');
+  let result = '';
+  if (last) {
+    const wrong = last.answers.map((a, i) => (a === m.preguntas[i]?.correcta ? null : i + 1)).filter(Boolean);
+    const reveal = last.passed || st.attempts.length >= 2;
+    result = `<section class="card result ${last.passed ? 'pass' : 'fail'}" id="resultado"><p class="eyebrow">Resultado del intento ${st.attempts.findIndex((a) => a.id === last.id) + 1}</p>
+      <h2>${last.score}% · ${last.passed ? '¡Aprobaste el módulo!' : 'No alcanzaste el 85%'}</h2>
+      ${last.passed ? '<p>Excelente trabajo. Sigue aplicando lo aprendido en tu día a día.</p>' : st.canTake ? `<p>Te equivocaste en las preguntas ${wrong.join(', ')}. Repasa la teoría y vuelve a intentarlo: te queda 1 intento.</p>` : '<p>Ya usaste tus 2 intentos. El módulo queda registrado como no aprobado; el próximo mes se habilita un nuevo módulo.</p>'}
+      ${reveal ? `<details><summary>Ver respuestas y explicaciones</summary><ol class="review">${m.preguntas.map((p, i) => `<li class="${last.answers[i] === p.correcta ? 'ok' : 'bad'}"><p><strong>${esc(p.texto)}</strong></p><p class="small">Correcta: ${esc(p.opciones[p.correcta])}</p><p class="small muted">${esc(p.explicacion)}</p></li>`).join('')}</ol></details>` : ''}</section>`;
+  }
+  let action = '';
+  if (isAdmin) action = `<section class="card"><p class="muted">Vista previa del líder. <a href="/admin/estudio/${m.id}">Editar módulo</a></p></section>`;
+  else if (st.estado === 'aprobado') action = `<section class="card" id="evaluacion"><p>${stBadge('aprobado')} Mejor nota: ${st.best}%</p></section>`;
+  else if (st.win === 'cerrado' || st.attempts.length >= 2) action = `<section class="card" id="evaluacion"><p>${stBadge(st.estado)} La evaluación de este módulo está cerrada.</p></section>`;
+  else if (!st.read) action = `<section class="card" id="evaluacion"><h2 style="margin-top:0">¿Terminaste de estudiar?</h2><p>Cuando hayas leído toda la teoría, márcala como leída para habilitar la evaluación (10 preguntas, 2 intentos, se aprueba con 85%).</p><form method="post" action="/estudio/${m.id}/leido"><button class="btn">Ya estudié la teoría</button></form></section>`;
+  else action = `<section class="card" id="evaluacion"><h2 style="margin-top:0">Evaluación del módulo</h2><p>10 preguntas · se aprueba con 85% · intento ${st.attempts.length + 1} de 2. Tienes hasta el último día del mes.</p><a class="btn" href="/estudio/${m.id}/evaluacion">Presentar evaluación</a></section>`;
+  return `<p><a href="${isAdmin ? '/admin/estudio?area=' + m.area : '/estudio'}">← Plan de estudio</a></p>
+    ${result}
+    <section class="card module-head"><p class="eyebrow">Módulo · ${esc(fmonth(m.mes))}</p><h1>${esc(m.titulo)}</h1><p class="lead">${esc(m.objetivo)}</p>
+    ${(m.secciones || []).length > 1 ? `<ol class="toc">${m.secciones.map((x, i) => `<li><a href="#s${i + 1}">${esc(x.titulo)}</a></li>`).join('')}</ol>` : ''}</section>
+    <article class="card lessons">${sections || '<p class="muted">Este módulo aún no tiene teoría.</p>'}</article>${action}`;
+}
+
+export function studyQuiz(m, st) {
+  return `<p><a href="/estudio/${m.id}">← Volver a la teoría</a></p>
+  <form method="post" action="/estudio/${m.id}/evaluacion" class="card evalform" onsubmit="return confirm('¿Enviar tus respuestas? Este es tu intento ${st.attempts.length + 1} de 2.')">
+    <p class="eyebrow">Evaluación · intento ${st.attempts.length + 1} de 2 · se aprueba con 85%</p><h1>${esc(m.titulo)}</h1>
+    ${m.preguntas.map((p, i) => `<fieldset class="q"><legend><span class="num">${i + 1}</span>${esc(p.texto)}</legend><div class="opts">${p.opciones.map((o, j) => `<label><input type="radio" name="p${i}" value="${j}" required><span>${esc(o)}</span></label>`).join('')}</div></fieldset>`).join('')}
+    <div class="nav"><span></span><button class="btn">Enviar respuestas</button></div></form>`;
+}
+
+export function adminStudy(area, mods, staff, mes, error) {
+  const nextMes = (() => { const used = new Set(mods.map((m) => m.mes)); let [y, mo] = mes.split('-').map(Number); for (let i = 0; i < 24; i++) { const k = `${y}-${String(mo).padStart(2, '0')}`; if (!used.has(k)) return k; mo++; if (mo > 12) { mo = 1; y++; } } return mes; })();
+  return `<p class="eyebrow">Plan de estudio</p><h1>${esc(areaLabel(area))}</h1>
+    <div class="tabs">${Object.keys(AREAS).map((k) => `<a href="/admin/estudio?area=${k}" class="${k === area ? 'on' : ''}">${esc(areaName(k))}</a>`).join('')}</div>
+    ${error ? `<p class="notice err">${esc(error)}</p>` : ''}
+    <section class="card"><h2 style="margin-top:0">Nuevo módulo</h2>
+      <form method="post" action="/admin/estudio/generar" class="grid-gen" onsubmit="const b=this.querySelector('[data-ia]');if(event.submitter===b){b.disabled=true;b.textContent='Generando… (1-2 min)';}">
+        <input type="hidden" name="area" value="${area}"><label>Mes<input type="month" name="mes" value="${nextMes}" required></label>
+        <label>Tema (opcional)<input name="tema" placeholder="Si lo dejas vacío, la IA lo elige según los resultados del área"></label>
+        <button class="btn" name="modo" value="ia" data-ia>Generar con IA</button><button class="btn ghost" name="modo" value="manual" formnovalidate>Crear vacío</button></form>
+      <p class="muted small">La IA arma la teoría (4-6 partes) y una evaluación de 10 preguntas con base en el rol del área, las oportunidades de mejora de sus evaluaciones y los módulos anteriores. Luego tú lo revisas, le subes imágenes y lo publicas.</p></section>
+    <section class="card"><table class="tbl"><thead><tr><th>Mes</th><th>Módulo</th><th>Estado</th><th>Aprobados</th><th>Presentaron</th><th></th></tr></thead><tbody>
+    ${mods.length ? mods.map((m) => `<tr><td><strong>${esc(fmonth(m.mes))}</strong><br><span class="muted small">${{ abierto: 'Abierto', proximo: 'Próximo', cerrado: 'Cerrado' }[windowStateView(m.mes, mes)]}</span></td><td>${esc(m.titulo)}<br><span class="muted small">${m.npreg} preguntas</span></td>
+      <td>${m.published ? '<span class="badge ok">Publicado</span>' : '<span class="badge warn">Borrador</span>'}</td><td>${m.aprobados}/${staff}</td><td>${m.presentaron}</td><td><a href="/admin/estudio/${m.id}">Editar</a> · <a href="/estudio/${m.id}">Ver</a></td></tr>`).join('') : '<tr><td colspan="6" class="muted">Aún no hay módulos para esta área.</td></tr>'}
+    </tbody></table></section>`;
+}
+const windowStateView = (mes, now) => (mes === now ? 'abierto' : mes > now ? 'proximo' : 'cerrado');
+
+export function adminStudyEdit(m, imgs, results, attempted, ok) {
+  const secs = [...(m.secciones || []), { titulo: '', contenido: '', imagen_sugerida: '' }];
+  const pregs = [...(m.preguntas || []), { texto: '', opciones: [], correcta: 0, explicacion: '' }];
+  return `<p><a href="/admin/estudio?area=${m.area}">← ${esc(areaLabel(m.area))}</a></p>
+    ${ok ? '<p class="notice ok">Cambios guardados.</p>' : ''}
+    <div class="row-head"><div><p class="eyebrow">${esc(fmonth(m.mes))} · ${esc(areaName(m.area))}</p><h1>${esc(m.titulo)}</h1></div>
+      <div class="actions"><a class="btn ghost" href="/estudio/${m.id}" target="_blank">Vista previa</a>
+      <form method="post" action="/admin/estudio/${m.id}" class="inline"><input type="hidden" name="accion" value="publicar"><button class="btn ${m.published ? 'ghost' : ''}">${m.published ? 'Despublicar' : 'Publicar'}</button></form></div></div>
+    ${m.published ? '<p class="notice ok">Publicado: el equipo del área lo verá durante su mes. El día 1 reciben el aviso por correo y desde el día 24 un recordatorio.</p>' : '<p class="notice warn">Borrador: el equipo aún no lo ve.</p>'}
+    <section class="card"><h2 style="margin-top:0">Imágenes</h2>
+      <p class="muted small">Sube una imagen y copia su código en la parte de la teoría donde quieras que aparezca.</p>
+      <input type="file" accept="image/png,image/jpeg,image/webp" id="upimg" data-module="${m.id}" multiple><p id="upmsg" class="muted small"></p>
+      <div class="imgs">${imgs.map((i) => `<div class="imgitem"><img src="/img/${i.id}" alt=""><input class="copy" readonly value="![${esc(i.nombre)}](/img/${i.id})" onclick="this.select()"></div>`).join('')}</div></section>
+    <form method="post" action="/admin/estudio/${m.id}" class="stack">
+      <section class="card"><div class="grid3"><label>Título<input name="titulo" value="${esc(m.titulo)}" required></label><label>Mes<input type="month" name="mes" value="${m.mes}"></label><span></span></div>
+        <label>Objetivo<textarea name="objetivo" rows="2">${esc(m.objetivo)}</textarea></label></section>
+      <section class="card"><h2 style="margin-top:0">Teoría</h2><p class="muted small">Formato: párrafos, listas con "- ", subtítulos con "### ", **negrita**, citas con "> " e imágenes con el código de arriba. Deja una parte vacía para eliminarla.</p>
+        ${secs.map((x, i) => `<div class="secedit"><p class="eyebrow">${i < secs.length - 1 ? `Parte ${i + 1}` : 'Nueva parte'}</p><label>Título<input name="s_titulo" value="${esc(x.titulo)}"></label>
+        ${x.imagen_sugerida ? `<p class="muted small">Imagen sugerida: ${esc(x.imagen_sugerida)}</p>` : ''}<input type="hidden" name="s_imagen" value="${esc(x.imagen_sugerida)}">
+        <label>Contenido<textarea name="s_contenido" rows="${x.contenido ? 12 : 4}">${esc(x.contenido)}</textarea></label></div>`).join('')}</section>
+      <section class="card"><h2 style="margin-top:0">Evaluación (${(m.preguntas || []).length} preguntas)</h2>
+        ${attempted ? '<p class="notice warn">Ya hay intentos presentados: las preguntas quedaron fijas para que los resultados sean comparables.</p>' : '<p class="muted small">Opciones una por línea; respuesta correcta = número de la opción. Deja una pregunta vacía para eliminarla.</p>'}
+        ${pregs.map((p, i) => `<fieldset class="qedit2" ${attempted ? 'disabled' : ''}><p class="eyebrow">${i < pregs.length - 1 ? `Pregunta ${i + 1}` : 'Nueva pregunta'}</p><label>Pregunta<textarea name="p_texto" rows="2">${esc(p.texto)}</textarea></label>
+          <div class="grid2"><label>Opciones<textarea name="p_opciones" rows="4">${esc((p.opciones || []).join('\n'))}</textarea></label><div><label>Correcta (número)<input name="p_correcta" type="number" min="1" value="${p.texto ? p.correcta + 1 : ''}"></label><label>Explicación<textarea name="p_explicacion" rows="2">${esc(p.explicacion)}</textarea></label></div></div></fieldset>`).join('')}</section>
+      <div class="nav"><span></span><button class="btn">Guardar cambios</button></div></form>
+    <section class="card"><h2 style="margin-top:0">Resultados del equipo</h2><table class="tbl"><thead><tr><th>Profesional</th><th>Teoría</th><th>Intentos</th><th>Mejor nota</th><th>Estado</th></tr></thead><tbody>
+      ${results.map((r) => `<tr><td><a href="/admin/personas/${r.id}">${esc(r.name)}</a><br><span class="muted small">${esc(r.sede)}</span></td><td>${r.leyo ? 'Leída' : '—'}</td><td>${r.intentos}/2</td><td>${r.mejor ?? '—'}${r.mejor != null ? '%' : ''}</td><td>${r.aprobado ? stBadge('aprobado') : r.intentos >= 2 ? stBadge('no_aprobado') : r.intentos ? stBadge('reintento') : '<span class="muted">Pendiente</span>'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">No hay personas en esta área.</td></tr>'}</tbody></table></section>
+    ${attempted ? '' : `<form method="post" action="/admin/estudio/${m.id}" onsubmit="return confirm('¿Eliminar este módulo?')"><input type="hidden" name="accion" value="borrar"><button class="link">Eliminar módulo</button></form>`}
+    <script src="/upload.js"></script>`;
 }
