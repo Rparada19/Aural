@@ -1,4 +1,9 @@
 export const AREAS = {
+  audiologia: {
+    label: 'Audiología · Atención a pacientes',
+    rol: 'Audiólogas y audiólogos de las sedes que atienden directamente al paciente: valoración audiológica, explicación de resultados, recomendación de la solución auditiva y acompañamiento de la decisión de compra, adaptación y verificación, controles y seguimiento de la adaptación, y registro clínico.',
+    criterios: 'rigor clínico y seguridad del paciente (protocolo de valoración, criterios de remisión); claridad y empatía al comunicar resultados al paciente y su familia; capacidad de acompañar la decisión con propósito, recomendando según la necesidad real y sin presionar; dominio de adaptación, verificación y ajustes; disciplina de seguimiento y adherencia al uso; calidad del registro clínico y manejo de datos personales.',
+  },
   recepcion: {
     label: 'Servicio al cliente · Recepción',
     rol: 'Recibe a los pacientes en la sede: primera impresión, agendamiento presencial, manejo de la sala de espera, caja y facturación, recepción y entrega de audífonos en reparación, y coordinación con la audióloga.',

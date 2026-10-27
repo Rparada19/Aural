@@ -22,6 +22,46 @@ const HABEAS = S('El hijo de un paciente adulto pide los resultados de la audiom
   ['Se los envío porque es familiar', 'Verifico que exista autorización del paciente (titular de los datos) antes de compartir información', 'Se los leo pero no los envío', 'Le pido que los busque en internet'], 1);
 
 export const SEED = {
+  audiologia: [
+    ['Valoración y criterio clínico', [
+      O('Describe tu protocolo de valoración en la primera consulta de un paciente adulto: qué haces, en qué orden y qué registras.'),
+      S('En la otoscopia previa a la audiometría encuentras un tapón de cerumen oclusivo. ¿Qué haces?',
+        ['Realizo la audiometría igual y lo anoto', 'No realizo la audiometría hasta resolver el tapón: se gestiona la extracción según el protocolo y se reprograma la prueba', 'Le recomiendo audífonos de una vez', 'Le pido que se limpie con copitos y vuelva'], 1),
+      S('En la valoración encuentras una asimetría importante entre oídos sin causa conocida. ¿Qué haces?',
+        ['La adapto igual, es frecuente', 'Le explico al paciente el hallazgo y lo remito a otorrinolaringología para descartar otras causas, dejando claro el plan de adaptación', 'Le adapto solo el oído mejor', 'Repito la prueba hasta que salga simétrica'], 1),
+      M('¿Cuáles de estos hallazgos ameritan remitir a valoración médica? (Todas las que apliquen)',
+        ['Otorrea o dolor de oído activo', 'Pérdida auditiva súbita o que progresa rápido', 'Vértigo agudo', 'Asimetría importante no explicada', 'Paciente estable que viene a su control anual'], [0, 1, 2, 3]),
+      E('mi rigor clínico y el cumplimiento del protocolo de valoración.'),
+    ]],
+    ['Comunicación de resultados y decisión del paciente', [
+      O('Explica, tal como lo dirías, el resultado de una pérdida auditiva moderada bilateral a un paciente de 70 años que viene con su hija.'),
+      S('El paciente dice: "No estoy tan mal, todavía no los necesito". ¿Qué haces?',
+        ['Le insisto hasta que acepte', 'Exploro cómo le afecta en su vida diaria, involucro a su familiar si él lo permite, explico qué pasa si no se trata y acordamos un seguimiento, respetando su decisión', 'Le doy la razón y lo despido', 'Le ofrezco un descuento para convencerlo'], 1),
+      O('¿Cómo presentas las opciones de solución y su valor (incluido el precio y la financiación) para ayudar al paciente a decidir sin presionarlo?'),
+      S('Un paciente pide el audífono más económico, aunque por su pérdida y estilo de vida otra opción le serviría mucho mejor. ¿Qué haces?',
+        ['Le vendo el más económico sin comentar nada', 'Le explico con ejemplos de su vida diaria la diferencia entre opciones, le recomiendo lo que necesita, respeto su decisión y la dejo documentada', 'Le digo que el económico no le va a servir', 'Le ofrezco solo la gama más alta'], 1),
+      O('¿Cuáles son las tres objeciones más frecuentes de tus pacientes y cómo respondes a cada una?'),
+      E('mi capacidad para acompañar al paciente en su decisión con empatía y propósito.'),
+    ]],
+    ['Adaptación y verificación', [
+      S('Un paciente con domo cerrado dice que escucha su propia voz "como dentro de un barril". ¿Qué es lo más probable y qué haces?',
+        ['Es un daño del audífono; lo envío a reparación', 'Es efecto de oclusión; reviso la ventilación o el tipo de domo y, si aplica, ajusto la ganancia en graves', 'Es normal y desaparece sin hacer nada', 'Subo la ganancia general'], 1),
+      S('¿Cuál es el propósito principal de la medición en oído real (REM)?',
+        ['Medir la pérdida auditiva del paciente', 'Verificar que la ganancia entregada en el oído del paciente se acerque al objetivo prescriptivo', 'Revisar el nivel de la batería', 'Comprobar la conexión Bluetooth'], 1),
+      O('Un paciente refiere que en restaurantes no entiende las conversaciones. ¿Qué revisas, qué ajustes o programas consideras y qué expectativas le das?'),
+      S('Un paciente usa el audífono 2 horas al día y dice que "no le sirve". ¿Qué haces primero?',
+        ['Le cambio el equipo por uno de mayor gama', 'Reviso el registro de uso, indago la razón y acordamos un plan de uso progresivo con ajustes de aclimatación', 'Le subo el volumen', 'Le explico que el problema es su falta de constancia'], 1),
+      E('mi dominio del software de adaptación y de los ajustes finos.'),
+    ]],
+    ['Seguimiento y experiencia del paciente', [
+      O('¿Cómo estructuras el seguimiento de un paciente en sus primeros 30 días de adaptación? Indica momentos, objetivos y qué registras.'),
+      O('Explica, como se lo dirías a un paciente nuevo, los cuidados diarios de su audífono y qué esperar en las primeras semanas.'),
+      S('Un paciente adaptado hace dos meses no ha vuelto a su control. ¿Qué haces?',
+        ['Espero a que regrese cuando lo necesite', 'Lo contacto (o coordino con el call center), indago cómo le va y reagendamos el control', 'Lo doy por perdido', 'Le escribo solo si tiene saldo pendiente'], 1),
+      HABEAS,
+    ]],
+    CRECIMIENTO,
+  ],
   recepcion: [
     ['Primera impresión y atención en sede', [
       O('Describe paso a paso cómo recibes a un paciente que llega por primera vez a la sede, desde que cruza la puerta hasta que queda atendido o agendado.'),

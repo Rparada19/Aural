@@ -109,7 +109,7 @@ export function adminHome(people, mailOk) {
       <table class="tbl"><thead><tr><th>Profesional</th><th>Sede</th><th>Estado</th><th>Puntaje</th><th>Enviada</th><th>1:1</th><th></th></tr></thead><tbody>
       ${list.length ? list.map(row).join('') : '<tr><td colspan="7" class="muted">Aún no hay profesionales en esta área.</td></tr>'}</tbody></table></section>`;
   }).join('');
-  return `<div class="row-head"><div><p class="eyebrow">Evaluación de servicio</p><h1>Equipo de servicio al cliente</h1></div></div>
+  return `<div class="row-head"><div><p class="eyebrow">Evaluación de servicio</p><h1>Equipo de atención</h1></div></div>
   ${!mailOk ? '<p class="notice warn">El envío de correos no está configurado: al agregar a alguien verás su enlace para enviarlo por WhatsApp.</p>' : ''}
   <section class="card"><h2>Agregar profesional</h2>
     <form method="post" action="/admin/personas" class="grid5">
