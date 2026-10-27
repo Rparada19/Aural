@@ -7,6 +7,7 @@ import { analyze } from './analysis.js';
 import { sendLoginLink, sendMail, mailConfigured } from './mail.js';
 import * as V from './views.js';
 import { AREA_KEYS } from './areas.js';
+import { newDoc, renderReport, footer } from './pdf.js';
 import { generateModule, generateAcademy, userModuleState, grade, windowState, PASS, MAX_ATTEMPTS } from './study.js';
 import { rankingFor } from './ranking.js';
 import { notifyPlanPublished, METODOLOGIA } from './notify.js';
@@ -336,6 +337,33 @@ app.get('/admin/evaluaciones', needAdmin, async (req, res) => {
   const counts = { total: all.length, enviadas: all.filter(sent).length, informe: all.filter((r) => r.score != null).length, revisar: all.filter((r) => r.status === 'analizada' && !r.plan_published).length, en_curso: all.filter((r) => r.status === 'en_curso').length, pendiente: all.filter((r) => r.status === 'pendiente').length };
   const f = { revisar: (r) => r.status === 'analizada' && !r.plan_published, informe: (r) => r.score != null, enviada: (r) => ['enviada', 'analizando'].includes(r.status), en_curso: (r) => r.status === 'en_curso', pendiente: (r) => r.status === 'pendiente' }[estado];
   page(res, 'Evaluaciones', V.adminEvaluations(f ? all.filter(f) : all, estado, area, counts), req.user, { wide: true });
+});
+
+const slug = (s) => String(s || 'informe').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+function sendPdf(res, filename, build) {
+  const doc = newDoc(filename);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
+  doc.pipe(res);
+  build(doc);
+  footer(doc);
+  doc.end();
+}
+
+app.get('/admin/personas/:id/informe.pdf', needAdmin, async (req, res) => {
+  const person = await one('SELECT * FROM users_v WHERE id = $1', [req.params.id]);
+  const ev = person && await one('SELECT * FROM evaluations WHERE user_id = $1 AND report IS NOT NULL AND ($2::int IS NULL OR id = $2) ORDER BY id DESC LIMIT 1', [person.id, req.query.ev ? Number(req.query.ev) : null]);
+  if (!ev) return res.redirect(`/admin/personas/${req.params.id}`);
+  sendPdf(res, `informe-${slug(person.name)}`, (doc) => renderReport(doc, person, ev));
+});
+
+app.get('/admin/informes.pdf', needAdmin, async (req, res) => {
+  const area = AREA_KEYS.includes(req.query.area) ? req.query.area : '';
+  const { rows } = await q(`SELECT u.id, u.name, u.area, u.sede, u.cargo, e.report, e.submitted_at, e.analyzed_at FROM users u
+    JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id AND report IS NOT NULL ORDER BY id DESC LIMIT 1) e ON true
+    WHERE u.role = 'staff' AND u.active AND u.approved ${area ? 'AND u.area = $1' : ''} ORDER BY u.area, u.name`, area ? [area] : []);
+  if (!rows.length) return res.redirect('/admin/evaluaciones');
+  sendPdf(res, `informes-${area || 'equipo'}-${thisMonth()}`, (doc) => rows.forEach((r, i) => { if (i) doc.addPage(); renderReport(doc, r, r); }));
 });
 
 app.get('/admin/solicitudes', needAdmin, async (req, res) => {

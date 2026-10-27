@@ -271,7 +271,7 @@ export function adminPerson(person, evs, sessions, inviteLink, mailOk, plans = [
   const actions = ev ? `
     <form method="post" action="/admin/evaluaciones/${ev.id}/analizar" class="inline"><button class="btn ghost" ${['enviada', 'analizada'].includes(ev.status) ? '' : 'disabled'}>${ev.report ? 'Regenerar análisis' : 'Analizar ahora'}</button></form>
     ${ev.report ? `<form method="post" action="/admin/evaluaciones/${ev.id}/publicar" class="inline"><button class="btn ${ev.plan_published ? 'ghost' : ''}">${ev.plan_published ? 'Ocultar plan al profesional' : 'Publicar plan al profesional'}</button></form>` : ''}
-    <button class="btn ghost" onclick="print()">Imprimir</button>` : '';
+    ${ev.report ? `<a class="btn ghost" href="/admin/personas/${person.id}/informe.pdf?ev=${ev.id}">Descargar PDF</a>` : ''}` : '';
   return `<p><a href="/admin">← Panel</a></p>${error ? `<p class="notice err">${esc(error)}</p>` : ''}${person.active ? '' : '<p class="notice warn">Esta persona está desactivada: no puede entrar ni recibe mensajes.</p>'}
   <div class="row-head"><div><p class="eyebrow">${esc(areaLabel(person.area))}${person.cargo ? ` · ${esc(person.cargo)}` : ''}${person.sede ? ` · ${esc(person.sede)}` : ''}</p><div class="person-id">${avatar(person, 'lg')}<div><h1>${esc(person.name)}</h1><p class="muted">${esc(person.email)}</p></div></div></div>
     <div class="actions"><form method="post" action="/admin/personas/${person.id}/enlace" class="inline"><button class="btn ghost">${mailOk ? 'Reenviar enlace' : 'Generar enlace'}</button></form>
@@ -666,6 +666,7 @@ export function adminEvaluations(rows, estado, area, counts) {
   const qs = (e, a) => `?${[e ? `estado=${e}` : '', a ? `area=${a}` : ''].filter(Boolean).join('&')}`;
   return `<section class="band"><div class="band-copy"><p class="band-sub">Evaluaciones de servicio</p><h1>${area ? esc(areaLabel(area)) : 'Todo el equipo'}</h1>
     <div class="kpis">${[['Asignadas', counts.total], ['Enviadas', counts.enviadas], ['Con informe', counts.informe], ['Por revisar', counts.revisar], ['En curso', counts.en_curso], ['Sin empezar', counts.pendiente]].map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`).join('')}</div></div></section>
+    ${counts.informe ? `<div class="row-head" style="margin-bottom:12px"><span></span><a class="btn" href="/admin/informes.pdf${area ? `?area=${area}` : ''}">Descargar ${area ? 'los informes del área' : 'todos los informes'} en PDF</a></div>` : ''}
     <div class="tabs">${EV_FILTERS.map(([k, l]) => `<a href="/admin/evaluaciones${qs(k, area)}" class="${k === estado ? 'on' : ''}">${l}</a>`).join('')}</div>
     <div class="tabs small-tabs"><a href="/admin/evaluaciones${qs(estado, '')}" class="${area ? '' : 'on'}">Todas las áreas</a>${Object.keys(AREAS).map((k) => `<a href="/admin/evaluaciones${qs(estado, k)}" class="${k === area ? 'on' : ''}">${esc(areaName(k))}</a>`).join('')}</div>
     <section class="card"><table class="tbl"><thead><tr><th>Profesional</th><th>Estado</th><th>Puntaje</th><th>Resumen</th><th>Enviada</th><th></th></tr></thead><tbody>
@@ -673,6 +674,6 @@ export function adminEvaluations(rows, estado, area, counts) {
       <td>${badge(r.status)}${r.status === 'analizada' ? (r.plan_published ? ' <span class="badge ok">Plan publicado</span>' : ' <span class="badge info">Por revisar</span>') : ''}${r.report_error ? ' <span class="badge err">Error en análisis</span>' : ''}</td>
       <td>${r.score != null ? `<strong>${r.score}</strong>${r.nivel ? `<br><span class="muted small">${esc(r.nivel)}</span>` : ''}` : r.status === 'en_curso' ? `<span class="muted small">${r.answered}/${r.total} respuestas</span>` : '—'}</td>
       <td class="small">${r.resumen ? esc(r.resumen.length > 180 ? r.resumen.slice(0, 180) + '…' : r.resumen) : '<span class="muted">—</span>'}</td>
-      <td>${fdate(r.submitted_at)}</td><td><a class="btn ghost small" href="/admin/personas/${r.uid}">${r.score != null ? 'Ver informe' : 'Ver ficha'}</a></td></tr>`).join('') : '<tr><td colspan="6" class="muted">No hay evaluaciones con este filtro.</td></tr>'}
+      <td>${fdate(r.submitted_at)}</td><td class="row-actions"><a class="btn ghost small" href="/admin/personas/${r.uid}">${r.score != null ? 'Ver informe' : 'Ver ficha'}</a>${r.score != null ? `<a href="/admin/personas/${r.uid}/informe.pdf">PDF</a>` : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="muted">No hay evaluaciones con este filtro.</td></tr>'}
     </tbody></table></section>`;
 }
