@@ -11,7 +11,7 @@ import { newDoc, renderReport, footer } from './pdf.js';
 import { learnArea, latestKnowledge } from './knowledge.js';
 import { generateModule, generateAcademy, userModuleState, grade, drawQuiz, windowState, PASS, MAX_ATTEMPTS } from './study.js';
 import { rankingFor } from './ranking.js';
-import { qrToken, qrSvg, surveyFor, saveFeedback, voiceOf, metaFor, markStaff, signTs } from './voz.js';
+import { qrToken, qrSvg, surveyFor, surveyKey, saveFeedback, voiceOf, metaFor, markStaff, signTs } from './voz.js';
 import { notifyPlanPublished, METODOLOGIA } from './notify.js';
 import { generateMonthlyPlan, generateInsights, runDaily, sendMessage, getSetting, setSetting, today, thisMonth, PULSE } from './growth.js';
 
@@ -127,14 +127,30 @@ app.get('/qr/:t.svg', async (req, res) => {
   res.send(await qrSvg(`${BASE}/c/${req.params.t}`));
 });
 
-// Tarjeta imprimible con el QR: la persona, su líder o el administrador
+// Tarjetas imprimibles con el QR: la persona, su líder o el administrador
+async function cardData(u) {
+  const token = await qrToken(u.id);
+  return { ...u, token, url: `${BASE}/c/${token}`, survey: surveyFor(u.area), key: surveyKey(u.area) };
+}
 app.get('/tarjeta/:id', needUser, async (req, res) => {
   const id = Number(req.params.id);
   const ok = id === req.user.id || req.user.role === 'admin' || (req.user.lider && await inTeam(req.user, id));
   const u = ok && await one('SELECT id, name, area, (photo IS NOT NULL) AS has_photo FROM users WHERE id = $1', [id]);
   if (!u) return res.redirect('/');
-  const t = await qrToken(u.id);
-  res.send(V.qrCard(u, t, `${BASE}/c/${t}`, surveyFor(u.area)));
+  res.send(V.qrCard([await cardData(u)], { title: `Tarjeta QR · ${u.name}`, back: req.get('referer') || '/' }));
+});
+// Todas las tarjetas de un equipo (líder) o de un área (director)
+app.get('/tarjetas', needUser, async (req, res) => {
+  let rows;
+  if (req.user.role === 'admin') {
+    const area = AREA_KEYS.includes(req.query.area) ? req.query.area : '';
+    rows = (await q(`SELECT id, name, area, (photo IS NOT NULL) AS has_photo FROM users WHERE role = 'staff' AND active AND approved ${area ? 'AND area = $1' : ''} ORDER BY area, name`, area ? [area] : [])).rows;
+  } else if (req.user.lider) rows = await teamOf(req.user);
+  else return res.redirect('/');
+  const people = [];
+  for (const u of rows) people.push(await cardData(u));
+  if (!people.length) return res.redirect(req.user.role === 'admin' ? '/admin/lideres' : '/lider');
+  res.send(V.qrCard(people, { title: 'Tarjetas QR del equipo', back: req.user.role === 'admin' ? '/admin/lideres' : '/lider' }));
 });
 
 app.get('/login', (req, res) => (req.user ? res.redirect('/') : page(res, 'Entrar', V.loginPage())));

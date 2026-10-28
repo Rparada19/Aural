@@ -860,6 +860,7 @@ export function leaderHome(user, rows, mes, base = '/lider/personas', me = null)
   ];
   return `<section class="band"><div class="band-copy"><p class="band-sub">Mi equipo · ${esc(fmonth(mes))}</p><h1>${user.leads_all ? 'Todo el personal' : `Equipo de ${esc(base === '/lider/personas' ? String(user.name).split(' ')[0] : user.name)}`}</h1>
     <div class="kpis">${kpis.map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${esc(l)}</span></div>`).join('')}</div></div></section>
+  <div class="actions" style="margin:-8px 0 16px;justify-content:flex-end"><a class="btn ghost" href="/tarjetas">Imprimir tarjetas QR del equipo</a></div>
   ${me ? `<section class="card"><div class="row-head"><div><p class="eyebrow">Tu formación como líder</p><h2 style="margin:4px 0 6px">Tú también te formas con tu equipo</h2>
     <p class="muted small">Evaluación: ${me.status ? badge(me.status) : '—'}${me.score != null ? ` · Puntaje <strong>${me.score}</strong>` : ''} · Módulo del mes: ${modCell(me)}${me.publicados ? ` · Academia ${me.aprobados}/${me.publicados} aprobados` : ''}${me.plan_total ? ` · Tu plan ${me.plan_hechos}/${me.plan_total} hechas` : ''}</p></div>
     <div class="actions">${me.status === 'pendiente' || me.status === 'en_curso' ? '<a class="btn" href="/evaluacion">Hacer mi evaluación</a>' : ''}<a class="btn ${me.status === 'pendiente' || me.status === 'en_curso' ? 'ghost' : ''}" href="/estudio">Ir a mi Academia</a><a class="btn ghost" href="/mi">Mi espacio</a></div></div></section>` : ''}
@@ -904,6 +905,7 @@ export function adminLeaders(rows, ok, teams = {}) {
   const opts = (sel, self) => `<option value="">Sin líder</option>${leaders.filter((l) => l.id !== self).map((l) => `<option value="${l.id}" ${l.id === sel ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}`;
   return `<section class="band"><div class="band-copy"><p class="band-sub">Seguimiento por líder</p><h1>Líderes</h1></div></section>
   ${ok ? '<p class="notice ok">Cambios guardados.</p>' : ''}
+  <form method="get" action="/tarjetas" class="actions" style="margin:-8px 0 16px;justify-content:flex-end"><select name="area"><option value="">Todo el personal</option>${AREA_OPTS()}</select><button class="btn ghost">Imprimir tarjetas QR</button></form>
   ${summary ? `<div class="areas leaders">${summary}</div>` : ''}
   <section class="card"><h2 style="margin-top:0">Líderes (${leaders.length})</h2><p class="muted small">Cada líder ve en “Mi equipo” los resultados, informes, planes y avance en la Academia de las personas que tiene asignadas.</p>
     <table class="tbl"><thead><tr><th>Líder</th><th>Alcance</th><th></th></tr></thead><tbody>
@@ -964,9 +966,9 @@ const first = (n) => esc(String(n || '').trim().split(/\s+/)[0] || '');
 const scale = (name) => `<div class="fb-scale">${[1, 2, 3, 4, 5].map((v) => `<label><input type="radio" name="${name}" value="${v}" required><span>${v}</span></label>`).join('')}</div><div class="fb-ends"><span>Muy poco</span><span>Totalmente</span></div>`;
 
 export function feedbackForm(u, survey, token, err = '', ts = '') {
-  return `<div class="fb"><header class="fb-head"><img src="/logo-aural.png" alt="Aural" class="fb-logo">
-    <div class="fb-who">${avatar({ ...u, has_photo: false }, 'lg')}<div><p class="eyebrow">Califica la atención de</p><h1>${first(u.name)}</h1><p class="muted small">${esc(areaName(u.area))}</p></div></div>
-    <p class="fb-lead">Son 5 preguntas y toma menos de un minuto. <strong>Es anónima:</strong> no te pedimos nombre, teléfono ni correo.</p></header>
+  return `<div class="fb"><header class="fb-head">${cardWaves}<img src="/logo-aural-blanco.png" alt="Aural" class="fb-logo">
+    <p class="fb-k">Califica la atención de</p><h1>${first(u.name)}</h1><p class="fb-area">${esc(areaName(u.area))}</p>
+    <p class="fb-lead"><strong>Es anónima:</strong> no te pedimos nombre, teléfono ni correo. 5 preguntas, menos de un minuto.</p></header>
     ${err ? `<p class="notice err">${esc(err)}</p>` : ''}
     <form method="post" action="/c/${esc(token)}" class="fb-form">
       <fieldset class="fb-q"><legend>Tú eres</legend><div class="fb-chips">${survey.quien.map((x) => `<label><input type="radio" name="quien" value="${esc(x)}"><span>${esc(x)}</span></label>`).join('')}</div></fieldset>
@@ -976,18 +978,34 @@ export function feedbackForm(u, survey, token, err = '', ts = '') {
       <button class="btn fb-send">Enviar mi opinión</button></form></div>`;
 }
 
-export const feedbackDone = (msg = '') => `<div class="fb fb-done"><img src="/logo-aural.png" alt="Aural" class="fb-logo">
+export const feedbackDone = (msg = '') => `<div class="fb fb-done"><img src="/logo-aural.png" alt="Aural" class="fb-logo-dark">
   ${msg ? `<h1>Código no disponible</h1><p>${esc(msg)}</p>` : '<h1>¡Gracias!</h1><p>Tu opinión nos ayuda a darte cada vez un mejor servicio.</p>'}</div>`;
 
-export function qrCard(u, token, url, survey) {
-  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Código QR · ${esc(u.name)}</title><link rel="stylesheet" href="/style.css?v=${V}"></head>
-  <body class="qr-body"><div class="qr-card"><img src="/logo-aural.png" alt="Aural" class="qr-logo">
-    <p class="qr-k">¿Cómo te atendió</p><h1>${esc(String(u.name).trim().split(/\s+/).slice(0, 2).join(' '))}?</h1>
-    <img class="qr-img" src="/qr/${esc(token)}.svg" alt="Código QR">
-    <p class="qr-t">Escanea y responde 5 preguntas.<br><strong>Es anónimo y toma menos de un minuto.</strong></p>
-    <p class="qr-url">${esc(url)}</p></div>
-    <div class="qr-actions"><button class="btn" onclick="print()">Imprimir</button><a class="btn ghost" href="https://wa.me/?text=${encodeURIComponent(`Cuéntanos cómo te atendimos (anónimo, 1 minuto): ${url}`)}" target="_blank" rel="noopener">Compartir por WhatsApp</a><a class="btn ghost" href="javascript:history.back()">Volver</a></div>
-    <p class="qr-note muted small">Para ${esc(survey.publico)}.</p></body></html>`;
+const cardWaves = `<svg class="qc-waves" viewBox="0 0 200 200" aria-hidden="true">${[30, 55, 80, 105, 130].map((r) => `<path d="M${(20 + r * Math.cos(-0.8)).toFixed(1)} ${(100 + r * Math.sin(-0.8)).toFixed(1)} A ${r} ${r} 0 0 1 ${(20 + r * Math.cos(0.8)).toFixed(1)} ${(100 + r * Math.sin(0.8)).toFixed(1)}"/>`).join('')}</svg>`;
+const QQ = { pacientes: '¿Cómo te atendí?', medicos: '¿Cómo le atendí, doctor?', profesionales: '¿Cómo resolví tu caso?', clientes_b2b: '¿Cómo te atendí?', general: '¿Cómo te atendí?' };
+function oneCard(u, token, survey, key) {
+  const nm = String(u.name).trim().split(/\s+/);
+  const name = nm.length > 2 ? `${nm[0]} ${nm[nm.length > 3 ? 2 : 1]}` : nm.join(' ');
+  return `<div class="qc"><div class="qc-l">${cardWaves}<img class="qc-logo" src="/logo-aural-blanco.png" alt="Aural">
+      <p class="qc-q">${QQ[key] || '¿Cómo te atendí?'}</p>
+      <div class="qc-who">${u.has_photo ? `<img class="qc-ph" src="/foto/${u.id}" alt="">` : ''}<div><p class="qc-name">${esc(name)}</p><p class="qc-area">${esc(areaName(u.area))}</p></div></div>
+      <p class="qc-foot">Anónimo · 5 preguntas · 1 minuto</p></div>
+    <div class="qc-r"><img class="qc-qr" src="/qr/${esc(token)}.svg" alt="Código QR"><p class="qc-scan">Escanéame</p><p class="qc-sub">y califica mi atención</p></div></div>`;
+}
+
+export function qrCard(people, { title = 'Tarjeta QR', copies = 8, back = '/' } = {}) {
+  const cards = people.length === 1 ? Array(copies).fill(people[0]) : people;
+  const pages = [];
+  for (let i = 0; i < cards.length; i += 8) pages.push(cards.slice(i, i + 8));
+  const p0 = people[0];
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><link rel="stylesheet" href="/style.css?v=${V}"></head>
+  <body class="qr-body">
+    <div class="qr-screen"><p class="eyebrow">Tarjeta para imprimir</p><h1>${people.length === 1 ? esc(p0.name) : esc(title)}</h1>
+      <p class="muted">${people.length === 1 ? `Se imprimen ${copies} tarjetas en una hoja carta, listas para recortar.` : `${people.length} tarjetas, 8 por hoja carta, listas para recortar.`} Tamaño tarjeta de presentación (9 × 5,5 cm). Para mejor resultado, imprime en cartulina.</p>
+      <div class="qr-actions"><button class="btn" onclick="print()">Imprimir</button>${people.length === 1 ? `<a class="btn ghost" href="https://wa.me/?text=${encodeURIComponent(`Cuéntanos cómo te atendimos (anónimo, 1 minuto): ${p0.url}`)}" target="_blank" rel="noopener">Compartir por WhatsApp</a>` : ''}<a class="btn ghost" href="${esc(back)}">Volver</a></div>
+      <div class="qr-preview">${people.slice(0, people.length === 1 ? 1 : 4).map((x) => oneCard(x, x.token, x.survey, x.key)).join('')}</div></div>
+    ${pages.map((pg) => `<div class="qr-sheet">${pg.map((x) => oneCard(x, x.token, x.survey, x.key)).join('')}</div>`).join('')}
+  </body></html>`;
 }
 
 export function voiceCard(person, v, { token = '', base = '', survey, self = false } = {}) {
