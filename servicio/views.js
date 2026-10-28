@@ -1010,7 +1010,7 @@ export function qrCard(people, { title = 'Tarjeta QR', copies = 8, back = '/' } 
 
 export function voiceCard(person, v, { token = '', base = '', survey, self = false } = {}) {
   const url = token ? `${base}/c/${token}` : '';
-  const dims = survey.preguntas.map(([k, t]) => ({ l: t.replace(/^¿|\?$/g, ''), v: v.dims.find((d) => d.k === k)?.v ?? null, c: (v.dims.find((d) => d.k === k)?.v ?? 0) >= 4 ? COL.signal : (v.dims.find((d) => d.k === k)?.v ?? 0) >= 3 ? COL.amber : COL.err }));
+  const dims = survey.dims.map(([k, t]) => ({ l: t, v: v.dims.find((d) => d.k === k)?.v ?? null, c: (v.dims.find((d) => d.k === k)?.v ?? 0) >= 4 ? COL.signal : (v.dims.find((d) => d.k === k)?.v ?? 0) >= 3 ? COL.amber : COL.err }));
   return `<section class="card voice" id="voz"><div class="row-head"><div><p class="eyebrow">Voz de quienes ${self ? 'atiendes' : 'atiende'} · ${esc(survey.publico)}</p><h2 style="margin:4px 0">${self ? 'Así te ven' : 'Cómo lo ven'}</h2></div>
     <div class="actions">${self ? `<a class="btn" href="/tarjeta/${person.id}">Ver e imprimir mi código QR</a>` : `<a class="btn ghost" href="/tarjeta/${person.id}">Código QR</a>`}</div></div>
     ${self ? `<div class="voice-qr"><img src="/qr/${esc(token)}.svg" alt="Tu código QR" width="120" height="120"><div><p>Muestra tu código al terminar cada atención o comparte el enlace. Las respuestas son anónimas.</p><input class="copy" readonly value="${esc(url)}" onclick="this.select()"></div></div>` : ''}

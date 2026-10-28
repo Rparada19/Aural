@@ -3,16 +3,17 @@ import crypto from 'node:crypto';
 import QRCode from 'qrcode';
 import { q, one } from './db.js';
 
+// Cada pregunta mide siempre la misma dimensión, pero su redacción rota cada mes (3 versiones)
 const SURVEYS = {
   pacientes: {
     publico: 'pacientes, familiares y acompañantes',
     quien: ['Paciente', 'Familiar', 'Acompañante'],
     preguntas: [
-      ['escucha', '¿Te escuchó con atención y entendió lo que necesitabas?'],
-      ['claridad', '¿Te explicó todo de forma clara y sin afán?'],
-      ['trato', '¿Fue amable y paciente contigo y con quien te acompañaba?'],
-      ['resolvio', '¿Resolvió lo que necesitabas o te dejó claro el siguiente paso?'],
-      ['recomienda', '¿Recomendarías esta atención a alguien que quieres?'],
+      ['escucha', 'Escucha', ['¿Te escuchó con atención y entendió lo que necesitabas?', '¿Sentiste que te prestó toda su atención?', '¿Entendió bien tu situación antes de darte una respuesta?']],
+      ['claridad', 'Claridad', ['¿Te explicó todo de forma clara y sin afán?', '¿Saliste con claridad sobre lo que sigue?', '¿Usó palabras fáciles de entender para ti y tu familia?']],
+      ['trato', 'Amabilidad y paciencia', ['¿Fue amable y paciente contigo y con quien te acompañaba?', '¿Te hizo sentir bienvenido y respetado?', '¿Tuvo paciencia con tus preguntas?']],
+      ['resolvio', 'Solución', ['¿Resolvió lo que necesitabas o te dejó claro el siguiente paso?', '¿Te ayudó a resolver el motivo de tu visita o llamada?', '¿Sentiste que se ocupó de tu caso hasta el final?']],
+      ['recomienda', 'Recomendación', ['¿Recomendarías esta atención a alguien que quieres?', '¿Volverías a que te atendiera esta persona?', '¿Le contarías a un amigo o familiar sobre esta atención?']],
     ],
   },
   medicos: {
@@ -20,51 +21,56 @@ const SURVEYS = {
     usted: true,
     quien: ['Médico especialista', 'Recepcionista o asistente', 'Otro'],
     preguntas: [
-      ['valor', '¿La información que le compartió es útil para su práctica?'],
-      ['preparacion', '¿Demostró preparación técnica al conversar?'],
-      ['tiempo', '¿Respeta su tiempo y la dinámica del consultorio?'],
-      ['seguimiento', '¿Le informa cómo van los pacientes que remite?'],
-      ['recomienda', '¿Recomendaría a sus pacientes ser atendidos por Aural?'],
+      ['valor', 'Valor de la información', ['¿La información que le compartió es útil para su práctica?', '¿Le aporta algo nuevo y relevante en cada visita?', '¿El material y los datos que le presenta son pertinentes para sus pacientes?']],
+      ['preparacion', 'Preparación técnica', ['¿Demostró preparación técnica al conversar?', '¿Responde con solidez sus preguntas técnicas?', '¿Conoce bien las soluciones auditivas que presenta?']],
+      ['tiempo', 'Respeto por su tiempo', ['¿Respeta su tiempo y la dinámica del consultorio?', '¿Sus visitas son puntuales y del tiempo justo?', '¿Coordina la visita con usted o su equipo de forma oportuna?']],
+      ['seguimiento', 'Seguimiento a remitidos', ['¿Le informa cómo van los pacientes que remite?', '¿Recibe retroalimentación sobre los pacientes remitidos?', '¿Siente que sus pacientes remitidos están en buenas manos?']],
+      ['recomienda', 'Recomendación', ['¿Recomendaría a sus pacientes ser atendidos por Aural?', '¿Seguiría remitiendo pacientes a Aural?', '¿Recomendaría a Aural a un colega?']],
     ],
   },
   profesionales: {
     publico: 'audiólogas y audiólogos de clientes wholesale',
     quien: ['Audióloga o audiólogo', 'Dueño o administrador', 'Otro'],
     preguntas: [
-      ['rapidez', '¿Respondió tu solicitud en un tiempo adecuado?'],
-      ['tecnico', '¿Demostró dominio técnico para resolver tu caso?'],
-      ['claridad', '¿Te explicó la solución de forma clara y práctica?'],
-      ['cierre', '¿Hizo seguimiento hasta cerrar el caso?'],
-      ['recomienda', '¿Recomendarías el soporte de Aural a un colega?'],
+      ['rapidez', 'Rapidez', ['¿Respondió tu solicitud en un tiempo adecuado?', '¿Te atendió con la agilidad que necesitaba tu paciente?', '¿Fue fácil y rápido contactarle?']],
+      ['tecnico', 'Dominio técnico', ['¿Demostró dominio técnico para resolver tu caso?', '¿Te dio una solución técnicamente sólida?', '¿Conoce a fondo el software y los equipos?']],
+      ['claridad', 'Claridad', ['¿Te explicó la solución de forma clara y práctica?', '¿Te quedó claro cómo aplicar la solución?', '¿Sus indicaciones fueron fáciles de seguir?']],
+      ['cierre', 'Seguimiento hasta cerrar', ['¿Hizo seguimiento hasta cerrar el caso?', '¿Se aseguró de que el problema quedara resuelto?', '¿Te mantuvo informado mientras se resolvía?']],
+      ['recomienda', 'Recomendación', ['¿Recomendarías el soporte de Aural a un colega?', '¿Volverías a acudir a este soporte con confianza?', '¿El soporte de Aural te ayuda a dar un mejor servicio a tus pacientes?']],
     ],
   },
   clientes_b2b: {
     publico: 'clientes wholesale',
     quien: ['Dueño o administrador', 'Audióloga o audiólogo', 'Otro'],
     preguntas: [
-      ['conoce', '¿Conoce tu negocio y lo que necesitas?'],
-      ['portafolio', '¿Te asesora bien en portafolio y software?'],
-      ['cumple', '¿Cumple lo que promete en pedidos, garantías y tiempos?'],
-      ['proactivo', '¿Te mantiene informado y se anticipa a los problemas?'],
-      ['recomienda', '¿Recomendarías trabajar con Aural a un colega?'],
+      ['conoce', 'Conoce su negocio', ['¿Conoce tu negocio y lo que necesitas?', '¿Entiende las metas y retos de tu negocio?', '¿Te propone ideas pensadas para tu negocio?']],
+      ['portafolio', 'Asesoría en portafolio', ['¿Te asesora bien en portafolio y software?', '¿Te ayuda a elegir el producto correcto para cada paciente?', '¿Te capacita cuando lo necesitas?']],
+      ['cumple', 'Cumplimiento', ['¿Cumple lo que promete en pedidos, garantías y tiempos?', '¿Tus pedidos y garantías llegan como se acordó?', '¿Puedes confiar en los tiempos que te da?']],
+      ['proactivo', 'Proactividad', ['¿Te mantiene informado y se anticipa a los problemas?', '¿Te avisa a tiempo cuando hay novedades?', '¿Te busca con oportunidades, no solo cuando hay pedidos?']],
+      ['recomienda', 'Recomendación', ['¿Recomendarías trabajar con Aural a un colega?', '¿Seguirías trabajando con Aural por esta atención?', '¿Sientes a Aural como un aliado de tu negocio?']],
     ],
   },
   general: {
     publico: 'pacientes, clientes y aliados',
     quien: ['Paciente o familiar', 'Cliente o aliado', 'Médico o consultorio', 'Otro'],
     preguntas: [
-      ['escucha', '¿Te escuchó con atención y entendió lo que necesitabas?'],
-      ['claridad', '¿Te explicó todo de forma clara?'],
-      ['trato', '¿Fue amable y respetuoso contigo?'],
-      ['resolvio', '¿Resolvió tu caso o te dejó claro el siguiente paso?'],
-      ['recomienda', '¿Recomendarías a Aural por esta atención?'],
+      ['escucha', 'Escucha', ['¿Te escuchó con atención y entendió lo que necesitabas?', '¿Sentiste que te prestó toda su atención?', '¿Entendió bien tu situación?']],
+      ['claridad', 'Claridad', ['¿Te explicó todo de forma clara?', '¿Saliste con claridad sobre lo que sigue?', '¿Sus respuestas fueron fáciles de entender?']],
+      ['trato', 'Trato', ['¿Fue amable y respetuoso contigo?', '¿Te hizo sentir bien atendido?', '¿Tuvo paciencia con tus preguntas?']],
+      ['resolvio', 'Solución', ['¿Resolvió tu caso o te dejó claro el siguiente paso?', '¿Se ocupó de tu caso hasta el final?', '¿Encontró una solución a lo que necesitabas?']],
+      ['recomienda', 'Recomendación', ['¿Recomendarías a Aural por esta atención?', '¿Volverías a Aural por esta atención?', '¿Le contarías a alguien sobre esta atención?']],
     ],
   },
 };
 const BY_AREA = { visitadores: 'medicos', audiologico: 'profesionales', wholesale: 'clientes_b2b', lideres: 'general' };
 export const surveyKey = (area) => BY_AREA[area] || 'pacientes';
-export const surveyFor = (area) => SURVEYS[surveyKey(area)];
-export const LABELS = Object.fromEntries(Object.values(SURVEYS).flatMap((s) => s.preguntas));
+const monthIndex = () => { const [y, m] = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7).split('-').map(Number); return y * 12 + m; };
+// Versión del mes: [clave, texto] para la encuesta y [clave, etiqueta] para los resultados
+export function surveyFor(area) {
+  const s = SURVEYS[surveyKey(area)];
+  const v = (((monthIndex() - (2026 * 12 + 10)) % 3) + 3) % 3;
+  return { ...s, preguntas: s.preguntas.map(([k, , t]) => [k, t[v]]), dims: s.preguntas.map(([k, l]) => [k, l]) };
+}
 
 export async function qrToken(userId) {
   const r = await one('UPDATE users SET qr_token = coalesce(qr_token, $2) WHERE id = $1 RETURNING qr_token', [userId, crypto.randomBytes(6).toString('base64url')]);
