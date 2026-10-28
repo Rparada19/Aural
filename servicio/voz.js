@@ -17,6 +17,7 @@ const SURVEYS = {
   },
   medicos: {
     publico: 'médicos y equipos de consultorio',
+    usted: true,
     quien: ['Médico especialista', 'Recepcionista o asistente', 'Otro'],
     preguntas: [
       ['valor', '¿La información que le compartió es útil para su práctica?'],

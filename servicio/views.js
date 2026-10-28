@@ -968,12 +968,12 @@ const scale = (name) => `<div class="fb-scale">${[1, 2, 3, 4, 5].map((v) => `<la
 export function feedbackForm(u, survey, token, err = '', ts = '') {
   return `<div class="fb"><header class="fb-head">${cardWaves}<img src="/logo-aural-blanco.png" alt="Aural" class="fb-logo">
     <p class="fb-k">Califica la atención de</p><h1>${first(u.name)}</h1><p class="fb-area">${esc(areaName(u.area))}</p>
-    <p class="fb-lead"><strong>Es anónima:</strong> no te pedimos nombre, teléfono ni correo. 5 preguntas, menos de un minuto.</p></header>
+    <p class="fb-lead"><strong>Es anónima:</strong> no ${survey.usted ? 'le pedimos' : 'te pedimos'} nombre, teléfono ni correo. 5 preguntas, menos de un minuto.</p></header>
     ${err ? `<p class="notice err">${esc(err)}</p>` : ''}
     <form method="post" action="/c/${esc(token)}" class="fb-form">
-      <fieldset class="fb-q"><legend>Tú eres</legend><div class="fb-chips">${survey.quien.map((x) => `<label><input type="radio" name="quien" value="${esc(x)}"><span>${esc(x)}</span></label>`).join('')}</div></fieldset>
+      <fieldset class="fb-q"><legend>${survey.usted ? 'Usted es' : 'Tú eres'}</legend><div class="fb-chips">${survey.quien.map((x) => `<label><input type="radio" name="quien" value="${esc(x)}"><span>${esc(x)}</span></label>`).join('')}</div></fieldset>
       ${survey.preguntas.map(([k, t], i) => `<fieldset class="fb-q"><legend><span class="num">${i + 1}</span>${esc(t)}</legend>${scale(k)}</fieldset>`).join('')}
-      <label class="fb-q">¿Algo que quieras contarnos? <span class="muted small">(opcional)</span><textarea name="comentario" rows="3" maxlength="600" placeholder="Lo que más te gustó o lo que podemos mejorar"></textarea></label>
+      <label class="fb-q">${survey.usted ? '¿Algo que quiera contarnos?' : '¿Algo que quieras contarnos?'} <span class="muted small">(opcional)</span><textarea name="comentario" rows="3" maxlength="600" placeholder="${survey.usted ? 'Lo que más valora o lo que podemos mejorar' : 'Lo que más te gustó o lo que podemos mejorar'}"></textarea></label>
       <input type="text" name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true"><input type="hidden" name="ts" value="${esc(ts)}">
       <button class="btn fb-send">Enviar mi opinión</button></form></div>`;
 }
