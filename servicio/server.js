@@ -409,7 +409,23 @@ app.get('/ia', needUser, async (req, res) => {
   for (const g of (await q(`SELECT f->>'titulo' AS t, count(*)::int AS n FROM evaluations e, jsonb_array_elements(e.report->'fortalezas') f WHERE e.report IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 10`)).rows) learned.push({ t: g.t, k: 'fortaleza', a: 'Evaluaciones' });
   for (const x of c?.data?.negativos || []) learned.push({ t: x.t, k: 'brecha', a: 'Clientes en Google' });
   for (const x of c?.data?.positivos || []) learned.push({ t: x.t, k: 'fortaleza', a: 'Clientes en Google' });
-  page(res, 'IA de servicio en vivo', V.aiLivePage(n, learned, req.user.role === 'admin' ? '/admin' : '/'), req.user, { bare: true });
+  // Frases completas para cada salida de la IA
+  const cut = (t, m = 150) => { t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > m ? t.slice(0, t.lastIndexOf(' ', m)) + '…' : t; };
+  const outs = [[], [], [], [], [], []];
+  for (const k of (await q('SELECT DISTINCT ON (area) area, data FROM knowledge ORDER BY area, id DESC')).rows) {
+    for (const t of k.data.temas || []) outs[t.tipo === 'brecha' ? 1 : 0].push(cut(`${t.tema}: ${t.detalle}`));
+    for (const p of k.data.preguntas || []) outs[2].push(cut(p.respuesta_modelo, 160));
+  }
+  for (const r of (await q(`SELECT f->>'titulo' AS t, f->>'evidencia' AS d FROM evaluations e, jsonb_array_elements(e.report->'fortalezas') f WHERE e.report IS NOT NULL ORDER BY e.id DESC LIMIT 20`)).rows) outs[0].push(cut(`${r.t}: ${r.d || ''}`));
+  for (const r of (await q(`SELECT o->>'titulo' AS t, o->>'evidencia' AS d FROM evaluations e, jsonb_array_elements(e.report->'oportunidades') o WHERE e.report IS NOT NULL ORDER BY e.id DESC LIMIT 20`)).rows) outs[1].push(cut(`${r.t}: ${r.d || ''}`));
+  for (const x of c?.data?.positivos || []) outs[0].push(cut(`Clientes: ${x.t}. ${x.d}`));
+  for (const x of c?.data?.negativos || []) outs[1].push(cut(`Clientes: ${x.t}. ${x.d}`));
+  for (const r of (await q("SELECT titulo, objetivo FROM study_modules WHERE titulo <> '' ORDER BY id DESC LIMIT 20")).rows) outs[3].push(cut(r.objetivo ? `${r.titulo}: ${r.objetivo}` : r.titulo));
+  for (const r of (await q('SELECT accion FROM plan_items ORDER BY id DESC LIMIT 30')).rows) outs[4].push(cut(r.accion));
+  for (const x of c?.data?.acciones || []) outs[5].push(cut(x.a));
+  for (const r of (await q(`SELECT DISTINCT a->>'accion' AS t FROM team_insights ti, jsonb_array_elements(coalesce(ti.data->'acciones', '[]'::jsonb)) a LIMIT 15`).catch(() => ({ rows: [] }))).rows) if (r.t) outs[5].push(cut(r.t));
+  for (const o of outs) o.sort(() => Math.random() - 0.5);
+  page(res, 'IA de servicio en vivo', V.aiLivePage(n, learned, outs, req.user.role === 'admin' ? '/admin' : '/'), req.user, { bare: true });
 });
 
 app.get('/admin/clientes', needAdmin, async (req, res) => {

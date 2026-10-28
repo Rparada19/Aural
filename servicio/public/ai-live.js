@@ -76,7 +76,7 @@
       if (pt.t >= 1) {
         pt.done = true;
         if (pt.s.dir === 'in') { flash = Math.min(1, flash + 0.25); sphere[Math.floor(Math.random() * N)].a = 1; }
-        else { const el = pt.s.to.el; el.classList.add('lit'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('lit'), 700); }
+        else say(pt.s.to.el);
       }
     }
     for (let i = particles.length - 1; i >= 0; i--) if (particles[i].done) particles.splice(i, 1);
@@ -114,6 +114,17 @@
       p.n.a *= 0.97;
     }
     if (!reduce) requestAnimationFrame(frame);
+  }
+
+  // Cada salida dice una frase completa de lo que la IA produjo
+  const idx = {};
+  function say(el) {
+    el.classList.add('lit'); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('lit'), 900);
+    const k = el.dataset.o, pool = D.outs?.[k] || [];
+    if (pool.length < 2 || el._busy || Date.now() - (el._at || 0) < 4200) return;
+    el._busy = true; el._at = Date.now();
+    const p = el.querySelector('.say'); p.classList.add('swap');
+    setTimeout(() => { idx[k] = ((idx[k] ?? 0) + 1) % pool.length; p.textContent = pool[idx[k]]; p.classList.remove('swap'); el._busy = false; }, 350);
   }
 
   // Contadores
@@ -164,8 +175,8 @@
     if (innerWidth > 900) return;
     const outs = root.querySelectorAll('.chip[data-o]'); if (!outs.length) return;
     const el = outs[Math.floor(Math.random() * outs.length)];
-    el.classList.add('lit'); flash = 1; setTimeout(() => el.classList.remove('lit'), 700);
-  }, 900);
+    flash = 1; say(el);
+  }, 1400);
 
   document.getElementById('wow-full').addEventListener('click', () => {
     if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen?.();

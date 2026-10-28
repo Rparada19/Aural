@@ -800,14 +800,14 @@ export function customersPage(c, pulse) {
 }
 
 // ---------- IA en vivo (presentación) ----------
-export function aiLivePage(n, learned, back = '/') {
+export function aiLivePage(n, learned, outs = [], back = '/') {
   const inputs = [
     ['Respuestas de evaluación', n.respuestas], ['Reseñas de clientes', n.resenas], ['Pulsos del equipo', n.pulsos],
     ['Acciones de planes', n.acciones], ['Intentos de módulos', n.intentos], ['Sesiones uno a uno', n.sesiones],
   ];
   const outputs = ['Fortalezas del equipo', 'Brechas por cerrar', 'Respuestas modelo', 'Módulos de la Academia', 'Planes personalizados', 'Recomendaciones'];
   const total = inputs.reduce((a, [, v]) => a + v, 0);
-  const data = { learned: learned.slice(0, 40), taglines: ['Aprende de cada respuesta.', 'Escucha a cada cliente.', 'Encuentra lo que hacemos mejor.', 'Convierte datos en servicio de excelencia.'] };
+  const data = { outs: outs.map((o) => o.slice(0, 25)), learned: learned.slice(0, 40), taglines: ['Aprende de cada respuesta.', 'Escucha a cada cliente.', 'Encuentra lo que hacemos mejor.', 'Convierte datos en servicio de excelencia.'] };
   return `<div class="wow" id="wow">
     <canvas id="wow-bg" aria-hidden="true"></canvas>
     <header class="wow-top"><img src="/logo-aural-blanco.png" alt="Aural"><div class="wow-actions"><button type="button" id="wow-full" class="wow-btn">Pantalla completa</button><a href="${back}" class="wow-btn ghost">Salir</a></div></header>
@@ -817,7 +817,7 @@ export function aiLivePage(n, learned, back = '/') {
     <section class="wow-stage">
       <ul class="wow-col in">${inputs.map(([l, v], i) => `<li class="chip" data-i="${i}"><b data-count="${v}">0</b><span>${esc(l)}</span></li>`).join('')}</ul>
       <div class="wow-core" id="wow-core"><div class="core-glow"></div><div class="core-label"><b data-count="${total}">0</b><span>datos aprendidos</span></div></div>
-      <ul class="wow-col out">${outputs.map((l, i) => `<li class="chip out" data-o="${i}"><i></i><span>${esc(l)}</span></li>`).join('')}</ul>
+      <ul class="wow-col out">${outputs.map((l, i) => `<li class="chip out" data-o="${i}"><i></i><div><small>${esc(l)}</small><p class="say">${esc(outs[i]?.[0] || 'Aprendiendo…')}</p></div></li>`).join('')}</ul>
     </section>
     <section class="wow-insight"><p class="wow-insight-k">Lo último que aprendió</p><p class="wow-insight-t" id="wow-insight">&nbsp;</p><p class="wow-insight-s" id="wow-insight-s">&nbsp;</p></section>
     <footer class="wow-stats">${[['Evaluaciones analizadas', n.evaluaciones], ['Informes generados', n.informes], ['Reseñas de clientes', n.resenas], ['Módulos de la Academia', n.modulos]].map(([l, v]) => `<div><b data-count="${v}">0</b><span>${l}</span></div>`).join('')}</footer>

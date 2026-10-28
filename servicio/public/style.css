@@ -551,14 +551,18 @@ ul.ev.neg li { border-left-color: var(--err); }
 .wow-tag { font-size: clamp(1rem, 1.8vw, 1.35rem); color: rgba(255,255,255,.8); min-height: 1.6em; margin: 0; }
 .caret { display: inline-block; width: 2px; height: 1.05em; background: #8FE3D9; vertical-align: -3px; margin-left: 3px; animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
-.wow-stage { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(300px, 1.3fr) minmax(220px, 1fr); align-items: center; gap: clamp(16px, 4vw, 70px); margin: clamp(10px, 3vh, 30px) 0; min-height: 52vh; }
+.wow-stage { display: grid; grid-template-columns: minmax(210px, .8fr) minmax(300px, 1.1fr) minmax(300px, 1.25fr); align-items: center; gap: clamp(16px, 4vw, 70px); margin: clamp(10px, 3vh, 30px) 0; min-height: 52vh; }
 .wow-col { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .wow-col.in { justify-items: end; } .wow-col.out { justify-items: start; }
 .chip { display: grid; gap: 2px; min-width: 210px; padding: 9px 18px; border-radius: 16px; background: linear-gradient(135deg, rgba(255,255,255,.1), rgba(255,255,255,.03)); border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0,0,0,.25); text-align: right; }
 .chip b { font: 700 1.45rem Gotham, sans-serif; color: #8FE3D9; letter-spacing: -.02em; text-shadow: 0 0 18px rgba(31,165,154,.6); }
 .chip span { font-size: .86rem; color: rgba(255,255,255,.82); }
 .chip.out { grid-template-columns: 14px 1fr; align-items: center; gap: 12px; text-align: left; transition: transform .3s, box-shadow .3s, border-color .3s; }
-.chip.out span { font: 500 1rem Gotham, sans-serif; color: #fff; }
+.chip.out { align-items: start; width: 100%; max-width: 440px; }
+.chip.out i { margin-top: 4px; }
+.chip.out small { display: block; font: 500 .72rem Gotham, sans-serif; letter-spacing: .06em; text-transform: uppercase; color: #F2B24A; margin-bottom: 3px; }
+.chip.out .say { margin: 0; font: 500 .9rem/1.35 Gotham, sans-serif; color: #fff; min-height: 2.7em; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; transition: opacity .35s, transform .35s, filter .35s; }
+.chip.out .say.swap { opacity: 0; transform: translateY(6px); filter: blur(3px); }
 .chip.out i { width: 12px; height: 12px; border-radius: 50%; background: #F2B24A; box-shadow: 0 0 12px #F2B24A; }
 .chip.out.lit { transform: translateX(6px) scale(1.03); border-color: rgba(242,178,74,.7); box-shadow: 0 0 34px rgba(242,178,74,.35), 0 10px 30px rgba(0,0,0,.25); }
 .wow-core { position: relative; aspect-ratio: 1; width: min(100%, 440px); margin: 0 auto; display: grid; place-items: center; }
@@ -587,7 +591,7 @@ ul.ev.neg li { border-left-color: var(--err); }
   .wow-stage { grid-template-columns: 1fr; min-height: 0; }
   .wow-col { grid-template-columns: 1fr 1fr; justify-items: stretch !important; }
   .chip { min-width: 0; text-align: left; padding: 10px 14px; }
-  .chip.out { gap: 8px; } .chip.out span { font-size: .78rem; letter-spacing: -.01em; }
+  .wow-col.out { grid-template-columns: 1fr; } .chip.out { gap: 10px; max-width: none; } .chip.out .say { font-size: .85rem; }
   .chip.out.lit { transform: scale(1.03); }
   .wow-core { width: min(80vw, 340px); order: -1; }
   .wow-stats { grid-template-columns: 1fr 1fr; }
