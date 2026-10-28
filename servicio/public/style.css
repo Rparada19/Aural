@@ -642,3 +642,4 @@ ul.ev.neg li { border-left-color: var(--err); }
 .voice-qr img { background: #fff; border-radius: 8px; padding: 4px; flex: none; }
 .voice-qr p { margin: 0 0 8px; }
 .voice-c { list-style: none; padding: 0; display: grid; gap: 8px; }
+.voice-meta { background: #EEF2F7; border-radius: 14px; padding: 12px 14px; margin: 10px 0 14px; } .voice-meta .row-head { margin: 0 0 8px; } .voice-meta p { margin: 8px 0 0; } .voice-c form.inline { display: inline-flex; gap: 6px; margin-left: 6px; }

@@ -836,6 +836,8 @@ function leaderFlags(r) {
   if (r.mod_id && !r.aprobado && r.intentos >= 2) f.push(['Perdió el módulo del mes', 'err']);
   else if (r.mod_id && !r.aprobado && day >= 15) f.push(['Módulo del mes pendiente', 'warn']);
   if (!r.uno_mes && day >= 20) f.push(['Sin uno a uno este mes', 'warn']);
+  if (r.meta && day >= 15 && r.voz_mes < (r.meta * day) / 30 * 0.6) f.push([`Meta QR atrasada (${r.voz_mes}/${r.meta})`, 'warn']);
+  if (r.voz_rev) f.push([`${r.voz_rev} calificación${r.voz_rev > 1 ? 'es' : ''} QR por revisar`, 'info']);
   const d = sinceDays(r.last_seen);
   if (d === null || d > 7) f.push([d === null ? 'Nunca ha entrado' : `Sin entrar hace ${d} días`, 'warn']);
   return f;
@@ -853,6 +855,7 @@ export function leaderHome(user, rows, mes, base = '/lider/personas', me = null)
     ['Puntaje promedio', avg(rows.filter((r) => r.score != null).map((r) => r.score))],
     ['Módulo del mes aprobado', withMod.length ? `${withMod.filter((r) => r.aprobado).length}/${withMod.length}` : '—'],
     ['Uno a uno del mes', `${rows.filter((r) => r.uno_mes).length}/${rows.length}`],
+    ['Calificaciones QR del mes', `${rows.reduce((a, r) => a + (r.voz_mes || 0), 0)}/${rows.reduce((a, r) => a + (r.meta || 0), 0)}`],
     ['Requieren atención', attn.length],
   ];
   return `<section class="band"><div class="band-copy"><p class="band-sub">Mi equipo · ${esc(fmonth(mes))}</p><h1>${user.leads_all ? 'Todo el personal' : `Equipo de ${esc(base === '/lider/personas' ? String(user.name).split(' ')[0] : user.name)}`}</h1>
@@ -868,7 +871,7 @@ export function leaderHome(user, rows, mes, base = '/lider/personas', me = null)
     <td>${r.plan_total ? `<div class="bar slim"><span style="width:${Math.round((100 * r.plan_hechos) / r.plan_total)}%"></span></div><span class="muted small">${r.plan_hechos}/${r.plan_total} hechas</span>` : '<span class="muted">—</span>'}</td>
     <td>${modCell(r)}</td><td>${r.publicados ? `${r.aprobados}/${r.publicados} aprobados` : '<span class="muted">—</span>'}</td>
     <td>${r.uno_mes ? '<span class="badge ok">Hecho</span>' : '<span class="badge warn">Pendiente</span>'}${r.comp_abiertos ? `<br><span class="muted small">${r.comp_abiertos} compromiso${r.comp_abiertos > 1 ? 's' : ''} abierto${r.comp_abiertos > 1 ? 's' : ''}</span>` : ''}</td>
-    <td>${r.voz_n ? `<strong>${r.voz.toFixed(1)}</strong><br><span class="muted small">${r.voz_n} resp.</span>` : '<span class="muted">—</span>'}</td>
+    <td>${r.meta ? `<strong>${r.voz_mes}/${r.meta}</strong>` : `<strong>${r.voz_mes}</strong>`}${r.voz != null ? `<br><span class="muted small">Promedio ${r.voz.toFixed(1)}</span>` : ''}${r.voz_rev ? `<br><span class="badge warn">${r.voz_rev} en revisión</span>` : ''}</td>
     <td>${r.last_seen ? fdate(r.last_seen) : '<span class="muted">Nunca</span>'}</td></tr>`).join('')}
   </tbody></table></section>` : ''}`;
 }
@@ -910,8 +913,9 @@ export function adminLeaders(rows, ok, teams = {}) {
     </tbody></table>
     <form method="post" action="/admin/lideres" class="actions" style="margin-top:14px"><select name="nuevo" required><option value="">Elegir persona…</option>${rows.filter((r) => !r.lider).map((r) => `<option value="${r.id}">${esc(r.name)} · ${esc(areaName(r.area))}</option>`).join('')}</select><button class="btn">Agregar como líder</button></form></section>
   <section class="card"><h2 style="margin-top:0">Asignación del personal</h2>
-    <form method="post" action="/admin/lideres"><input type="hidden" name="asignar" value="1"><table class="tbl"><thead><tr><th>Persona</th><th>Área</th><th>Sede</th><th>Líder</th></tr></thead><tbody>
-    ${rows.map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(areaName(r.area))}</td><td>${esc(r.sede)}</td><td><select name="l_${r.id}">${opts(r.leader_id, r.id)}</select></td></tr>`).join('')}
+    <form method="post" action="/admin/lideres"><input type="hidden" name="asignar" value="1"><table class="tbl"><thead><tr><th>Persona</th><th>Área</th><th>Sede</th><th>Líder</th><th>Meta QR / mes</th></tr></thead><tbody>
+    ${rows.map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(areaName(r.area))}</td><td>${esc(r.sede)}</td><td><select name="l_${r.id}">${opts(r.leader_id, r.id)}</select></td>
+      <td><input type="number" min="0" max="500" name="m_${r.id}" value="${r.meta_voz ?? ''}" placeholder="${r.meta_def ?? '—'}" style="width:90px" title="Vacío = meta por defecto del área"></td></tr>`).join('')}
     </tbody></table><div class="actions" style="margin-top:14px"><button class="btn">Guardar asignaciones</button></div></form></section>`;
 }
 
@@ -959,7 +963,7 @@ export function myCommitments(list) {
 const first = (n) => esc(String(n || '').trim().split(/\s+/)[0] || '');
 const scale = (name) => `<div class="fb-scale">${[1, 2, 3, 4, 5].map((v) => `<label><input type="radio" name="${name}" value="${v}" required><span>${v}</span></label>`).join('')}</div><div class="fb-ends"><span>Muy poco</span><span>Totalmente</span></div>`;
 
-export function feedbackForm(u, survey, token, err = '') {
+export function feedbackForm(u, survey, token, err = '', ts = '') {
   return `<div class="fb"><header class="fb-head"><img src="/logo-aural.png" alt="Aural" class="fb-logo">
     <div class="fb-who">${avatar({ ...u, has_photo: false }, 'lg')}<div><p class="eyebrow">Califica la atención de</p><h1>${first(u.name)}</h1><p class="muted small">${esc(areaName(u.area))}</p></div></div>
     <p class="fb-lead">Son 5 preguntas y toma menos de un minuto. <strong>Es anónima:</strong> no te pedimos nombre, teléfono ni correo.</p></header>
@@ -968,7 +972,7 @@ export function feedbackForm(u, survey, token, err = '') {
       <fieldset class="fb-q"><legend>Tú eres</legend><div class="fb-chips">${survey.quien.map((x) => `<label><input type="radio" name="quien" value="${esc(x)}"><span>${esc(x)}</span></label>`).join('')}</div></fieldset>
       ${survey.preguntas.map(([k, t], i) => `<fieldset class="fb-q"><legend><span class="num">${i + 1}</span>${esc(t)}</legend>${scale(k)}</fieldset>`).join('')}
       <label class="fb-q">¿Algo que quieras contarnos? <span class="muted small">(opcional)</span><textarea name="comentario" rows="3" maxlength="600" placeholder="Lo que más te gustó o lo que podemos mejorar"></textarea></label>
-      <input type="text" name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
+      <input type="text" name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true"><input type="hidden" name="ts" value="${esc(ts)}">
       <button class="btn fb-send">Enviar mi opinión</button></form></div>`;
 }
 
@@ -992,9 +996,13 @@ export function voiceCard(person, v, { token = '', base = '', survey, self = fal
   return `<section class="card voice" id="voz"><div class="row-head"><div><p class="eyebrow">Voz de quienes ${self ? 'atiendes' : 'atiende'} · ${esc(survey.publico)}</p><h2 style="margin:4px 0">${self ? 'Así te ven' : 'Cómo lo ven'}</h2></div>
     <div class="actions">${self ? `<a class="btn" href="/tarjeta/${person.id}">Ver e imprimir mi código QR</a>` : `<a class="btn ghost" href="/tarjeta/${person.id}">Código QR</a>`}</div></div>
     ${self ? `<div class="voice-qr"><img src="/qr/${esc(token)}.svg" alt="Tu código QR" width="120" height="120"><div><p>Muestra tu código al terminar cada atención o comparte el enlace. Las respuestas son anónimas.</p><input class="copy" readonly value="${esc(url)}" onclick="this.select()"></div></div>` : ''}
-    ${v.closedOnly ? `<p class="notice info">Este mes llevas <strong>${v.n_mes}</strong> respuesta${v.n_mes === 1 ? '' : 's'}. Tus resultados se publican al cierre de cada mes${v.n ? '; abajo ves los de los meses anteriores' : ''}.</p>` : ''}
+    ${v.meta ? `<div class="voice-meta"><div class="row-head"><strong>Meta del mes: ${v.n_mes} de ${v.meta} calificaciones</strong><span class="muted small">${Math.min(100, Math.round((100 * v.n_mes) / v.meta))}%</span></div><div class="bar"><span style="width:${Math.min(100, Math.round((100 * v.n_mes) / v.meta))}%"></span></div><p class="muted small">Solo cuentan las calificaciones válidas: las hechas desde celulares o computadores del equipo no cuentan.</p></div>` : ''}
+    ${v.closedOnly ? `<p class="notice info">Tus resultados se publican al cierre de cada mes${v.n ? '; abajo ves los de los meses anteriores' : ''}.</p>` : ''}
     ${v.n ? `<p class="ai-score"><b>${v.prom.toFixed(1)}</b><span>de 5 · ${v.n} respuesta${v.n > 1 ? 's' : ''}${v.closedOnly ? ' hasta el mes pasado' : v.n30 ? ` · ${v.n30} en los últimos 30 días` : ''}</span></p>${hbars(dims, { max: 5 })}
       ${v.comments.length ? `<h3>Comentarios recientes</h3><ul class="voice-c">${v.comments.map((c) => `<li><span class="badge ${c.prom >= 4 ? 'ok' : c.prom >= 3 ? 'warn' : 'err'}">${c.prom.toFixed(1)}</span> ${esc(c.comentario)}<span class="muted small"> · ${c.quien ? `${esc(c.quien)} · ` : ''}${fdate(c.created_at)}</span></li>`).join('')}</ul>` : ''}`
-      : `<p class="muted">${self ? (v.n_mes ? '' : 'Aún no tienes respuestas. Empieza a compartir tu código hoy.') : 'Aún no tiene respuestas.'}</p>`}
+      : `<p class="muted">${self ? (v.n_mes ? '' : 'Aún no tienes respuestas. Empieza a compartir tu código hoy.') : 'Aún no tiene respuestas válidas.'}</p>`}
+    ${v.review?.length ? `<h3>Calificaciones en revisión o excluidas (${v.review.length})</h3><p class="muted small">No cuentan para el promedio ni para la meta. Valida las que sean legítimas o anula las sospechosas.</p>
+      <ul class="voice-c">${v.review.map((r) => `<li><span class="badge ${r.estado === 'excluida' ? 'err' : 'warn'}">${r.estado === 'excluida' ? 'Excluida' : 'En revisión'}</span> <strong>${r.prom.toFixed(1)}</strong> · ${esc(r.flags.join(' · '))}<span class="muted small"> · ${fdate(r.created_at)}${r.comentario ? ` · “${esc(r.comentario)}”` : ''}</span>
+        <form method="post" action="/voz/${r.id}" class="inline">${r.estado === 'revision' ? '<button class="btn ghost small" name="accion" value="validar">Validar</button>' : ''}<button class="btn ghost small" name="accion" value="anular">Anular</button></form></li>`).join('')}</ul>` : ''}
   </section>`;
 }

@@ -11,7 +11,7 @@ import { newDoc, renderReport, footer } from './pdf.js';
 import { learnArea, latestKnowledge } from './knowledge.js';
 import { generateModule, generateAcademy, userModuleState, grade, drawQuiz, windowState, PASS, MAX_ATTEMPTS } from './study.js';
 import { rankingFor } from './ranking.js';
-import { qrToken, qrSvg, surveyFor, saveFeedback, voiceOf } from './voz.js';
+import { qrToken, qrSvg, surveyFor, saveFeedback, voiceOf, metaFor, markStaff, signTs } from './voz.js';
 import { notifyPlanPublished, METODOLOGIA } from './notify.js';
 import { generateMonthlyPlan, generateInsights, runDaily, sendMessage, getSetting, setSetting, today, thisMonth, PULSE } from './growth.js';
 
@@ -31,10 +31,26 @@ app.use(express.urlencoded({ extended: false, limit: '200kb' }));
 app.use('/admin/estudio', express.json({ limit: '8mb' }));
 app.use(express.json({ limit: '200kb' }));
 
+// Identificador anónimo de dispositivo (sirve para detectar autocalificaciones en la encuesta QR)
+const cookieOf = (req, name) => (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(name + '='))?.slice(name.length + 1);
+function deviceId(req, res) {
+  let d = cookieOf(req, 'aural_d');
+  if (!d || !/^[A-Za-z0-9_-]{16,40}$/.test(d)) {
+    d = crypto.randomBytes(16).toString('base64url');
+    res.append('Set-Cookie', `aural_d=${d}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${730 * 86400}${BASE.startsWith('https') ? '; Secure' : ''}`);
+    req.newDevice = true;
+  }
+  return d;
+}
+
 // Sesión
 app.use(async (req, res, next) => {
   const sid = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1);
   if (sid) req.user = await one('SELECT u.id, u.email, u.name, u.role, u.area, u.sede, u.cargo, u.active, u.last_seen, u.lider, u.leads_all, (u.photo IS NOT NULL) AS has_photo FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = $1 AND s.expires_at > now() AND u.active', [hash(sid)]);
+  if (req.user && req.user.role === 'staff' && !req.path.startsWith('/c/')) {
+    const dev = deviceId(req, res);
+    if (req.newDevice || !req.user.last_seen || Date.now() - new Date(req.user.last_seen) > 3600e3) markStaff(req.user.id, dev, req.ip).catch(() => {});
+  }
   if (req.user && (!req.user.last_seen || Date.now() - new Date(req.user.last_seen) > 3600e3)) q('UPDATE users SET last_seen = now() WHERE id = $1', [req.user.id]).catch(() => {});
   next();
 });
@@ -82,19 +98,26 @@ const byToken = (t) => one('SELECT id, name, area, active, (photo IS NOT NULL) A
 app.get('/c/:t', async (req, res) => {
   const u = await byToken(req.params.t);
   if (!u) return page(res, 'Encuesta', V.feedbackDone('Este código ya no está activo.'), null);
-  page(res, 'Califica la atención', V.feedbackForm(u, surveyFor(u.area), req.params.t), null);
+  deviceId(req, res);
+  page(res, 'Califica la atención', V.feedbackForm(u, surveyFor(u.area), req.params.t, '', signTs(Date.now())), null);
 });
 
 app.post('/c/:t', async (req, res) => {
   const u = await byToken(req.params.t);
   if (!u) return page(res, 'Encuesta', V.feedbackDone('Este código ya no está activo.'), null);
-  const ck = `fb${u.id}`;
-  const seen = (req.headers.cookie || '').split(/;\s*/).some((c) => c.startsWith(ck + '='));
-  if (!req.body.website && !seen && !fbLimited(req.ip)) {
-    if (!(await saveFeedback(u, req.body))) return page(res, 'Califica la atención', V.feedbackForm(u, surveyFor(u.area), req.params.t, 'Por favor responde las 5 preguntas.'), null);
-    res.setHeader('Set-Cookie', `${ck}=1; Path=/c; Max-Age=${12 * 3600}; HttpOnly; SameSite=Lax${BASE.startsWith('https') ? '; Secure' : ''}`);
+  if (!req.body.website && !fbLimited(req.ip)) {
+    const dev = cookieOf(req, 'aural_d');
+    if (!(await saveFeedback(u, req.body, { dev: dev && /^[A-Za-z0-9_-]{16,40}$/.test(dev) ? dev : '', ip: req.ip }))) return page(res, 'Califica la atención', V.feedbackForm(u, surveyFor(u.area), req.params.t, 'Por favor responde las 5 preguntas.', req.body.ts), null);
   }
   page(res, 'Gracias', V.feedbackDone(), null);
+});
+
+// El líder o el director validan o anulan calificaciones en revisión
+app.post('/voz/:id', needUser, async (req, res) => {
+  const f = await one('SELECT id, user_id FROM feedback WHERE id = $1', [req.params.id]);
+  const ok = f && (req.user.role === 'admin' || (req.user.lider && await inTeam(req.user, f.user_id)));
+  if (ok) await q('UPDATE feedback SET estado = $2, revisado_por = $3 WHERE id = $1', [f.id, req.body.accion === 'validar' ? 'valida' : 'anulada', req.user.id]);
+  res.redirect(`${req.user.role === 'admin' ? '/admin/personas' : '/lider/personas'}/${f?.user_id || ''}#voz`);
 });
 
 app.get('/qr/:t.svg', async (req, res) => {
@@ -139,7 +162,8 @@ app.post('/entrar/:t', async (req, res) => {
   if (!row) return page(res, 'Enlace vencido', V.loginPage('', 'Este enlace ya se usó o venció. Pide uno nuevo.'));
   const sid = token();
   await q("INSERT INTO sessions (id_hash, user_id, expires_at) VALUES ($1, $2, now() + interval '30 days')", [hash(sid), row.user_id]);
-  res.setHeader('Set-Cookie', `${COOKIE}=${sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 86400}${BASE.startsWith('https') ? '; Secure' : ''}`);
+  res.append('Set-Cookie', `${COOKIE}=${sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 86400}${BASE.startsWith('https') ? '; Secure' : ''}`);
+  markStaff(row.user_id, deviceId(req, res), req.ip).catch(() => {});
   res.redirect('/');
 });
 
@@ -342,9 +366,9 @@ app.get('/admin', needAdmin, async (req, res) => {
   const gaps = (await q(`SELECT o->>'titulo' AS t, count(*)::int AS n FROM users u JOIN LATERAL (SELECT report FROM evaluations WHERE user_id = u.id AND report IS NOT NULL ORDER BY id DESC LIMIT 1) e ON true,
       jsonb_array_elements(e.report->'oportunidades') o WHERE u.role = 'staff' AND u.active AND u.approved ${area ? 'AND u.area = $1' : ''} GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 7`, area ? [area] : [])).rows;
   const clientes = await one('SELECT * FROM customer_insights ORDER BY id DESC LIMIT 1');
-  const voz = { tot: await one(`SELECT count(*)::int AS n, round(avg(promedio), 1)::float AS prom FROM feedback f JOIN users u ON u.id = f.user_id WHERE true ${af.replace('$2', '$1')}`, ap),
-    areas: (await q(`SELECT f.area, round(avg(f.promedio), 1)::float AS v, count(*)::int AS n FROM feedback f GROUP BY 1 ORDER BY 2 DESC`)).rows,
-    people: area ? (await q(`SELECT u.name, round(avg(f.promedio), 1)::float AS v, count(*)::int AS n FROM feedback f JOIN users u ON u.id = f.user_id WHERE u.area = $1 GROUP BY u.id ORDER BY 2 DESC`, [area])).rows : [] };
+  const voz = { tot: await one(`SELECT count(*)::int AS n, round(avg(promedio), 1)::float AS prom FROM feedback f JOIN users u ON u.id = f.user_id WHERE f.estado = 'valida' ${af.replace('$2', '$1')}`, ap),
+    areas: (await q(`SELECT f.area, round(avg(f.promedio), 1)::float AS v, count(*)::int AS n FROM feedback f WHERE f.estado = 'valida' GROUP BY 1 ORDER BY 2 DESC`)).rows,
+    people: area ? (await q(`SELECT u.name, round(avg(f.promedio), 1)::float AS v, count(*)::int AS n FROM feedback f JOIN users u ON u.id = f.user_id WHERE u.area = $1 AND f.estado = 'valida' GROUP BY u.id ORDER BY 2 DESC`, [area])).rows : [] };
   page(res, 'Panel', V.dashboard(rows, mes, area, pending, Object.values(series).sort((a, b) => a.mes.localeCompare(b.mes)), comments, PULSE, insight, req.query.error, gaps, clientes, voz), req.user, { wide: true });
 });
 
@@ -587,7 +611,9 @@ const teamSql = (where) => `SELECT u.id, u.name, u.email, u.area, u.sede, u.carg
     ac.publicados, ac.aprobados, pl.total AS plan_total, pl.hechos AS plan_hechos,
     (SELECT max(fecha) FROM sessions_1a1 s WHERE s.user_id = u.id AND to_char(s.fecha, 'YYYY-MM') = $1) AS uno_mes,
     (SELECT count(*) FROM compromisos c WHERE c.user_id = u.id AND c.estado IN ('pendiente','parcial'))::int AS comp_abiertos,
-    (SELECT round(avg(promedio), 1)::float FROM feedback f WHERE f.user_id = u.id) AS voz, (SELECT count(*) FROM feedback f WHERE f.user_id = u.id)::int AS voz_n
+    (SELECT round(avg(promedio), 1)::float FROM feedback f WHERE f.user_id = u.id AND f.estado = 'valida') AS voz,
+    (SELECT count(*) FROM feedback f WHERE f.user_id = u.id AND f.estado = 'valida' AND to_char(f.created_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') = $1)::int AS voz_mes,
+    (SELECT count(*) FROM feedback f WHERE f.user_id = u.id AND f.estado = 'revision')::int AS voz_rev, u.meta_voz
   FROM users u
   LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
   LEFT JOIN study_modules m ON m.area = u.area AND m.mes = $1 AND m.published
@@ -598,7 +624,8 @@ const teamSql = (where) => `SELECT u.id, u.name, u.email, u.area, u.sede, u.carg
   LEFT JOIN LATERAL (SELECT count(*)::int AS total, count(*) FILTER (WHERE i.estado = 'hecho')::int AS hechos FROM plan_items i JOIN plans p ON p.id = i.plan_id WHERE p.user_id = u.id AND p.mes = $1 AND p.published) pl ON true
   WHERE ${where}
   ORDER BY u.area, u.name`;
-const teamOf = async (leader) => (await q(teamSql("u.role = 'staff' AND u.approved AND u.active AND u.id <> $2 AND ($3 OR u.leader_id = $2)"), [thisMonth(), leader.id, Boolean(leader.leads_all)])).rows;
+const withMeta = (rows) => rows.map((r) => ({ ...r, meta: metaFor(r) }));
+const teamOf = async (leader) => withMeta((await q(teamSql("u.role = 'staff' AND u.approved AND u.active AND u.id <> $2 AND ($3 OR u.leader_id = $2)"), [thisMonth(), leader.id, Boolean(leader.leads_all)])).rows);
 const selfRow = async (u) => (await q(teamSql('u.id = $2'), [thisMonth(), u.id])).rows[0];
 const inTeam = async (leader, id) => one(`SELECT * FROM users_v WHERE id = $1 AND role = 'staff' AND id <> $2 AND ($3 OR leader_id = $2)`, [id, leader.id, Boolean(leader.leads_all)]);
 
@@ -663,7 +690,8 @@ app.get('/lider/personas/:id/informe.pdf', needLeader, async (req, res) => {
 });
 
 app.get('/admin/lideres', needAdmin, async (req, res) => {
-  const { rows } = await q("SELECT id, name, email, area, sede, lider, leads_all, leader_id, (photo IS NOT NULL) AS has_photo FROM users WHERE role = 'staff' AND approved AND active ORDER BY area, name");
+  const { rows } = await q("SELECT id, name, email, area, sede, lider, leads_all, leader_id, meta_voz, (photo IS NOT NULL) AS has_photo FROM users WHERE role = 'staff' AND approved AND active ORDER BY area, name");
+  rows.forEach((r) => { r.meta_def = metaFor({ ...r, meta_voz: null }); });
   const teams = {};
   for (const l of rows.filter((r) => r.lider)) teams[l.id] = await teamOf(l);
   page(res, 'Líderes', V.adminLeaders(rows, req.query.ok, teams), req.user, { wide: true });
@@ -685,6 +713,8 @@ app.post('/admin/lideres', needAdmin, async (req, res) => {
     for (const [k, v] of Object.entries(b)) {
       const m = k.match(/^l_(\d+)$/);
       if (m) await q('UPDATE users SET leader_id = $2 WHERE id = $1', [m[1], leaders.has(String(v)) && v !== m[1] ? Number(v) : null]);
+      const mm = k.match(/^m_(\d+)$/);
+      if (mm) await q('UPDATE users SET meta_voz = $2 WHERE id = $1', [mm[1], String(v).trim() === '' ? null : Math.max(0, Math.min(500, Number(v) || 0))]);
     }
   }
   res.redirect('/admin/lideres?ok=1');

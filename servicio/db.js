@@ -180,6 +180,14 @@ export async function migrate() {
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
   await q('CREATE INDEX IF NOT EXISTS feedback_user ON feedback (user_id, created_at)');
+  await q("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS dev_hash TEXT NOT NULL DEFAULT ''");
+  await q("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS ip_hash TEXT NOT NULL DEFAULT ''");
+  await q('ALTER TABLE feedback ADD COLUMN IF NOT EXISTS secs INT');
+  await q("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS estado TEXT NOT NULL DEFAULT 'valida'");
+  await q("ALTER TABLE feedback ADD COLUMN IF NOT EXISTS flags TEXT[] NOT NULL DEFAULT '{}'");
+  await q('ALTER TABLE feedback ADD COLUMN IF NOT EXISTS revisado_por INT REFERENCES users(id) ON DELETE SET NULL');
+  await q('CREATE TABLE IF NOT EXISTS staff_marks (kind TEXT NOT NULL, hash TEXT NOT NULL, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, last_seen TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (kind, hash, user_id))');
+  await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS meta_voz INT');
   await q(`CREATE TABLE IF NOT EXISTS compromisos (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
