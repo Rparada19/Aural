@@ -629,7 +629,9 @@ const teamSql = (where) => `SELECT u.id, u.name, u.email, u.area, u.sede, u.carg
     (SELECT count(*) FROM compromisos c WHERE c.user_id = u.id AND c.estado IN ('pendiente','parcial'))::int AS comp_abiertos,
     (SELECT round(avg(promedio), 1)::float FROM feedback f WHERE f.user_id = u.id AND f.estado = 'valida') AS voz,
     (SELECT count(*) FROM feedback f WHERE f.user_id = u.id AND f.estado = 'valida' AND to_char(f.created_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') = $1)::int AS voz_mes,
-    (SELECT count(*) FROM feedback f WHERE f.user_id = u.id AND f.estado = 'revision')::int AS voz_rev, u.meta_voz
+    (SELECT count(*) FROM feedback f WHERE f.user_id = u.id AND f.estado = 'revision')::int AS voz_rev, u.meta_voz,
+    (SELECT round(avg(promedio), 1)::float FROM feedback f WHERE f.user_id = u.id AND f.estado = 'valida' AND to_char(f.created_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') = $1) AS voz_pmes,
+    (SELECT round(avg(promedio), 1)::float FROM feedback f WHERE f.user_id = u.id AND f.estado = 'valida' AND to_char(f.created_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') = to_char((to_date($1, 'YYYY-MM') - interval '1 month'), 'YYYY-MM')) AS voz_pprev
   FROM users u
   LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
   LEFT JOIN study_modules m ON m.area = u.area AND m.mes = $1 AND m.published

@@ -150,6 +150,8 @@ export async function voiceOf(userId, closedOnly = false) {
   const comments = (await q(`SELECT quien, comentario, promedio::float AS prom, created_at FROM feedback WHERE user_id = $1 AND ${V} AND comentario <> '' ${w} ORDER BY id DESC LIMIT 8`, [userId])).rows;
   const review = closedOnly ? [] : (await q(`SELECT id, estado, flags, promedio::float AS prom, comentario, quien, created_at FROM feedback
     WHERE user_id = $1 AND estado IN ('revision', 'excluida') AND created_at > now() - interval '60 days' ORDER BY id DESC LIMIT 30`, [userId])).rows;
+  const months = (await q(`SELECT to_char(created_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') AS mes, count(*)::int AS n, round(avg(promedio), 1)::float AS prom
+    FROM feedback WHERE user_id = $1 AND ${V} ${w} GROUP BY 1 ORDER BY 1 DESC LIMIT 6`, [userId])).rows;
   const u = await one('SELECT area, sede, meta_voz FROM users WHERE id = $1', [userId]);
-  return { ...tot, dims, comments, review, closedOnly, meta: u ? metaFor(u) : null };
+  return { ...tot, dims, comments, review, months, closedOnly, meta: u ? metaFor(u) : null };
 }
