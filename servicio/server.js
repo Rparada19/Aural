@@ -531,7 +531,7 @@ app.post('/admin/personas/:id/sesiones', needAdmin, async (req, res) => {
 });
 
 // ---------- Líderes: seguimiento de su equipo ----------
-const TEAM_SQL = `SELECT u.id, u.name, u.email, u.area, u.sede, u.cargo, u.last_seen, (u.photo IS NOT NULL) AS has_photo, u.leader_id,
+const teamSql = (where) => `SELECT u.id, u.name, u.email, u.area, u.sede, u.cargo, u.last_seen, (u.photo IS NOT NULL) AS has_photo, u.leader_id,
     e.status, e.plan_published, (e.report->>'puntaje_global')::int AS score,
     m.id AS mod_id, m.numero AS mod_num, m.titulo AS mod_titulo, (r.user_id IS NOT NULL) AS leido, a.best, coalesce(a.n, 0)::int AS intentos, coalesce(a.passed, false) AS aprobado,
     ac.publicados, ac.aprobados, pl.total AS plan_total, pl.hechos AS plan_hechos
@@ -543,13 +543,14 @@ const TEAM_SQL = `SELECT u.id, u.name, u.email, u.area, u.sede, u.cargo, u.last_
   LEFT JOIN LATERAL (SELECT count(*)::int AS publicados, count(*) FILTER (WHERE EXISTS (SELECT 1 FROM study_attempts sa WHERE sa.module_id = sm.id AND sa.user_id = u.id AND sa.passed))::int AS aprobados
     FROM study_modules sm WHERE sm.area = u.area AND sm.published AND sm.mes <= $1) ac ON true
   LEFT JOIN LATERAL (SELECT count(*)::int AS total, count(*) FILTER (WHERE i.estado = 'hecho')::int AS hechos FROM plan_items i JOIN plans p ON p.id = i.plan_id WHERE p.user_id = u.id AND p.mes = $1 AND p.published) pl ON true
-  WHERE u.role = 'staff' AND u.approved AND u.active AND u.id <> $2 AND ($3 OR u.leader_id = $2)
+  WHERE ${where}
   ORDER BY u.area, u.name`;
-const teamOf = async (leader) => (await q(TEAM_SQL, [thisMonth(), leader.id, Boolean(leader.leads_all)])).rows;
+const teamOf = async (leader) => (await q(teamSql("u.role = 'staff' AND u.approved AND u.active AND u.id <> $2 AND ($3 OR u.leader_id = $2)"), [thisMonth(), leader.id, Boolean(leader.leads_all)])).rows;
+const selfRow = async (u) => (await q(teamSql('u.id = $2'), [thisMonth(), u.id])).rows[0];
 const inTeam = async (leader, id) => one(`SELECT * FROM users_v WHERE id = $1 AND role = 'staff' AND id <> $2 AND ($3 OR leader_id = $2)`, [id, leader.id, Boolean(leader.leads_all)]);
 
 app.get('/lider', needLeader, async (req, res) => {
-  page(res, 'Mi equipo', V.leaderHome(req.user, await teamOf(req.user), thisMonth()), req.user, { wide: true });
+  page(res, 'Mi equipo', V.leaderHome(req.user, await teamOf(req.user), thisMonth(), '/lider/personas', await selfRow(req.user)), req.user, { wide: true });
 });
 
 async function personAcademy(person) {

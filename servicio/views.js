@@ -843,7 +843,7 @@ function leaderFlags(r) {
 }
 const modCell = (r) => (r.mod_id ? `${r.aprobado ? `<span class="badge ok">Aprobado · ${r.best}%</span>` : r.intentos ? `<span class="badge ${r.intentos >= 2 ? 'err' : 'warn'}">${r.best}% · ${r.intentos}/2 intentos</span>` : r.leido ? '<span class="badge info">Leyó la teoría</span>' : '<span class="badge muted">Sin empezar</span>'}` : '<span class="muted small">Sin módulo este mes</span>');
 
-export function leaderHome(user, rows, mes, base = '/lider/personas') {
+export function leaderHome(user, rows, mes, base = '/lider/personas', me = null) {
   const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : '—');
   const withMod = rows.filter((r) => r.mod_id);
   const list = rows.map((r) => ({ ...r, flags: leaderFlags(r) }));
@@ -857,6 +857,9 @@ export function leaderHome(user, rows, mes, base = '/lider/personas') {
   ];
   return `<section class="band"><div class="band-copy"><p class="band-sub">Mi equipo · ${esc(fmonth(mes))}</p><h1>${user.leads_all ? 'Todo el personal' : `Equipo de ${esc(base === '/lider/personas' ? String(user.name).split(' ')[0] : user.name)}`}</h1>
     <div class="kpis">${kpis.map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${esc(l)}</span></div>`).join('')}</div></div></section>
+  ${me ? `<section class="card"><div class="row-head"><div><p class="eyebrow">Tu formación como líder</p><h2 style="margin:4px 0 6px">Tú también te formas con tu equipo</h2>
+    <p class="muted small">Evaluación: ${me.status ? badge(me.status) : '—'}${me.score != null ? ` · Puntaje <strong>${me.score}</strong>` : ''} · Módulo del mes: ${modCell(me)}${me.publicados ? ` · Academia ${me.aprobados}/${me.publicados} aprobados` : ''}${me.plan_total ? ` · Tu plan ${me.plan_hechos}/${me.plan_total} hechas` : ''}</p></div>
+    <div class="actions">${me.status === 'pendiente' || me.status === 'en_curso' ? '<a class="btn" href="/evaluacion">Hacer mi evaluación</a>' : ''}<a class="btn ${me.status === 'pendiente' || me.status === 'en_curso' ? 'ghost' : ''}" href="/estudio">Ir a mi Academia</a><a class="btn ghost" href="/mi">Mi espacio</a></div></div></section>` : ''}
   ${rows.length ? '' : '<section class="card"><p class="muted">Todavía no tienes personas asignadas. El administrador del programa las asigna desde el panel.</p></section>'}
   ${attn.length ? `<section class="card"><h2 style="margin-top:0">Requieren atención (${attn.length})</h2><div class="attn">${attn.map((r) => `<a href="${base}/${r.id}" class="attn-item"><strong>${esc(r.name)}</strong><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span><div>${r.flags.map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ')}</div></a>`).join('')}</div></section>` : ''}
   ${rows.length ? `<section class="card"><h2>Personas</h2><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Módulo del mes</th><th>Academia</th><th>Última entrada</th></tr></thead><tbody>
