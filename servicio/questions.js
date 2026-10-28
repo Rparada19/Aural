@@ -268,37 +268,4 @@ export const SEED = {
     CRECIMIENTO,
   ],
 
-  audiologico_operativo: [
-    ['Reparaciones y garantías', [
-      M('Antes de tramitar una garantía, ¿qué verificas? (Todas las que apliquen)',
-        ['Número de serie y fecha de compra o factura', 'Que la falla esté descrita y, si aplica, comprobada', 'Señales de golpe, humedad o manipulación (con registro fotográfico)', 'Que el paciente o aliado firme la recepción', 'Solo lo que diga el paciente'], [0, 1, 2, 3]),
-      O('Describe el recorrido completo de un audífono en reparación, desde que se recibe en sede hasta que vuelve al paciente: pasos, responsables, registros y tiempos.'),
-      S('Una reparación va a superar el tiempo comprometido por una demora del laboratorio. ¿Qué haces?',
-        ['Espero a que llegue y luego explico', 'Informo de forma proactiva a la sede o al paciente, doy una nueva fecha y evalúo alternativas (equipo de préstamo)', 'Le pido a la sede que no diga nada', 'Cancelo la reparación'], 1),
-      O('Cuéntanos un caso en que una garantía fue rechazada o generó conflicto. ¿Qué pasó y qué aprendiste?'),
-      E('mi rigor en trazabilidad y registro de reparaciones y garantías.'),
-    ]],
-    ['Pedidos, despachos y aliados', [
-      O('Un aliado reporta que su pedido llegó incompleto y tiene un paciente esperando. ¿Qué haces y cómo le comunicas la solución?'),
-      S('Tienes al mismo tiempo: un despacho urgente a un aliado, un reclamo de garantía y un reporte de inventario solicitado por tu jefe. ¿Cómo priorizas?',
-        ['Por orden de llegada', 'Por impacto en el paciente y en el cliente: primero lo que deja a alguien sin oír o sin atender, informando a cada parte el tiempo de respuesta', 'Primero lo que pidió el jefe', 'Lo más fácil primero'], 1),
-      M('¿Qué debe verificarse antes de despachar un pedido? (Todas las que apliquen)',
-        ['Referencias y cantidades contra la orden', 'Seriales registrados', 'Estado del empaque y accesorios', 'Documentos (remisión o factura) y datos de envío', 'Que el transportador sea el más barato sin importar el tiempo'], [0, 1, 2, 3]),
-      E('mi conocimiento de los procesos de pedidos y despachos.'),
-    ]],
-    ['Inventario y control', [
-      S('¿Cuál es la práctica correcta con las pilas zinc-aire en inventario?',
-        ['Retirar el adhesivo para verificar que funcionen', 'Mantener el adhesivo hasta su uso, rotar por fecha de vencimiento y almacenar en lugar fresco y seco', 'Guardarlas en nevera', 'Venderlas sin importar la fecha'], 1),
-      O('Encuentras una diferencia entre el inventario físico y el del sistema en dos audífonos. ¿Qué haces paso a paso?'),
-      O('¿Qué indicadores usas o deberías usar para medir la operación (tiempos de reparación, garantías, despachos, inventario)? ¿Cómo están hoy?'),
-      E('mi control del inventario y la exactitud de los registros.'),
-    ]],
-    ['Comunicación con sedes y pacientes', [
-      O('Un paciente llama molesto porque su audífono lleva tres semanas en reparación sin respuesta. Escribe, tal como lo dirías, tu respuesta.'),
-      S('Prometiste a una sede una respuesta hoy sobre una reparación y aún no la tienes. ¿Qué haces?',
-        ['No respondo hasta tener la información', 'Respondo en el plazo, explico en qué va y doy una nueva fecha concreta', 'Le pido a otra persona que responda', 'Envío un mensaje genérico'], 1),
-      O('Si pudieras cambiar un solo proceso operativo para que el paciente reciba su equipo más rápido, ¿cuál sería y cómo lo harías?'),
-    ]],
-    CRECIMIENTO,
-  ],
 };

@@ -19,11 +19,6 @@ export const AREAS = {
     rol: 'Brinda soporte audiológico a pacientes y aliados del canal mayorista (ópticas, IPS, audiólogos): orientación técnica, ajustes y seguimiento de la adaptación, educación en el uso de los audífonos, apoyo en el software de adaptación y resolución de casos clínicos de servicio.',
     criterios: 'criterio clínico y seguridad del paciente (identificar urgencias y derivar); dominio técnico de adaptación, verificación y ajustes; capacidad pedagógica con pacientes y aliados; seguimiento de la adaptación y adherencia al uso; calidad del soporte al canal mayorista; registro clínico.',
   },
-  audiologico_operativo: {
-    label: 'Servicio al cliente audiológico operativo',
-    rol: 'Gestiona la operación detrás del servicio: reparaciones y garantías con laboratorio y fábrica, pedidos y despachos a sedes y aliados, inventario de audífonos, accesorios y pilas, trazabilidad y cumplimiento de tiempos.',
-    criterios: 'trazabilidad y exactitud de registros; cumplimiento de tiempos y comunicación proactiva de novedades; criterio para garantías y escalamientos; control de inventario; capacidad de priorizar; manejo de indicadores y mejora de procesos.',
-  },
   visitadores: {
     label: 'Comercial · Visitadores médicos',
     rol: 'Visitan a otorrinolaringólogos, otólogos, fonoaudiólogos, geriatras y médicos generales para posicionar a Aural y Widex, generar remisiones de pacientes y mantener una relación de confianza con los especialistas: planean su ruta, presentan evidencia y servicios, hacen seguimiento a los pacientes remitidos y registran su gestión.',
