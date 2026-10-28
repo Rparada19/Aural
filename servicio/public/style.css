@@ -598,3 +598,4 @@ ul.ev.neg li { border-left-color: var(--err); }
   .wow-stats { grid-template-columns: 1fr 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .wow-title, .wow-ticker .track, .wow-kicker .dot, .caret { animation: none; } }
+.areas.leaders { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }

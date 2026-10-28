@@ -55,8 +55,8 @@ export function layout(title, body, user, { wide = false, path = '', bare = fals
       <div class="side-foot"><p class="who">${esc(user.email)}</p>${salir}</div></aside>
       <main class="content ${wide ? 'wide' : ''}">${body}</main></body></html>`;
   }
-  return `${head}<body class="staff-body"><header class="top"><a href="/" class="brand"><img src="/logo-aural.png" alt="Aural"><span>Servicio</span></a>
-    <nav class="top-nav"><a href="/" class="navlink ${path === '/' ? 'on' : ''}">${icon('inicio')}<span>Mi espacio</span></a><a href="/estudio" class="navlink ${path.startsWith('/estudio') ? 'on' : ''}">${icon('estudio')}<span>Estudio</span></a><a href="/ranking" class="navlink ${path.startsWith('/ranking') ? 'on' : ''}">${icon('ranking')}<span>Ranking</span></a>${user.lider ? `<a href="/lider" class="navlink ${path.startsWith('/lider') ? 'on' : ''}">${icon('equipo')}<span>Mi equipo</span></a>` : ''}${salir}</nav></header>
+  return `${head}<body class="staff-body"><header class="top"><a href="${user.lider ? '/lider' : '/'}" class="brand"><img src="/logo-aural.png" alt="Aural"><span>Servicio</span></a>
+    <nav class="top-nav">${user.lider ? `<a href="/lider" class="navlink ${path.startsWith('/lider') ? 'on' : ''}">${icon('equipo')}<span>Mi equipo</span></a>` : ''}<a href="${user.lider ? '/mi' : '/'}" class="navlink ${path === '/' || path === '/mi' ? 'on' : ''}">${icon('inicio')}<span>Mi espacio</span></a><a href="/estudio" class="navlink ${path.startsWith('/estudio') ? 'on' : ''}">${icon('estudio')}<span>Estudio</span></a><a href="/ranking" class="navlink ${path.startsWith('/ranking') ? 'on' : ''}">${icon('ranking')}<span>Ranking</span></a>${salir}</nav></header>
     <main class="content staff ${wide ? 'wide' : ''}">${body}</main></body></html>`;
 }
 
@@ -843,7 +843,7 @@ function leaderFlags(r) {
 }
 const modCell = (r) => (r.mod_id ? `${r.aprobado ? `<span class="badge ok">Aprobado · ${r.best}%</span>` : r.intentos ? `<span class="badge ${r.intentos >= 2 ? 'err' : 'warn'}">${r.best}% · ${r.intentos}/2 intentos</span>` : r.leido ? '<span class="badge info">Leyó la teoría</span>' : '<span class="badge muted">Sin empezar</span>'}` : '<span class="muted small">Sin módulo este mes</span>');
 
-export function leaderHome(user, rows, mes) {
+export function leaderHome(user, rows, mes, base = '/lider/personas') {
   const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : '—');
   const withMod = rows.filter((r) => r.mod_id);
   const list = rows.map((r) => ({ ...r, flags: leaderFlags(r) }));
@@ -855,12 +855,12 @@ export function leaderHome(user, rows, mes) {
     ['Módulo del mes aprobado', withMod.length ? `${withMod.filter((r) => r.aprobado).length}/${withMod.length}` : '—'],
     ['Requieren atención', attn.length],
   ];
-  return `<section class="band"><div class="band-copy"><p class="band-sub">Mi equipo · ${esc(fmonth(mes))}</p><h1>${user.leads_all ? 'Todo el personal' : `Equipo de ${esc(String(user.name).split(' ')[0])}`}</h1>
+  return `<section class="band"><div class="band-copy"><p class="band-sub">Mi equipo · ${esc(fmonth(mes))}</p><h1>${user.leads_all ? 'Todo el personal' : `Equipo de ${esc(base === '/lider/personas' ? String(user.name).split(' ')[0] : user.name)}`}</h1>
     <div class="kpis">${kpis.map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${esc(l)}</span></div>`).join('')}</div></div></section>
   ${rows.length ? '' : '<section class="card"><p class="muted">Todavía no tienes personas asignadas. El administrador del programa las asigna desde el panel.</p></section>'}
-  ${attn.length ? `<section class="card"><h2 style="margin-top:0">Requieren atención (${attn.length})</h2><div class="attn">${attn.map((r) => `<a href="/lider/personas/${r.id}" class="attn-item"><strong>${esc(r.name)}</strong><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span><div>${r.flags.map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ')}</div></a>`).join('')}</div></section>` : ''}
+  ${attn.length ? `<section class="card"><h2 style="margin-top:0">Requieren atención (${attn.length})</h2><div class="attn">${attn.map((r) => `<a href="${base}/${r.id}" class="attn-item"><strong>${esc(r.name)}</strong><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span><div>${r.flags.map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ')}</div></a>`).join('')}</div></section>` : ''}
   ${rows.length ? `<section class="card"><h2>Personas</h2><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Módulo del mes</th><th>Academia</th><th>Última entrada</th></tr></thead><tbody>
-  ${list.map((r) => `<tr><td><div class="who-cell">${avatar(r)}<div><a href="/lider/personas/${r.id}"><strong>${esc(r.name)}</strong></a><br><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span></div></div></td>
+  ${list.map((r) => `<tr><td><div class="who-cell">${avatar(r)}<div><a href="${base}/${r.id}"><strong>${esc(r.name)}</strong></a><br><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span></div></div></td>
     <td>${r.status ? badge(r.status) : '<span class="muted">—</span>'}</td><td>${r.score ?? '—'}</td>
     <td>${r.plan_total ? `<div class="bar slim"><span style="width:${Math.round((100 * r.plan_hechos) / r.plan_total)}%"></span></div><span class="muted small">${r.plan_hechos}/${r.plan_total} hechas</span>` : '<span class="muted">—</span>'}</td>
     <td>${modCell(r)}</td><td>${r.publicados ? `${r.aprobados}/${r.publicados} aprobados` : '<span class="muted">—</span>'}</td>
@@ -888,12 +888,21 @@ export function leaderPerson(person, ev, plans, academy, sessions) {
   </section>`;
 }
 
-export function adminLeaders(rows, ok) {
+export function adminLeaders(rows, ok, teams = {}) {
+  const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : '—');
+  const summary = rows.filter((r) => r.lider).map((l) => {
+    const t = teams[l.id] || [], m = t.filter((r) => r.mod_id), plan = t.filter((r) => r.plan_total);
+    return `<a class="areacard" href="/admin/lideres/${l.id}"><p class="eyebrow">${esc(l.name)}</p>
+      <div class="ac-row"><div><b>${t.length}</b><span>personas</span></div><div><b>${avg(t.filter((r) => r.score != null).map((r) => r.score))}</b><span>puntaje</span></div><div><b>${m.length ? `${m.filter((r) => r.aprobado).length}/${m.length}` : '—'}</b><span>módulo mes</span></div></div>
+      <div class="bar" title="Avance de planes"><span style="width:${plan.length ? avg(plan.map((r) => Math.round((100 * r.plan_hechos) / r.plan_total))) : 0}%"></span></div>
+      <span class="ac-foot">${l.leads_all ? 'Ve a todo el personal · ' : ''}${t.filter((r) => r.score != null).length}/${t.length} con informe · Ver equipo →</span></a>`;
+  }).join('');
   const leaders = rows.filter((r) => r.lider);
   const count = (id) => rows.filter((r) => r.leader_id === id).length;
   const opts = (sel, self) => `<option value="">Sin líder</option>${leaders.filter((l) => l.id !== self).map((l) => `<option value="${l.id}" ${l.id === sel ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}`;
   return `<section class="band"><div class="band-copy"><p class="band-sub">Seguimiento por líder</p><h1>Líderes</h1></div></section>
   ${ok ? '<p class="notice ok">Cambios guardados.</p>' : ''}
+  ${summary ? `<div class="areas leaders">${summary}</div>` : ''}
   <section class="card"><h2 style="margin-top:0">Líderes (${leaders.length})</h2><p class="muted small">Cada líder ve en “Mi equipo” los resultados, informes, planes y avance en la Academia de las personas que tiene asignadas.</p>
     <table class="tbl"><thead><tr><th>Líder</th><th>Alcance</th><th></th></tr></thead><tbody>
     ${leaders.map((l) => `<tr><td><strong>${esc(l.name)}</strong><br><span class="muted small">${esc(l.email)}</span></td><td>${l.leads_all ? '<span class="badge info">Todo el personal</span>' : `${count(l.id)} personas`}</td>

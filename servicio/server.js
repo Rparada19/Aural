@@ -49,6 +49,7 @@ app.use((req, res, next) => {
 const page = (res, title, body, user, opts) => res.send(V.layout(title, body, user, { ...opts, path: res.req.path }));
 const needUser = (req, res, next) => (req.user ? next() : res.redirect('/login'));
 const needAdmin = (req, res, next) => (req.user?.role === 'admin' ? next() : res.redirect(req.user ? '/' : '/login'));
+const home = (req) => (req.user?.lider ? '/mi' : '/');
 const needLeader = (req, res, next) => (req.user?.lider ? next() : res.redirect(req.user ? '/' : '/login'));
 
 async function loginLink(userId) {
@@ -176,8 +177,9 @@ async function currentPlan(userId, onlyPublished) {
   return plan;
 }
 
-app.get('/', needUser, async (req, res) => {
+app.get(['/', '/mi'], needUser, async (req, res) => {
   if (req.user.role === 'admin') return res.redirect('/admin');
+  if (req.user.lider && req.path === '/') return res.redirect('/lider');
   const pulseDone = await one('SELECT 1 FROM pulses WHERE user_id = $1 AND mes = $2', [req.user.id, thisMonth()]);
   const mod = await one('SELECT * FROM study_modules WHERE area = $1 AND mes = $2 AND published', [req.user.area, thisMonth()]);
   if (mod) mod.st = await userModuleState(req.user.id, mod);
@@ -191,19 +193,19 @@ app.post('/pulso', needUser, async (req, res) => {
     await q('INSERT INTO pulses (user_id, area, mes, answers, comentario) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (user_id, mes) DO NOTHING',
       [req.user.id, req.user.area, thisMonth(), JSON.stringify(answers), String(req.body.comentario || '').trim().slice(0, 2000)]);
   }
-  res.redirect('/');
+  res.redirect(home(req));
 });
 
 app.post('/plan/items/:id', needUser, async (req, res) => {
   const estado = ['pendiente', 'en_curso', 'hecho'].includes(req.body.estado) ? req.body.estado : 'pendiente';
   await q(`UPDATE plan_items i SET estado = $3, nota = $4, updated_at = now() FROM plans p
     WHERE i.id = $1 AND p.id = i.plan_id AND p.user_id = $2 AND p.published`, [req.params.id, req.user.id, estado, String(req.body.nota || '').slice(0, 1000)]);
-  res.redirect('/#plan');
+  res.redirect(home(req) + '#plan');
 });
 
 app.get('/evaluacion', needUser, async (req, res) => {
   const ev = await currentEval(req.user.id);
-  if (!ev || !['pendiente', 'en_curso'].includes(ev.status)) return res.redirect('/');
+  if (!ev || !['pendiente', 'en_curso'].includes(ev.status)) return res.redirect(home(req));
   if (ev.status === 'pendiente') await q("UPDATE evaluations SET status = 'en_curso', started_at = now() WHERE id = $1", [ev.id]);
   page(res, 'Evaluación', V.evaluationForm(ev), req.user);
 });
@@ -231,7 +233,7 @@ app.post('/evaluacion/guardar', needUser, async (req, res) => {
 
 app.post('/evaluacion/enviar', needUser, async (req, res) => {
   const ev = await currentEval(req.user.id);
-  if (!ev || ev.status !== 'en_curso') return res.redirect('/');
+  if (!ev || ev.status !== 'en_curso') return res.redirect(home(req));
   const answers = req.is('json') ? cleanAnswers(ev, req.body.answers || {}) : ev.answers;
   const missing = ev.questions.filter((qu) => { const a = answers[qu.id]; return a === undefined || a === null || a === '' || (Array.isArray(a) && !a.length); });
   if (missing.length) return res.status(400).json({ ok: false, missing: missing.map((m) => m.id) });
@@ -580,8 +582,16 @@ app.get('/lider/personas/:id/informe.pdf', needLeader, async (req, res) => {
 });
 
 app.get('/admin/lideres', needAdmin, async (req, res) => {
-  const { rows } = await q("SELECT id, name, email, area, sede, lider, leads_all, leader_id FROM users WHERE role = 'staff' AND approved AND active ORDER BY area, name");
-  page(res, 'Líderes', V.adminLeaders(rows, req.query.ok), req.user, { wide: true });
+  const { rows } = await q("SELECT id, name, email, area, sede, lider, leads_all, leader_id, (photo IS NOT NULL) AS has_photo FROM users WHERE role = 'staff' AND approved AND active ORDER BY area, name");
+  const teams = {};
+  for (const l of rows.filter((r) => r.lider)) teams[l.id] = await teamOf(l);
+  page(res, 'Líderes', V.adminLeaders(rows, req.query.ok, teams), req.user, { wide: true });
+});
+
+app.get('/admin/lideres/:id', needAdmin, async (req, res) => {
+  const l = await one('SELECT * FROM users_v WHERE id = $1 AND lider', [req.params.id]);
+  if (!l) return res.redirect('/admin/lideres');
+  page(res, `Equipo de ${l.name}`, `<p><a href="/admin/lideres">← Líderes</a></p>${V.leaderHome(l, await teamOf(l), thisMonth(), '/admin/personas')}`, req.user, { wide: true });
 });
 
 app.post('/admin/lideres', needAdmin, async (req, res) => {
