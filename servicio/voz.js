@@ -83,10 +83,15 @@ export async function saveFeedback(user, body) {
 }
 
 // Resumen de una persona: promedio, número de respuestas, promedio por pregunta y comentarios recientes
-export async function voiceOf(userId) {
+// closedOnly: solo meses cerrados (lo que ve la propia persona); el líder y el director ven todo al día
+const MONTH_START = "(date_trunc('month', now() AT TIME ZONE 'America/Bogota') AT TIME ZONE 'America/Bogota')";
+export async function voiceOf(userId, closedOnly = false) {
+  const w = closedOnly ? `AND created_at < ${MONTH_START}` : '';
   const tot = await one(`SELECT count(*)::int AS n, round(avg(promedio), 1)::float AS prom,
-      count(*) FILTER (WHERE created_at > now() - interval '30 days')::int AS n30 FROM feedback WHERE user_id = $1`, [userId]);
-  const dims = (await q(`SELECT k, round(avg(v::numeric), 1)::float AS v FROM feedback f, jsonb_each_text(f.answers) AS x(k, v) WHERE f.user_id = $1 GROUP BY k`, [userId])).rows;
-  const comments = (await q(`SELECT quien, comentario, promedio::float AS prom, created_at FROM feedback WHERE user_id = $1 AND comentario <> '' ORDER BY id DESC LIMIT 8`, [userId])).rows;
-  return { ...tot, dims, comments };
+      count(*) FILTER (WHERE created_at > now() - interval '30 days')::int AS n30,
+      (SELECT count(*)::int FROM feedback WHERE user_id = $1 AND created_at >= ${MONTH_START}) AS n_mes
+    FROM feedback WHERE user_id = $1 ${w}`, [userId]);
+  const dims = (await q(`SELECT k, round(avg(v::numeric), 1)::float AS v FROM feedback f, jsonb_each_text(f.answers) AS x(k, v) WHERE f.user_id = $1 ${w} GROUP BY k`, [userId])).rows;
+  const comments = (await q(`SELECT quien, comentario, promedio::float AS prom, created_at FROM feedback WHERE user_id = $1 AND comentario <> '' ${w} ORDER BY id DESC LIMIT 8`, [userId])).rows;
+  return { ...tot, dims, comments, closedOnly };
 }

@@ -992,8 +992,9 @@ export function voiceCard(person, v, { token = '', base = '', survey, self = fal
   return `<section class="card voice" id="voz"><div class="row-head"><div><p class="eyebrow">Voz de quienes ${self ? 'atiendes' : 'atiende'} · ${esc(survey.publico)}</p><h2 style="margin:4px 0">${self ? 'Así te ven' : 'Cómo lo ven'}</h2></div>
     <div class="actions">${self ? `<a class="btn" href="/tarjeta/${person.id}">Ver e imprimir mi código QR</a>` : `<a class="btn ghost" href="/tarjeta/${person.id}">Código QR</a>`}</div></div>
     ${self ? `<div class="voice-qr"><img src="/qr/${esc(token)}.svg" alt="Tu código QR" width="120" height="120"><div><p>Muestra tu código al terminar cada atención o comparte el enlace. Las respuestas son anónimas.</p><input class="copy" readonly value="${esc(url)}" onclick="this.select()"></div></div>` : ''}
-    ${v.n ? `<p class="ai-score"><b>${v.prom.toFixed(1)}</b><span>de 5 · ${v.n} respuesta${v.n > 1 ? 's' : ''}${v.n30 ? ` · ${v.n30} en los últimos 30 días` : ''}</span></p>${hbars(dims, { max: 5 })}
+    ${v.closedOnly ? `<p class="notice info">Este mes llevas <strong>${v.n_mes}</strong> respuesta${v.n_mes === 1 ? '' : 's'}. Tus resultados se publican al cierre de cada mes${v.n ? '; abajo ves los de los meses anteriores' : ''}.</p>` : ''}
+    ${v.n ? `<p class="ai-score"><b>${v.prom.toFixed(1)}</b><span>de 5 · ${v.n} respuesta${v.n > 1 ? 's' : ''}${v.closedOnly ? ' hasta el mes pasado' : v.n30 ? ` · ${v.n30} en los últimos 30 días` : ''}</span></p>${hbars(dims, { max: 5 })}
       ${v.comments.length ? `<h3>Comentarios recientes</h3><ul class="voice-c">${v.comments.map((c) => `<li><span class="badge ${c.prom >= 4 ? 'ok' : c.prom >= 3 ? 'warn' : 'err'}">${c.prom.toFixed(1)}</span> ${esc(c.comentario)}<span class="muted small"> · ${c.quien ? `${esc(c.quien)} · ` : ''}${fdate(c.created_at)}</span></li>`).join('')}</ul>` : ''}`
-      : `<p class="muted">${self ? 'Aún no tienes respuestas. Empieza a compartir tu código hoy.' : 'Aún no tiene respuestas.'}</p>`}
+      : `<p class="muted">${self ? (v.n_mes ? '' : 'Aún no tienes respuestas. Empieza a compartir tu código hoy.') : 'Aún no tiene respuestas.'}</p>`}
   </section>`;
 }

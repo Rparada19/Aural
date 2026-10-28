@@ -230,7 +230,7 @@ app.get(['/', '/mi'], needUser, async (req, res) => {
   const mod = await one('SELECT * FROM study_modules WHERE area = $1 AND mes = $2 AND published', [req.user.area, thisMonth()]);
   if (mod) mod.st = await userModuleState(req.user.id, mod);
   const comps = (await q("SELECT * FROM compromisos WHERE user_id = $1 AND (estado IN ('pendiente','parcial') OR updated_at > now() - interval '30 days') ORDER BY created_at DESC, id", [req.user.id])).rows;
-  page(res, 'Mi espacio', V.staffHome(req.user, await currentEval(req.user.id), await currentPlan(req.user.id, true), await todayMessage(req.user.area), pulseDone ? null : PULSE, mod) + V.myCommitments(comps) + V.voiceCard(req.user, await voiceOf(req.user.id), { token: await qrToken(req.user.id), base: BASE, survey: surveyFor(req.user.area), self: true }), req.user);
+  page(res, 'Mi espacio', V.staffHome(req.user, await currentEval(req.user.id), await currentPlan(req.user.id, true), await todayMessage(req.user.area), pulseDone ? null : PULSE, mod) + V.myCommitments(comps) + V.voiceCard(req.user, await voiceOf(req.user.id, true), { token: await qrToken(req.user.id), base: BASE, survey: surveyFor(req.user.area), self: true }), req.user);
 });
 
 app.post('/pulso', needUser, async (req, res) => {
