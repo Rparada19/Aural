@@ -33,14 +33,16 @@ const MODULE_TOOL = {
         },
       },
       preguntas: {
-        type: 'array', minItems: 10, maxItems: 10,
+        type: 'array', minItems: 18, maxItems: 20,
+        description: 'Banco de preguntas: a cada persona se le sortean 10 distintas, con las opciones en otro orden, para que no se copien.',
         items: {
-          type: 'object', required: ['texto', 'opciones', 'correcta', 'explicacion'],
+          type: 'object', required: ['texto', 'opciones', 'correcta', 'alternativa', 'explicacion'],
           properties: {
-            texto: { type: 'string', description: 'Pregunta o mini caso, basada solo en la teoría del módulo' },
-            opciones: { type: 'array', minItems: 4, maxItems: 4, items: { type: 'string' } },
-            correcta: { type: 'integer', minimum: 0, maximum: 3 },
-            explicacion: { type: 'string', description: 'Por qué la respuesta es correcta, 1-2 frases' },
+            texto: { type: 'string', description: 'Mini caso real del área (quién, qué pasa, qué dice), basado en la teoría del módulo, que termina en una pregunta de decisión: ¿qué es lo MEJOR que puedes hacer o decir?' },
+            opciones: { type: 'array', minItems: 4, maxItems: 4, items: { type: 'string' }, description: 'Cuatro opciones plausibles y de extensión parecida. Al menos dos son respuestas válidas; solo una es la mejor según la teoría. Nada de opciones absurdas, "todas las anteriores" ni trampas de redacción.' },
+            correcta: { type: 'integer', minimum: 0, maximum: 3, description: 'La mejor respuesta' },
+            alternativa: { type: 'integer', minimum: 0, maximum: 3, description: 'La otra respuesta válida pero menos adecuada' },
+            explicacion: { type: 'string', description: 'Por qué la mejor supera a la otra válida, 1-2 frases' },
           },
         },
       },
@@ -57,9 +59,9 @@ export async function generateModule(area, mes, tema = '') {
   const gaps = (await q(`SELECT o->>'titulo' AS t, count(*)::int AS n FROM evaluations e JOIN users u ON u.id = e.user_id,
       jsonb_array_elements(e.report->'oportunidades') o WHERE u.area = $1 AND e.report IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 12`, [area])).rows;
   const res = await createWithTool({
-    model: MODEL, max_tokens: 16000,
+    model: MODEL, max_tokens: 24000,
     system: `Eres un diseñador instruccional experto en servicio y salud auditiva. Creas módulos de estudio mensuales para Aural Colombia (distribuidor exclusivo de audífonos Widex) dirigidos al área "${a.label}". Rol del área: ${a.rol} Criterios de excelencia: ${a.criterios}
-La teoría debe ser práctica, clara y aplicable, con ejemplos reales del día a día del área y frases modelo cuando aplique. No inventes datos de producto, precios ni normas específicas: si mencionas normas (por ejemplo, protección de datos personales), hazlo de forma general. La evaluación tiene 10 preguntas de selección única, basadas solo en la teoría del módulo, con distractores plausibles; se aprueba con 85%. Español de Colombia, tuteo.`,
+La teoría debe ser práctica, clara y aplicable, con ejemplos reales del día a día del área y frases modelo cuando aplique. No inventes datos de producto, precios ni normas específicas: si mencionas normas (por ejemplo, protección de datos personales), hazlo de forma general. La evaluación es un banco de 18 a 20 preguntas de selección única, del que a cada persona se le sortean 10. Deben ser difíciles de responder: casos reales donde al menos dos opciones son válidas y una es claramente la mejor práctica según la teoría (más completa, más empática, más segura o más alineada al protocolo). Nada de preguntas de memoria literal. Reparte la posición de la mejor respuesta entre A, B, C y D. Se aprueba con 85%. Español de Colombia, tuteo.`,
     tools: [MODULE_TOOL], tool_choice: { type: 'tool', name: 'modulo_estudio' },
     messages: [{
       role: 'user',
@@ -94,12 +96,29 @@ export async function userModuleState(userId, mod) {
   return { attempts, read: Boolean(read), passed, win, estado, canTake, best: attempts.reduce((m, a) => Math.max(m, a.score), 0) };
 }
 
-export function grade(mod, input) {
-  const answers = mod.preguntas.map((_, i) => (input[`p${i}`] === undefined ? null : Number(input[`p${i}`])));
-  const ok = mod.preguntas.map((p, i) => answers[i] === p.correcta);
-  const score = Math.round((ok.filter(Boolean).length / mod.preguntas.length) * 100);
-  return { answers, ok, score, passed: score >= PASS };
+// Cada persona recibe en cada intento su propio sorteo de preguntas y orden de opciones
+export const QUIZ_N = 10;
+function rng(seed) {
+  let h = 2166136261;
+  for (const c of String(seed)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return () => { h = Math.imul(h ^ (h >>> 15), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
 }
+const shuffle = (a, r) => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+export function drawQuiz(mod, userId, attemptNo) {
+  const r = rng(`${userId}:${mod.id}:${attemptNo}`);
+  return shuffle(mod.preguntas.map((_, i) => i), r).slice(0, Math.min(QUIZ_N, mod.preguntas.length))
+    .map((qi) => ({ qi, order: shuffle(mod.preguntas[qi].opciones.map((_, j) => j), r) }));
+}
+
+export function grade(mod, input, draw) {
+  const answers = draw.map(({ qi }) => ({ q: qi, a: input[`q${qi}`] === undefined ? null : Number(input[`q${qi}`]) }));
+  const ok = answers.filter((x) => x.a === mod.preguntas[x.q].correcta).length;
+  const score = Math.round((ok / answers.length) * 100);
+  return { answers, score, passed: score >= PASS };
+}
+
+// Respuestas de un intento en formato uniforme (los intentos antiguos guardaban un arreglo por posición)
+export const attemptAnswers = (answers) => (answers || []).map((x, i) => (x && typeof x === 'object' ? x : { q: i, a: x }));
 
 // ---------- Academia: ruta de 12 módulos ----------
 const ROUTE_TOOL = {

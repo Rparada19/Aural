@@ -57,7 +57,7 @@ export async function generateMonthlyPlan(userId, mes) {
   const ev = await one("SELECT report FROM evaluations WHERE user_id = $1 AND report IS NOT NULL ORDER BY id DESC LIMIT 1", [userId]);
   const prev = (await q(`SELECT p.mes, p.objetivo, i.accion, i.estado, i.nota FROM plans p LEFT JOIN plan_items i ON i.plan_id = p.id
     WHERE p.user_id = $1 AND p.mes < $2 ORDER BY p.mes DESC, i.position LIMIT 30`, [userId, mes])).rows;
-  const ses = (await q("SELECT fecha, notas, compromisos FROM sessions_1a1 WHERE user_id = $1 AND fecha > now() - interval '120 days' ORDER BY fecha DESC LIMIT 8", [userId])).rows;
+  const ses = (await q("SELECT s.fecha, s.notas, concat_ws('; ', nullif(s.compromisos, ''), (SELECT string_agg(c.texto || ' [' || replace(c.estado, '_', ' ') || ']', '; ') FROM compromisos c WHERE c.session_id = s.id)) AS compromisos FROM sessions_1a1 s WHERE s.user_id = $1 AND s.fecha > now() - interval '120 days' ORDER BY s.fecha DESC LIMIT 8", [userId])).rows;
   const r = ev?.report;
   const ctx = [
     `Profesional: ${u.name} · Área: ${area.label}${u.sede ? ` · Sede: ${u.sede}` : ''}`,

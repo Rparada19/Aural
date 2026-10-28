@@ -9,7 +9,7 @@ import * as V from './views.js';
 import { AREA_KEYS } from './areas.js';
 import { newDoc, renderReport, footer } from './pdf.js';
 import { learnArea, latestKnowledge } from './knowledge.js';
-import { generateModule, generateAcademy, userModuleState, grade, windowState, PASS, MAX_ATTEMPTS } from './study.js';
+import { generateModule, generateAcademy, userModuleState, grade, drawQuiz, windowState, PASS, MAX_ATTEMPTS } from './study.js';
 import { rankingFor } from './ranking.js';
 import { notifyPlanPublished, METODOLOGIA } from './notify.js';
 import { generateMonthlyPlan, generateInsights, runDaily, sendMessage, getSetting, setSetting, today, thisMonth, PULSE } from './growth.js';
@@ -183,7 +183,8 @@ app.get(['/', '/mi'], needUser, async (req, res) => {
   const pulseDone = await one('SELECT 1 FROM pulses WHERE user_id = $1 AND mes = $2', [req.user.id, thisMonth()]);
   const mod = await one('SELECT * FROM study_modules WHERE area = $1 AND mes = $2 AND published', [req.user.area, thisMonth()]);
   if (mod) mod.st = await userModuleState(req.user.id, mod);
-  page(res, 'Mi espacio', V.staffHome(req.user, await currentEval(req.user.id), await currentPlan(req.user.id, true), await todayMessage(req.user.area), pulseDone ? null : PULSE, mod), req.user);
+  const comps = (await q("SELECT * FROM compromisos WHERE user_id = $1 AND (estado IN ('pendiente','parcial') OR updated_at > now() - interval '30 days') ORDER BY created_at DESC, id", [req.user.id])).rows;
+  page(res, 'Mi espacio', V.staffHome(req.user, await currentEval(req.user.id), await currentPlan(req.user.id, true), await todayMessage(req.user.area), pulseDone ? null : PULSE, mod) + V.myCommitments(comps), req.user);
 });
 
 app.post('/pulso', needUser, async (req, res) => {
@@ -495,7 +496,7 @@ app.get('/admin/personas/:id', needAdmin, async (req, res) => {
   const person = await one('SELECT * FROM users_v WHERE id = $1', [req.params.id]);
   if (!person) return res.redirect('/admin');
   const evs = (await q('SELECT * FROM evaluations WHERE user_id = $1 ORDER BY id DESC', [person.id])).rows;
-  const sessions = (await q('SELECT * FROM sessions_1a1 WHERE user_id = $1 ORDER BY fecha DESC, id DESC', [person.id])).rows;
+  const sessions = await oneOnOneCtx(person);
   const plans = (await q(`SELECT p.*, coalesce(json_agg(i ORDER BY i.position, i.id) FILTER (WHERE i.id IS NOT NULL), '[]') AS items
     FROM plans p LEFT JOIN plan_items i ON i.plan_id = p.id WHERE p.user_id = $1 GROUP BY p.id ORDER BY p.mes DESC`, [person.id])).rows;
   page(res, person.name, V.adminPerson(person, evs, sessions, req.query.link, mailConfigured(), plans, thisMonth(), req.query.error), req.user, { wide: true });
@@ -526,15 +527,17 @@ app.post('/admin/personas/:id/evaluacion', needAdmin, async (req, res) => {
 });
 
 app.post('/admin/personas/:id/sesiones', needAdmin, async (req, res) => {
-  await q('INSERT INTO sessions_1a1 (user_id, fecha, notas, compromisos) VALUES ($1,$2,$3,$4)', [req.params.id, req.body.fecha, String(req.body.notas || '').trim(), String(req.body.compromisos || '').trim()]);
-  res.redirect(`/admin/personas/${req.params.id}`);
+  await saveOneOnOne(Number(req.params.id), req.user.id, req.body);
+  res.redirect(`/admin/personas/${req.params.id}#sesiones`);
 });
 
 // ---------- Líderes: seguimiento de su equipo ----------
 const teamSql = (where) => `SELECT u.id, u.name, u.email, u.area, u.sede, u.cargo, u.last_seen, (u.photo IS NOT NULL) AS has_photo, u.leader_id,
     e.status, e.plan_published, (e.report->>'puntaje_global')::int AS score,
     m.id AS mod_id, m.numero AS mod_num, m.titulo AS mod_titulo, (r.user_id IS NOT NULL) AS leido, a.best, coalesce(a.n, 0)::int AS intentos, coalesce(a.passed, false) AS aprobado,
-    ac.publicados, ac.aprobados, pl.total AS plan_total, pl.hechos AS plan_hechos
+    ac.publicados, ac.aprobados, pl.total AS plan_total, pl.hechos AS plan_hechos,
+    (SELECT max(fecha) FROM sessions_1a1 s WHERE s.user_id = u.id AND to_char(s.fecha, 'YYYY-MM') = $1) AS uno_mes,
+    (SELECT count(*) FROM compromisos c WHERE c.user_id = u.id AND c.estado IN ('pendiente','parcial'))::int AS comp_abiertos
   FROM users u
   LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
   LEFT JOIN study_modules m ON m.area = u.area AND m.mes = $1 AND m.published
@@ -548,6 +551,34 @@ const teamSql = (where) => `SELECT u.id, u.name, u.email, u.area, u.sede, u.carg
 const teamOf = async (leader) => (await q(teamSql("u.role = 'staff' AND u.approved AND u.active AND u.id <> $2 AND ($3 OR u.leader_id = $2)"), [thisMonth(), leader.id, Boolean(leader.leads_all)])).rows;
 const selfRow = async (u) => (await q(teamSql('u.id = $2'), [thisMonth(), u.id])).rows[0];
 const inTeam = async (leader, id) => one(`SELECT * FROM users_v WHERE id = $1 AND role = 'staff' AND id <> $2 AND ($3 OR leader_id = $2)`, [id, leader.id, Boolean(leader.leads_all)]);
+
+// ---------- Uno a uno mensual: va de cara al módulo, con compromisos y seguimiento ----------
+async function oneOnOneCtx(person) {
+  const sessions = (await q(`SELECT s.*, to_char(s.fecha, 'YYYY-MM') AS mes_s, a.name AS autor, m.titulo AS modulo FROM sessions_1a1 s LEFT JOIN users a ON a.id = s.autor_id LEFT JOIN study_modules m ON m.id = s.module_id
+    WHERE s.user_id = $1 ORDER BY s.fecha DESC, s.id DESC`, [person.id])).rows;
+  const commitments = (await q('SELECT * FROM compromisos WHERE user_id = $1 ORDER BY created_at DESC, id', [person.id])).rows;
+  const mod = await one('SELECT id, numero, titulo, objetivo FROM study_modules WHERE area = $1 AND mes = $2', [person.area, thisMonth()]);
+  if (mod) mod.st = await one('SELECT max(score) AS best, count(*)::int AS n, coalesce(bool_or(passed), false) AS passed FROM study_attempts WHERE user_id = $1 AND module_id = $2', [person.id, mod.id]);
+  const ev = await one('SELECT report FROM evaluations WHERE user_id = $1 AND report IS NOT NULL ORDER BY id DESC LIMIT 1', [person.id]);
+  const gaps = (ev?.report?.oportunidades || []).map((o) => o.titulo).filter(Boolean);
+  return { sessions, commitments, mod, gaps, mes: thisMonth() };
+}
+
+async function saveOneOnOne(personId, authorId, b) {
+  const notas = String(b.notas || '').trim();
+  for (const [k, v] of Object.entries(b)) {
+    const m = k.match(/^st_(\d+)$/);
+    if (m && ['pendiente', 'parcial', 'cumplido', 'no_cumplido'].includes(v)) await q('UPDATE compromisos SET estado = $3, nota = $4, updated_at = now() WHERE id = $1 AND user_id = $2', [m[1], personId, v, String(b[`nt_${m[1]}`] || '').trim().slice(0, 500)]);
+  }
+  if (!notas) return;
+  const mod = await one('SELECT id FROM study_modules WHERE id = $1', [Number(b.module_id) || 0]);
+  const s = await one('INSERT INTO sessions_1a1 (user_id, fecha, notas, compromisos, autor_id, module_id, brecha) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+    [personId, b.fecha, notas, '', authorId, mod?.id || null, String(b.brecha_otra || b.brecha || '').trim().slice(0, 300)]);
+  for (const i of [1, 2, 3]) {
+    const t = String(b[`c${i}`] || '').trim();
+    if (t) await q('INSERT INTO compromisos (user_id, session_id, texto, fecha_limite) VALUES ($1,$2,$3,$4)', [personId, s.id, t.slice(0, 500), b[`f${i}`] || null]);
+  }
+}
 
 app.get('/lider', needLeader, async (req, res) => {
   page(res, 'Mi equipo', V.leaderHome(req.user, await teamOf(req.user), thisMonth(), '/lider/personas', await selfRow(req.user)), req.user, { wide: true });
@@ -565,13 +596,12 @@ app.get('/lider/personas/:id', needLeader, async (req, res) => {
   const ev = await one('SELECT * FROM evaluations WHERE user_id = $1 ORDER BY id DESC LIMIT 1', [person.id]);
   const plans = (await q(`SELECT p.*, coalesce(json_agg(i ORDER BY i.position, i.id) FILTER (WHERE i.id IS NOT NULL), '[]') AS items
     FROM plans p LEFT JOIN plan_items i ON i.plan_id = p.id WHERE p.user_id = $1 AND p.published GROUP BY p.id ORDER BY p.mes DESC LIMIT 3`, [person.id])).rows;
-  const sessions = (await q('SELECT s.*, a.name AS autor FROM sessions_1a1 s LEFT JOIN users a ON a.id = s.autor_id WHERE s.user_id = $1 ORDER BY fecha DESC, s.id DESC', [person.id])).rows;
-  page(res, person.name, V.leaderPerson(person, ev, plans, await personAcademy(person), sessions), req.user, { wide: true });
+  page(res, person.name, V.leaderPerson(person, ev, plans, await personAcademy(person), await oneOnOneCtx(person)), req.user, { wide: true });
 });
 
 app.post('/lider/personas/:id/sesiones', needLeader, async (req, res) => {
   const person = await inTeam(req.user, req.params.id);
-  if (person && String(req.body.notas || '').trim()) await q('INSERT INTO sessions_1a1 (user_id, fecha, notas, compromisos, autor_id) VALUES ($1,$2,$3,$4,$5)', [person.id, req.body.fecha, String(req.body.notas).trim(), String(req.body.compromisos || '').trim(), req.user.id]);
+  if (person) await saveOneOnOne(person.id, req.user.id, req.body);
   res.redirect(`/lider/personas/${req.params.id}#sesiones`);
 });
 
@@ -678,7 +708,7 @@ app.get('/estudio/:id/evaluacion', needUser, async (req, res) => {
   if (!m || !canSee(req.user, m) || req.user.role === 'admin') return res.redirect(`/estudio/${req.params.id}`);
   const st = await userModuleState(req.user.id, m);
   if (!st.canTake) return res.redirect(`/estudio/${m.id}`);
-  page(res, `Evaluación · ${m.titulo}`, V.studyQuiz(m, st), req.user);
+  page(res, `Evaluación · ${m.titulo}`, V.studyQuiz(m, st, drawQuiz(m, req.user.id, st.attempts.length)), req.user);
 });
 
 app.post('/estudio/:id/evaluacion', needUser, async (req, res) => {
@@ -686,7 +716,7 @@ app.post('/estudio/:id/evaluacion', needUser, async (req, res) => {
   if (!m || !canSee(req.user, m) || req.user.role === 'admin') return res.redirect('/estudio');
   const st = await userModuleState(req.user.id, m);
   if (!st.canTake) return res.redirect(`/estudio/${m.id}`);
-  const g = grade(m, req.body);
+  const g = grade(m, req.body, drawQuiz(m, req.user.id, st.attempts.length));
   const a = await one('INSERT INTO study_attempts (user_id, module_id, answers, score, passed) VALUES ($1,$2,$3,$4,$5) RETURNING id', [req.user.id, m.id, JSON.stringify(g.answers), g.score, g.passed]);
   res.redirect(`/estudio/${m.id}?intento=${a.id}#resultado`);
 });

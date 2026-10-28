@@ -289,13 +289,7 @@ export function adminPerson(person, evs, sessions, inviteLink, mailOk, plans = [
     ${ev.report ? reportView(ev) : ''}${Object.keys(ev.answers).length ? answersView(ev) : ''}` : '<section class="card"><p class="muted">Sin evaluación asignada.</p></section>'}
   ${plansAdmin(person, plans, mes, Boolean(ev?.report))}
   <section class="card"><h2>Foto para el ranking</h2>${person.has_photo ? `<div class="person-id">${avatar(person, 'lg')}<p class="muted">Ya tiene foto. Puedes reemplazarla.</p></div>` : ''}${photoWidget('admin', `/admin/personas/${person.id}/foto`)}<script src="/photo.js?v=${V}"></script></section>
-  <section class="card"><h2>Sesiones uno a uno</h2>
-    <form method="post" action="/admin/personas/${person.id}/sesiones" class="stack">
-      <div class="grid2"><label>Fecha<input type="date" name="fecha" required value="${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}"></label></div>
-      <label>Notas de la sesión<textarea name="notas" rows="3" required></textarea></label>
-      <label>Compromisos<textarea name="compromisos" rows="2"></textarea></label><button class="btn">Guardar sesión</button></form>
-    ${sessions.map((s) => `<div class="session"><p class="eyebrow">${fdate(s.fecha)}</p><p class="pre">${esc(s.notas)}</p>${s.compromisos ? `<p class="pre"><strong>Compromisos:</strong> ${esc(s.compromisos)}</p>` : ''}</div>`).join('')}
-  </section>
+  ${oneOnOne(person, sessions, `/admin/personas/${person.id}/sesiones`)}
   ${evs.length > 1 ? `<section class="card"><h2>Historial</h2><ul>${evs.slice(1).map((e) => `<li>${fdate(e.created_at)} · ${badge(e.status)} ${e.report ? `· Puntaje ${e.report.puntaje_global}` : ''}</li>`).join('')}</ul></section>` : ''}`;
 }
 
@@ -612,12 +606,14 @@ export function studyModule(m, st, last, imgs, isAdmin) {
   const sections = (m.secciones || []).map((x, i) => `<section class="lesson" id="s${i + 1}"><p class="eyebrow">Parte ${i + 1}</p><h2>${esc(x.titulo)}</h2>${md(x.contenido)}</section>`).join('');
   let result = '';
   if (last) {
-    const wrong = last.answers.map((a, i) => (a === m.preguntas[i]?.correcta ? null : i + 1)).filter(Boolean);
+    const ans = (last.answers || []).map((x, i) => (x && typeof x === 'object' ? x : { q: i, a: x }));
+    const wrong = ans.map((x, i) => (x.a === m.preguntas[x.q]?.correcta ? null : i + 1)).filter(Boolean);
     const reveal = last.passed || st.attempts.length >= 2;
     result = `<section class="card result ${last.passed ? 'pass' : 'fail'}" id="resultado"><p class="eyebrow">Resultado del intento ${st.attempts.findIndex((a) => a.id === last.id) + 1}</p>
       <h2>${last.score}% · ${last.passed ? '¡Aprobaste el módulo!' : 'No alcanzaste el 85%'}</h2>
-      ${last.passed ? '<p>Excelente trabajo. Sigue aplicando lo aprendido en tu día a día.</p>' : st.canTake ? `<p>Te equivocaste en las preguntas ${wrong.join(', ')}. Repasa la teoría y vuelve a intentarlo: te queda 1 intento.</p>` : '<p>Ya usaste tus 2 intentos. El módulo queda registrado como no aprobado; el próximo mes se habilita un nuevo módulo.</p>'}
-      ${reveal ? `<details><summary>Ver respuestas y explicaciones</summary><ol class="review">${m.preguntas.map((p, i) => `<li class="${last.answers[i] === p.correcta ? 'ok' : 'bad'}"><p><strong>${esc(p.texto)}</strong></p><p class="small">Correcta: ${esc(p.opciones[p.correcta])}</p><p class="small muted">${esc(p.explicacion)}</p></li>`).join('')}</ol></details>` : ''}</section>`;
+      ${last.passed ? '<p>Excelente trabajo. Sigue aplicando lo aprendido en tu día a día.</p>' : st.canTake ? `<p>No elegiste la mejor respuesta en las preguntas ${wrong.join(', ')}. Repasa la teoría y vuelve a intentarlo: te queda 1 intento, con preguntas diferentes.</p>` : '<p>Ya usaste tus 2 intentos. El módulo queda registrado como no aprobado; el próximo mes se habilita un nuevo módulo.</p>'}
+      ${reveal ? `<details><summary>Ver respuestas y explicaciones</summary><ol class="review">${ans.map((x) => { const p = m.preguntas[x.q]; if (!p) return ''; const ok = x.a === p.correcta; const valid = !ok && x.a != null && x.a === p.alternativa;
+        return `<li class="${ok ? 'ok' : 'bad'}"><p><strong>${esc(p.texto)}</strong></p>${!ok && x.a != null ? `<p class="small">Elegiste: ${esc(p.opciones[x.a])}${valid ? ' <span class="badge warn">Válida, pero no la mejor</span>' : ''}</p>` : ''}<p class="small">Mejor respuesta: ${esc(p.opciones[p.correcta])}</p><p class="small muted">${esc(p.explicacion)}</p></li>`; }).join('')}</ol></details>` : ''}</section>`;
   }
   let action = '';
   if (isAdmin) action = `<section class="card"><p class="muted">Vista previa del líder. <a href="/admin/estudio/${m.id}">Editar módulo</a></p></section>`;
@@ -632,11 +628,12 @@ export function studyModule(m, st, last, imgs, isAdmin) {
     <article class="card lessons">${sections || '<p class="muted">Este módulo aún no tiene teoría.</p>'}</article>${action}`;
 }
 
-export function studyQuiz(m, st) {
+export function studyQuiz(m, st, draw) {
   return `<p><a href="/estudio/${m.id}">← Volver a la teoría</a></p>
   <form method="post" action="/estudio/${m.id}/evaluacion" class="card evalform" onsubmit="return confirm('¿Enviar tus respuestas? Este es tu intento ${st.attempts.length + 1} de 2.')">
     <p class="eyebrow">Evaluación · intento ${st.attempts.length + 1} de 2 · se aprueba con 85%</p><h1>${esc(m.titulo)}</h1>
-    ${m.preguntas.map((p, i) => `<fieldset class="q"><legend><span class="num">${i + 1}</span>${esc(p.texto)}</legend><div class="opts">${p.opciones.map((o, j) => `<label><input type="radio" name="p${i}" value="${j}" required><span>${esc(o)}</span></label>`).join('')}</div></fieldset>`).join('')}
+    <p class="muted small">Lee cada caso con calma: varias respuestas pueden ser válidas, elige la mejor. Tus preguntas son distintas a las de tus compañeros.</p>
+    ${draw.map(({ qi, order }, i) => { const p = m.preguntas[qi]; return `<fieldset class="q"><legend><span class="num">${i + 1}</span>${esc(p.texto)}</legend><div class="opts">${order.map((j) => `<label><input type="radio" name="q${qi}" value="${j}" required><span>${esc(p.opciones[j])}</span></label>`).join('')}</div></fieldset>`; }).join('')}
     <div class="nav"><span></span><button class="btn">Enviar respuestas</button></div></form>`;
 }
 
@@ -652,7 +649,7 @@ export function adminStudy(area, mods, staff, mes, error) {
         <input type="hidden" name="area" value="${area}"><label>Mes<input type="month" name="mes" value="${nextMes}" required></label>
         <label>Tema (opcional)<input name="tema" placeholder="Si lo dejas vacío, la IA lo elige según los resultados del área"></label>
         <button class="btn" name="modo" value="ia" data-ia>Generar con IA</button><button class="btn ghost" name="modo" value="manual" formnovalidate>Crear vacío</button></form>
-      <p class="muted small">La IA arma la teoría (4-6 partes) y una evaluación de 10 preguntas con base en el rol del área, las oportunidades de mejora de sus evaluaciones y los módulos anteriores. Luego tú lo revisas, le subes imágenes y lo publicas.</p></section>
+      <p class="muted small">La IA arma la teoría (4-6 partes) y un banco de 18-20 casos (a cada persona se le sortean 10 distintos) con base en el rol del área, las oportunidades de mejora de sus evaluaciones y los módulos anteriores. Luego tú lo revisas, le subes imágenes y lo publicas.</p></section>
     <section class="card"><table class="tbl"><thead><tr><th>Mes</th><th>Módulo</th><th>Estado</th><th>Aprobados</th><th>Presentaron</th><th></th></tr></thead><tbody>
     ${mods.length ? mods.map((m) => `<tr><td><strong>${esc(fmonth(m.mes))}</strong><br><span class="muted small">${{ abierto: 'Abierto', proximo: 'Próximo', cerrado: 'Cerrado' }[windowStateView(m.mes, mes)]}</span></td><td>${m.numero ? `<span class="muted small">Módulo ${m.numero} de 12</span><br>` : ''}${esc(m.titulo)}<br><span class="muted small">${m.nsec ? `${m.nsec} partes · ${m.npreg} preguntas` : 'Contenido pendiente'}</span></td>
       <td>${m.published ? '<span class="badge ok">Publicado</span>' : m.nsec ? `<span class="badge warn">Borrador${m.auto_publish && m.numero ? ' · se publica el día 1' : ''}</span>` : '<span class="badge muted">Por preparar</span>'}</td><td>${m.aprobados}/${staff}</td><td>${m.presentaron}</td><td><a href="/admin/estudio/${m.id}">Editar</a> · <a href="/estudio/${m.id}">Ver</a></td></tr>`).join('') : '<tr><td colspan="6" class="muted">Aún no hay módulos para esta área.</td></tr>'}
@@ -837,6 +834,7 @@ function leaderFlags(r) {
   else if (r.status === 'en_curso') f.push(['Evaluación sin terminar', 'warn']);
   if (r.mod_id && !r.aprobado && r.intentos >= 2) f.push(['Perdió el módulo del mes', 'err']);
   else if (r.mod_id && !r.aprobado && day >= 15) f.push(['Módulo del mes pendiente', 'warn']);
+  if (!r.uno_mes && day >= 20) f.push(['Sin uno a uno este mes', 'warn']);
   const d = sinceDays(r.last_seen);
   if (d === null || d > 7) f.push([d === null ? 'Nunca ha entrado' : `Sin entrar hace ${d} días`, 'warn']);
   return f;
@@ -853,6 +851,7 @@ export function leaderHome(user, rows, mes, base = '/lider/personas', me = null)
     ['Evaluaciones con informe', `${rows.filter((r) => r.score != null).length}/${rows.length}`],
     ['Puntaje promedio', avg(rows.filter((r) => r.score != null).map((r) => r.score))],
     ['Módulo del mes aprobado', withMod.length ? `${withMod.filter((r) => r.aprobado).length}/${withMod.length}` : '—'],
+    ['Uno a uno del mes', `${rows.filter((r) => r.uno_mes).length}/${rows.length}`],
     ['Requieren atención', attn.length],
   ];
   return `<section class="band"><div class="band-copy"><p class="band-sub">Mi equipo · ${esc(fmonth(mes))}</p><h1>${user.leads_all ? 'Todo el personal' : `Equipo de ${esc(base === '/lider/personas' ? String(user.name).split(' ')[0] : user.name)}`}</h1>
@@ -862,16 +861,17 @@ export function leaderHome(user, rows, mes, base = '/lider/personas', me = null)
     <div class="actions">${me.status === 'pendiente' || me.status === 'en_curso' ? '<a class="btn" href="/evaluacion">Hacer mi evaluación</a>' : ''}<a class="btn ${me.status === 'pendiente' || me.status === 'en_curso' ? 'ghost' : ''}" href="/estudio">Ir a mi Academia</a><a class="btn ghost" href="/mi">Mi espacio</a></div></div></section>` : ''}
   ${rows.length ? '' : '<section class="card"><p class="muted">Todavía no tienes personas asignadas. El administrador del programa las asigna desde el panel.</p></section>'}
   ${attn.length ? `<section class="card"><h2 style="margin-top:0">Requieren atención (${attn.length})</h2><div class="attn">${attn.map((r) => `<a href="${base}/${r.id}" class="attn-item"><strong>${esc(r.name)}</strong><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span><div>${r.flags.map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ')}</div></a>`).join('')}</div></section>` : ''}
-  ${rows.length ? `<section class="card"><h2>Personas</h2><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Módulo del mes</th><th>Academia</th><th>Última entrada</th></tr></thead><tbody>
+  ${rows.length ? `<section class="card"><h2>Personas</h2><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Módulo del mes</th><th>Academia</th><th>Uno a uno</th><th>Última entrada</th></tr></thead><tbody>
   ${list.map((r) => `<tr><td><div class="who-cell">${avatar(r)}<div><a href="${base}/${r.id}"><strong>${esc(r.name)}</strong></a><br><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span></div></div></td>
     <td>${r.status ? badge(r.status) : '<span class="muted">—</span>'}</td><td>${r.score ?? '—'}</td>
     <td>${r.plan_total ? `<div class="bar slim"><span style="width:${Math.round((100 * r.plan_hechos) / r.plan_total)}%"></span></div><span class="muted small">${r.plan_hechos}/${r.plan_total} hechas</span>` : '<span class="muted">—</span>'}</td>
     <td>${modCell(r)}</td><td>${r.publicados ? `${r.aprobados}/${r.publicados} aprobados` : '<span class="muted">—</span>'}</td>
+    <td>${r.uno_mes ? '<span class="badge ok">Hecho</span>' : '<span class="badge warn">Pendiente</span>'}${r.comp_abiertos ? `<br><span class="muted small">${r.comp_abiertos} compromiso${r.comp_abiertos > 1 ? 's' : ''} abierto${r.comp_abiertos > 1 ? 's' : ''}</span>` : ''}</td>
     <td>${r.last_seen ? fdate(r.last_seen) : '<span class="muted">Nunca</span>'}</td></tr>`).join('')}
   </tbody></table></section>` : ''}`;
 }
 
-export function leaderPerson(person, ev, plans, academy, sessions) {
+export function leaderPerson(person, ev, plans, academy, ctx) {
   const plan = plans[0];
   return `<p><a href="/lider">← Mi equipo</a></p>
   <div class="row-head"><div><p class="eyebrow">${esc(areaLabel(person.area))}${person.cargo ? ` · ${esc(person.cargo)}` : ''}${person.sede ? ` · ${esc(person.sede)}` : ''}</p><div class="person-id">${avatar(person, 'lg')}<div><h1>${esc(person.name)}</h1><p class="muted">${esc(person.email)}</p></div></div></div>
@@ -882,13 +882,7 @@ export function leaderPerson(person, ev, plans, academy, sessions) {
   </tbody></table>` : '<p class="muted">Aún no hay módulos publicados para su área.</p>'}</section>
   ${plan ? `<section class="card"><h2 style="margin-top:0">Plan de ${esc(fmonth(plan.mes))}</h2>${plan.objetivo ? `<p><strong>${esc(plan.objetivo)}</strong></p>` : ''}<ul class="ev">${plan.items.map((i) => `<li><strong>${esc(i.accion)} ${badge(i.estado)}</strong>${i.indicador ? `<span>Indicador: ${esc(i.indicador)}</span>` : ''}${i.nota ? `<em>${esc(i.nota)}</em>` : ''}</li>`).join('')}</ul></section>` : ''}
   ${ev?.report ? reportView(ev) : `<section class="card"><p class="muted">${ev ? `Evaluación: ${badge(ev.status)} · el informe aparecerá cuando esté analizada.` : 'Sin evaluación asignada.'}</p></section>`}
-  <section class="card" id="sesiones"><h2>Sesiones uno a uno</h2>
-    <form method="post" action="/lider/personas/${person.id}/sesiones" class="stack">
-      <div class="grid2"><label>Fecha<input type="date" name="fecha" required value="${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}"></label></div>
-      <label>Notas de la sesión<textarea name="notas" rows="3" required></textarea></label>
-      <label>Compromisos<textarea name="compromisos" rows="2"></textarea></label><button class="btn">Guardar sesión</button></form>
-    ${sessions.map((x) => `<div class="session"><p class="eyebrow">${fdate(x.fecha)}${x.autor ? ` · ${esc(x.autor)}` : ''}</p><p class="pre">${esc(x.notas)}</p>${x.compromisos ? `<p class="pre"><strong>Compromisos:</strong> ${esc(x.compromisos)}</p>` : ''}</div>`).join('')}
-  </section>`;
+  ${oneOnOne(person, ctx, `/lider/personas/${person.id}/sesiones`)}`;
 }
 
 export function adminLeaders(rows, ok, teams = {}) {
@@ -917,4 +911,44 @@ export function adminLeaders(rows, ok, teams = {}) {
     <form method="post" action="/admin/lideres"><input type="hidden" name="asignar" value="1"><table class="tbl"><thead><tr><th>Persona</th><th>Área</th><th>Sede</th><th>Líder</th></tr></thead><tbody>
     ${rows.map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(areaName(r.area))}</td><td>${esc(r.sede)}</td><td><select name="l_${r.id}">${opts(r.leader_id, r.id)}</select></td></tr>`).join('')}
     </tbody></table><div class="actions" style="margin-top:14px"><button class="btn">Guardar asignaciones</button></div></form></section>`;
+}
+
+// ---------- Uno a uno mensual ----------
+const COMP = { pendiente: ['Pendiente', 'muted'], parcial: ['Parcial', 'warn'], cumplido: ['Cumplido', 'ok'], no_cumplido: ['No cumplido', 'err'] };
+const compBadge = (e) => { const [l, c] = COMP[e] || [e, 'muted']; return `<span class="badge ${c}">${l}</span>`; };
+
+export function oneOnOne(person, ctx, action) {
+  const { sessions, commitments, mod, gaps, mes } = ctx;
+  const open = commitments.filter((c) => ['pendiente', 'parcial'].includes(c.estado));
+  const done = sessions.find((x) => x.mes_s === mes);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const st = mod?.st;
+  const modTxt = mod ? `${mod.numero ? `Módulo ${mod.numero}: ` : ''}${esc(mod.titulo)} — ${st?.passed ? `aprobado con ${st.best}%` : st?.n ? `${st.best}% en ${st.n} intento${st.n > 1 ? 's' : ''}, sin aprobar` : 'aún no presenta la evaluación'}` : '';
+  const opts = [...(mod ? [`Módulo del mes: ${mod.titulo}`] : []), ...gaps];
+  const byS = (id) => commitments.filter((c) => c.session_id === id);
+  return `<section class="card" id="sesiones"><div class="row-head"><div><h2 style="margin-top:0">Uno a uno del mes</h2><p class="muted small">Una sesión al mes, de cara al módulo de la Academia: revisan los compromisos anteriores, conversan sobre la brecha y acuerdan nuevos compromisos.</p></div>
+    <div>${done ? `<span class="badge ok">Hecho el ${fdate(done.fecha)}</span>` : '<span class="badge warn">Pendiente este mes</span>'}</div></div>
+    ${mod ? `<div class="notice info"><strong>Módulo del mes:</strong> ${modTxt}${mod.objetivo ? `<br><span class="small">${esc(mod.objetivo)}</span>` : ''}</div>` : ''}
+    <form method="post" action="${action}" class="stack">
+      ${open.length ? `<h3 style="margin:6px 0 0">1. Seguimiento a compromisos anteriores</h3>${open.map((c) => `<div class="comp-row"><div><strong>${esc(c.texto)}</strong><br><span class="muted small">Acordado el ${fdate(c.created_at)}${c.fecha_limite ? ` · fecha límite ${fdate(c.fecha_limite)}` : ''}</span></div>
+        <select name="st_${c.id}">${Object.entries(COMP).map(([k, [l]]) => `<option value="${k}" ${k === c.estado ? 'selected' : ''}>${l}</option>`).join('')}</select><input name="nt_${c.id}" placeholder="Comentario (opcional)" value="${esc(c.nota)}"></div>`).join('')}` : ''}
+      <h3 style="margin:6px 0 0">${open.length ? '2' : '1'}. La sesión</h3>
+      <input type="hidden" name="module_id" value="${mod?.id || ''}">
+      <div class="grid2"><label>Fecha<input type="date" name="fecha" required value="${today}"></label>
+        <label>Brecha que trabajaron<select name="brecha"><option value="">Elegir…</option>${opts.map((o) => `<option>${esc(o)}</option>`).join('')}</select></label></div>
+      <label>Otra brecha (opcional)<input name="brecha_otra" placeholder="Si no está en la lista"></label>
+      <label>Notas de la sesión<textarea name="notas" rows="3" placeholder="Qué aprendió del módulo, cómo lo está aplicando, qué le cuesta"></textarea></label>
+      <h3 style="margin:6px 0 0">${open.length ? '3' : '2'}. Nuevos compromisos para cerrar la brecha</h3>
+      ${[1, 2, 3].map((i) => `<div class="grid2 comp-new"><input name="c${i}" placeholder="Compromiso ${i}: acción concreta y medible"><input type="date" name="f${i}" title="Fecha límite"></div>`).join('')}
+      <p class="muted small">Si solo actualizas el estado de los compromisos, deja las notas vacías.</p>
+      <button class="btn">Guardar</button></form>
+    ${sessions.length ? `<h3>Historial</h3>${sessions.map((x) => `<div class="session"><p class="eyebrow">${fdate(x.fecha)}${x.autor ? ` · ${esc(x.autor)}` : ''}${x.modulo ? ` · ${esc(x.modulo)}` : ''}</p>${x.brecha ? `<p><strong>Brecha:</strong> ${esc(x.brecha)}</p>` : ''}<p class="pre">${esc(x.notas)}</p>
+      ${x.compromisos ? `<p class="pre"><strong>Compromisos:</strong> ${esc(x.compromisos)}</p>` : ''}${byS(x.id).length ? `<ul class="comp-list">${byS(x.id).map((c) => `<li>${compBadge(c.estado)} ${esc(c.texto)}${c.nota ? ` <span class="muted small">— ${esc(c.nota)}</span>` : ''}</li>`).join('')}</ul>` : ''}</div>`).join('')}` : ''}
+  </section>`;
+}
+
+export function myCommitments(list) {
+  if (!list.length) return '';
+  return `<section class="card" id="compromisos"><h2 style="margin-top:0">Mis compromisos del uno a uno</h2><p class="muted small">Lo que acordaste con tu líder. En el próximo uno a uno revisarán cómo te fue.</p>
+    <ul class="comp-list">${list.map((c) => `<li>${compBadge(c.estado)} <strong>${esc(c.texto)}</strong>${c.fecha_limite ? ` <span class="muted small">· hasta el ${fdate(c.fecha_limite)}</span>` : ''}</li>`).join('')}</ul></section>`;
 }

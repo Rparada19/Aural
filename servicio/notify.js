@@ -17,7 +17,9 @@ const areaName = (k) => (AREAS[k]?.label || k).replace(/^(Servicio al cliente|Co
 export const METODOLOGIA = [
   'La Academia Aural tiene 12 módulos, uno por mes, pensados para tu área.',
   'Cada módulo se habilita el día 1 y tienes hasta el último día del mes para estudiarlo.',
-  'Primero lees la teoría (con ejemplos e imágenes) y luego presentas una evaluación de 10 preguntas.',
+  'Primero lees la teoría (con ejemplos e imágenes) y luego presentas una evaluación de 10 preguntas con casos reales: varias respuestas pueden ser válidas, pero solo una es la mejor.',
+  'Cada persona recibe preguntas distintas y en otro orden, así que la evaluación es solo tuya.',
+  'Cada mes tienes una sesión uno a uno con tu líder sobre el módulo: acuerdan compromisos y en la siguiente revisan cómo te fue.',
   'Tienes 2 intentos y apruebas con 85%. Al cerrar el mes el módulo se bloquea: si no lo aprobaste, queda como no aprobado.',
   'Cada módulo aprobado suma puntos en el ranking mensual de tu área.',
 ];
@@ -135,6 +137,21 @@ async function remindInactive() {
   return n;
 }
 
+// Uno a uno mensual: aviso al líder desde el día 20 si tiene personas sin sesión en el mes
+async function remindOneOnOne() {
+  const mes = todayStr().slice(0, 7);
+  if (Number(todayStr().slice(8, 10)) < 20) return 0;
+  let n = 0;
+  const { rows } = await q(`SELECT l.id, l.email, l.name, string_agg(u.name, ', ' ORDER BY u.name) AS faltan, count(*)::int AS c
+    FROM users l JOIN users u ON u.role = 'staff' AND u.active AND u.approved AND u.id <> l.id AND (l.leads_all OR u.leader_id = l.id)
+    WHERE l.lider AND l.active AND NOT l.leads_all AND NOT EXISTS (SELECT 1 FROM sessions_1a1 s WHERE s.user_id = u.id AND to_char(s.fecha, 'YYYY-MM') = $1)
+    GROUP BY l.id`, [mes]);
+  for (const l of rows) {
+    n += await once(`1a1:${mes}:${l.id}`, () => toPerson(l, `Tienes ${l.c} uno a uno pendiente${l.c > 1 ? 's' : ''} este mes`, { title: 'Uno a uno del mes', paras: [`Aún no registras la sesión de este mes con: ${esc(l.faltan)}.`, 'Revisen juntos el módulo de la Academia, el avance de los compromisos anteriores y acuerden nuevos compromisos para cerrar la brecha.'], cta: 'Ir a mi equipo', link: `${BASE()}/lider` }));
+  }
+  return n;
+}
+
 // Paso 7: ganadores del mes anterior
 export async function announceWinners(rankingFor, sendMessage) {
   const now = todayStr();
@@ -164,5 +181,5 @@ export async function announceWinners(rankingFor, sendMessage) {
 
 export async function runReminders() {
   if (!mailConfigured()) return {};
-  return { evaluaciones: await remindEvaluations(), estudio: await remindStudy(), inactivos: await remindInactive() };
+  return { evaluaciones: await remindEvaluations(), estudio: await remindStudy(), inactivos: await remindInactive(), uno_a_uno: await remindOneOnOne() };
 }

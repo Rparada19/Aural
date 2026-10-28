@@ -165,6 +165,19 @@ export async function migrate() {
   await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS lider BOOLEAN NOT NULL DEFAULT false');
   await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS leads_all BOOLEAN NOT NULL DEFAULT false');
   await q('ALTER TABLE sessions_1a1 ADD COLUMN IF NOT EXISTS autor_id INT REFERENCES users(id) ON DELETE SET NULL');
+  await q('ALTER TABLE sessions_1a1 ADD COLUMN IF NOT EXISTS module_id INT REFERENCES study_modules(id) ON DELETE SET NULL');
+  await q("ALTER TABLE sessions_1a1 ADD COLUMN IF NOT EXISTS brecha TEXT NOT NULL DEFAULT ''");
+  await q(`CREATE TABLE IF NOT EXISTS compromisos (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    session_id INT REFERENCES sessions_1a1(id) ON DELETE CASCADE,
+    texto TEXT NOT NULL,
+    fecha_limite DATE,
+    estado TEXT NOT NULL DEFAULT 'pendiente',
+    nota TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
   await q(`CREATE OR REPLACE VIEW users_v AS SELECT id, email, name, role, cargo, sede, active, created_at, area, approved, telefono, (photo IS NOT NULL) AS has_photo, leader_id, lider, leads_all FROM users`);
   await q("ALTER TABLE questions ADD COLUMN IF NOT EXISTS area TEXT NOT NULL DEFAULT ''");
   await q("ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS area TEXT NOT NULL DEFAULT ''");
