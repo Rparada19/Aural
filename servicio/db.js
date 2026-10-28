@@ -161,7 +161,11 @@ export async function migrate() {
   await q("CREATE TABLE IF NOT EXISTS knowledge (id SERIAL PRIMARY KEY, area TEXT NOT NULL, data JSONB NOT NULL, evaluaciones INT NOT NULL DEFAULT 0, respuestas INT NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT now())");
   await q('CREATE TABLE IF NOT EXISTS customer_insights (id SERIAL PRIMARY KEY, data JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())');
   await q('CREATE TABLE IF NOT EXISTS notifications (id SERIAL PRIMARY KEY, key TEXT UNIQUE NOT NULL, sent_at TIMESTAMPTZ NOT NULL DEFAULT now())');
-  await q(`CREATE OR REPLACE VIEW users_v AS SELECT id, email, name, role, cargo, sede, active, created_at, area, approved, telefono, (photo IS NOT NULL) AS has_photo FROM users`);
+  await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS leader_id INT REFERENCES users(id) ON DELETE SET NULL');
+  await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS lider BOOLEAN NOT NULL DEFAULT false');
+  await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS leads_all BOOLEAN NOT NULL DEFAULT false');
+  await q('ALTER TABLE sessions_1a1 ADD COLUMN IF NOT EXISTS autor_id INT REFERENCES users(id) ON DELETE SET NULL');
+  await q(`CREATE OR REPLACE VIEW users_v AS SELECT id, email, name, role, cargo, sede, active, created_at, area, approved, telefono, (photo IS NOT NULL) AS has_photo, leader_id, lider, leads_all FROM users`);
   await q("ALTER TABLE questions ADD COLUMN IF NOT EXISTS area TEXT NOT NULL DEFAULT ''");
   await q("ALTER TABLE evaluations ADD COLUMN IF NOT EXISTS area TEXT NOT NULL DEFAULT ''");
   for (const [area, modules] of Object.entries(SEED)) {

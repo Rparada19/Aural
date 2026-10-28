@@ -33,7 +33,7 @@ app.use(express.json({ limit: '200kb' }));
 // Sesión
 app.use(async (req, res, next) => {
   const sid = (req.headers.cookie || '').split(/;\s*/).find((c) => c.startsWith(COOKIE + '='))?.slice(COOKIE.length + 1);
-  if (sid) req.user = await one('SELECT u.id, u.email, u.name, u.role, u.area, u.sede, u.cargo, u.active, u.last_seen, (u.photo IS NOT NULL) AS has_photo FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = $1 AND s.expires_at > now() AND u.active', [hash(sid)]);
+  if (sid) req.user = await one('SELECT u.id, u.email, u.name, u.role, u.area, u.sede, u.cargo, u.active, u.last_seen, u.lider, u.leads_all, (u.photo IS NOT NULL) AS has_photo FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id_hash = $1 AND s.expires_at > now() AND u.active', [hash(sid)]);
   if (req.user && (!req.user.last_seen || Date.now() - new Date(req.user.last_seen) > 3600e3)) q('UPDATE users SET last_seen = now() WHERE id = $1', [req.user.id]).catch(() => {});
   next();
 });
@@ -49,6 +49,7 @@ app.use((req, res, next) => {
 const page = (res, title, body, user, opts) => res.send(V.layout(title, body, user, { ...opts, path: res.req.path }));
 const needUser = (req, res, next) => (req.user ? next() : res.redirect('/login'));
 const needAdmin = (req, res, next) => (req.user?.role === 'admin' ? next() : res.redirect(req.user ? '/' : '/login'));
+const needLeader = (req, res, next) => (req.user?.lider ? next() : res.redirect(req.user ? '/' : '/login'));
 
 async function loginLink(userId) {
   const t = token();
@@ -525,6 +526,77 @@ app.post('/admin/personas/:id/evaluacion', needAdmin, async (req, res) => {
 app.post('/admin/personas/:id/sesiones', needAdmin, async (req, res) => {
   await q('INSERT INTO sessions_1a1 (user_id, fecha, notas, compromisos) VALUES ($1,$2,$3,$4)', [req.params.id, req.body.fecha, String(req.body.notas || '').trim(), String(req.body.compromisos || '').trim()]);
   res.redirect(`/admin/personas/${req.params.id}`);
+});
+
+// ---------- Líderes: seguimiento de su equipo ----------
+const TEAM_SQL = `SELECT u.id, u.name, u.email, u.area, u.sede, u.cargo, u.last_seen, (u.photo IS NOT NULL) AS has_photo, u.leader_id,
+    e.status, e.plan_published, (e.report->>'puntaje_global')::int AS score,
+    m.id AS mod_id, m.numero AS mod_num, m.titulo AS mod_titulo, (r.user_id IS NOT NULL) AS leido, a.best, coalesce(a.n, 0)::int AS intentos, coalesce(a.passed, false) AS aprobado,
+    ac.publicados, ac.aprobados, pl.total AS plan_total, pl.hechos AS plan_hechos
+  FROM users u
+  LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
+  LEFT JOIN study_modules m ON m.area = u.area AND m.mes = $1 AND m.published
+  LEFT JOIN study_reads r ON r.user_id = u.id AND r.module_id = m.id
+  LEFT JOIN LATERAL (SELECT max(score) AS best, count(*) AS n, bool_or(passed) AS passed FROM study_attempts WHERE user_id = u.id AND module_id = m.id) a ON true
+  LEFT JOIN LATERAL (SELECT count(*)::int AS publicados, count(*) FILTER (WHERE EXISTS (SELECT 1 FROM study_attempts sa WHERE sa.module_id = sm.id AND sa.user_id = u.id AND sa.passed))::int AS aprobados
+    FROM study_modules sm WHERE sm.area = u.area AND sm.published AND sm.mes <= $1) ac ON true
+  LEFT JOIN LATERAL (SELECT count(*)::int AS total, count(*) FILTER (WHERE i.estado = 'hecho')::int AS hechos FROM plan_items i JOIN plans p ON p.id = i.plan_id WHERE p.user_id = u.id AND p.mes = $1 AND p.published) pl ON true
+  WHERE u.role = 'staff' AND u.approved AND u.active AND u.id <> $2 AND ($3 OR u.leader_id = $2)
+  ORDER BY u.area, u.name`;
+const teamOf = async (leader) => (await q(TEAM_SQL, [thisMonth(), leader.id, Boolean(leader.leads_all)])).rows;
+const inTeam = async (leader, id) => one(`SELECT * FROM users_v WHERE id = $1 AND role = 'staff' AND id <> $2 AND ($3 OR leader_id = $2)`, [id, leader.id, Boolean(leader.leads_all)]);
+
+app.get('/lider', needLeader, async (req, res) => {
+  page(res, 'Mi equipo', V.leaderHome(req.user, await teamOf(req.user), thisMonth()), req.user, { wide: true });
+});
+
+async function personAcademy(person) {
+  return (await q(`SELECT m.id, m.numero, m.mes, m.titulo, (r.user_id IS NOT NULL) AS leido, max(a.score) AS best, count(a.id)::int AS intentos, coalesce(bool_or(a.passed), false) AS aprobado
+    FROM study_modules m LEFT JOIN study_reads r ON r.module_id = m.id AND r.user_id = $1 LEFT JOIN study_attempts a ON a.module_id = m.id AND a.user_id = $1
+    WHERE m.area = $2 AND m.published AND m.mes <= $3 GROUP BY m.id, r.user_id ORDER BY m.mes, m.numero`, [person.id, person.area, thisMonth()])).rows;
+}
+
+app.get('/lider/personas/:id', needLeader, async (req, res) => {
+  const person = await inTeam(req.user, req.params.id);
+  if (!person) return res.redirect('/lider');
+  const ev = await one('SELECT * FROM evaluations WHERE user_id = $1 ORDER BY id DESC LIMIT 1', [person.id]);
+  const plans = (await q(`SELECT p.*, coalesce(json_agg(i ORDER BY i.position, i.id) FILTER (WHERE i.id IS NOT NULL), '[]') AS items
+    FROM plans p LEFT JOIN plan_items i ON i.plan_id = p.id WHERE p.user_id = $1 AND p.published GROUP BY p.id ORDER BY p.mes DESC LIMIT 3`, [person.id])).rows;
+  const sessions = (await q('SELECT s.*, a.name AS autor FROM sessions_1a1 s LEFT JOIN users a ON a.id = s.autor_id WHERE s.user_id = $1 ORDER BY fecha DESC, s.id DESC', [person.id])).rows;
+  page(res, person.name, V.leaderPerson(person, ev, plans, await personAcademy(person), sessions), req.user, { wide: true });
+});
+
+app.post('/lider/personas/:id/sesiones', needLeader, async (req, res) => {
+  const person = await inTeam(req.user, req.params.id);
+  if (person && String(req.body.notas || '').trim()) await q('INSERT INTO sessions_1a1 (user_id, fecha, notas, compromisos, autor_id) VALUES ($1,$2,$3,$4,$5)', [person.id, req.body.fecha, String(req.body.notas).trim(), String(req.body.compromisos || '').trim(), req.user.id]);
+  res.redirect(`/lider/personas/${req.params.id}#sesiones`);
+});
+
+app.get('/lider/personas/:id/informe.pdf', needLeader, async (req, res) => {
+  const person = await inTeam(req.user, req.params.id);
+  const ev = person && await one('SELECT * FROM evaluations WHERE user_id = $1 AND report IS NOT NULL ORDER BY id DESC LIMIT 1', [person.id]);
+  if (!ev) return res.redirect('/lider');
+  sendPdf(res, `informe-${slug(person.name)}`, (doc) => renderReport(doc, person, ev));
+});
+
+app.get('/admin/lideres', needAdmin, async (req, res) => {
+  const { rows } = await q("SELECT id, name, email, area, sede, lider, leads_all, leader_id FROM users WHERE role = 'staff' AND approved AND active ORDER BY area, name");
+  page(res, 'Líderes', V.adminLeaders(rows, req.query.ok), req.user, { wide: true });
+});
+
+app.post('/admin/lideres', needAdmin, async (req, res) => {
+  const b = req.body;
+  if (b.nuevo) await q("UPDATE users SET lider = true WHERE id = $1 AND role = 'staff'", [b.nuevo]);
+  if (b.quitar) { await q('UPDATE users SET lider = false, leads_all = false WHERE id = $1', [b.quitar]); await q('UPDATE users SET leader_id = NULL WHERE leader_id = $1', [b.quitar]); }
+  if (b.todos) await q('UPDATE users SET leads_all = NOT leads_all WHERE id = $1 AND lider', [b.todos]);
+  if (b.asignar) {
+    const leaders = new Set((await q('SELECT id FROM users WHERE lider')).rows.map((r) => String(r.id)));
+    for (const [k, v] of Object.entries(b)) {
+      const m = k.match(/^l_(\d+)$/);
+      if (m) await q('UPDATE users SET leader_id = $2 WHERE id = $1', [m[1], leaders.has(String(v)) && v !== m[1] ? Number(v) : null]);
+    }
+  }
+  res.redirect('/admin/lideres?ok=1');
 });
 
 // ---------- Planes mensuales ----------

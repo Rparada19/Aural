@@ -8,6 +8,7 @@ const STATUS = {
   enviada: ['Enviada', 'info'],
   analizando: ['Analizando', 'info'],
   analizada: ['Informe listo', 'ok'],
+  hecho: ['Hecho', 'ok'],
 };
 export const badge = (s) => { const [l, c] = STATUS[s] || [s, 'muted']; return `<span class="badge ${c}">${esc(l)}</span>`; };
 export const areaName = (k) => (AREAS[k]?.label || k).replace('Servicio al cliente · ', '').replace('Servicio al cliente ', 'SAC ').replace('Audiología · Atención a pacientes', 'Audiología').replace('Comercial · ', '').replace(' (especialistas de producto B2B)', ' B2B');
@@ -47,7 +48,7 @@ export function layout(title, body, user, { wide = false, path = '', bare = fals
   if (!user) return `${head}<body class="auth-body"><main class="auth">${body}</main></body></html>`;
   const salir = `<form method="post" action="/salir"><button class="navlink as-btn">${icon('salir')}<span>Salir</span></button></form>`;
   if (user.role === 'admin') {
-    const items = [['/admin', 'Panel', 'panel'], ['/admin/equipo', 'Equipo', 'equipo'], ['/admin/evaluaciones', 'Evaluaciones', 'evaluaciones'], ['/admin/solicitudes', 'Solicitudes', 'solicitudes'], ['/admin/estudio', 'Estudio', 'estudio'], ['/ranking', 'Ranking', 'ranking'], ['/admin/aprendizaje', 'Aprendizaje', 'aprendizaje'], ['/ia', 'IA en vivo', 'aprendizaje'], ['/admin/mensajes', 'Mensajes', 'mensajes'], ['/admin/preguntas', 'Preguntas', 'preguntas']];
+    const items = [['/admin', 'Panel', 'panel'], ['/admin/equipo', 'Equipo', 'equipo'], ['/admin/lideres', 'Líderes', 'equipo'], ['/admin/evaluaciones', 'Evaluaciones', 'evaluaciones'], ['/admin/solicitudes', 'Solicitudes', 'solicitudes'], ['/admin/estudio', 'Estudio', 'estudio'], ['/ranking', 'Ranking', 'ranking'], ['/admin/aprendizaje', 'Aprendizaje', 'aprendizaje'], ['/ia', 'IA en vivo', 'aprendizaje'], ['/admin/mensajes', 'Mensajes', 'mensajes'], ['/admin/preguntas', 'Preguntas', 'preguntas']];
     const on = (h) => (h === '/admin' ? path === '/admin' || path.startsWith('/admin/personas') : path.startsWith(h));
     return `${head}<body class="admin-body"><aside class="side"><a href="/admin" class="side-brand"><img src="/logo-aural-blanco.png" alt="Aural"><span>Servicio</span></a>
       <nav class="side-nav">${items.map(([h, l, k]) => `<a href="${h}" class="navlink ${on(h) ? 'on' : ''}">${icon(k)}<span>${l}</span></a>`).join('')}</nav>
@@ -55,8 +56,8 @@ export function layout(title, body, user, { wide = false, path = '', bare = fals
       <main class="content ${wide ? 'wide' : ''}">${body}</main></body></html>`;
   }
   return `${head}<body class="staff-body"><header class="top"><a href="/" class="brand"><img src="/logo-aural.png" alt="Aural"><span>Servicio</span></a>
-    <nav class="top-nav"><a href="/" class="navlink ${path === '/' ? 'on' : ''}">${icon('inicio')}<span>Mi espacio</span></a><a href="/estudio" class="navlink ${path.startsWith('/estudio') ? 'on' : ''}">${icon('estudio')}<span>Estudio</span></a><a href="/ranking" class="navlink ${path.startsWith('/ranking') ? 'on' : ''}">${icon('ranking')}<span>Ranking</span></a>${salir}</nav></header>
-    <main class="content staff">${body}</main></body></html>`;
+    <nav class="top-nav"><a href="/" class="navlink ${path === '/' ? 'on' : ''}">${icon('inicio')}<span>Mi espacio</span></a><a href="/estudio" class="navlink ${path.startsWith('/estudio') ? 'on' : ''}">${icon('estudio')}<span>Estudio</span></a><a href="/ranking" class="navlink ${path.startsWith('/ranking') ? 'on' : ''}">${icon('ranking')}<span>Ranking</span></a>${user.lider ? `<a href="/lider" class="navlink ${path.startsWith('/lider') ? 'on' : ''}">${icon('equipo')}<span>Mi equipo</span></a>` : ''}${salir}</nav></header>
+    <main class="content staff ${wide ? 'wide' : ''}">${body}</main></body></html>`;
 }
 
 const initials = (n) => esc(String(n || '?').trim().split(/\s+/).slice(0, 2).map((x) => x[0]).join('').toUpperCase());
@@ -825,4 +826,83 @@ export function aiLivePage(n, learned, outs = [], back = '/') {
     <p class="wow-note">Visualización ilustrativa con datos reales del programa. La IA analiza la información con modelos de lenguaje.</p>
     <script type="application/json" id="wow-data">${JSON.stringify(data).replace(/</g, '\\u003c')}</script><script src="/ai-live.js?v=${V}"></script>
   </div>`;
+}
+
+// ---------- Líderes ----------
+const sinceDays = (d) => (d ? Math.floor((Date.now() - new Date(d)) / 86400e3) : null);
+function leaderFlags(r) {
+  const f = [];
+  const day = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(8, 10));
+  if (!r.status || r.status === 'pendiente') f.push(['No ha hecho la evaluación', 'warn']);
+  else if (r.status === 'en_curso') f.push(['Evaluación sin terminar', 'warn']);
+  if (r.mod_id && !r.aprobado && r.intentos >= 2) f.push(['Perdió el módulo del mes', 'err']);
+  else if (r.mod_id && !r.aprobado && day >= 15) f.push(['Módulo del mes pendiente', 'warn']);
+  const d = sinceDays(r.last_seen);
+  if (d === null || d > 7) f.push([d === null ? 'Nunca ha entrado' : `Sin entrar hace ${d} días`, 'warn']);
+  return f;
+}
+const modCell = (r) => (r.mod_id ? `${r.aprobado ? `<span class="badge ok">Aprobado · ${r.best}%</span>` : r.intentos ? `<span class="badge ${r.intentos >= 2 ? 'err' : 'warn'}">${r.best}% · ${r.intentos}/2 intentos</span>` : r.leido ? '<span class="badge info">Leyó la teoría</span>' : '<span class="badge muted">Sin empezar</span>'}` : '<span class="muted small">Sin módulo este mes</span>');
+
+export function leaderHome(user, rows, mes) {
+  const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : '—');
+  const withMod = rows.filter((r) => r.mod_id);
+  const list = rows.map((r) => ({ ...r, flags: leaderFlags(r) }));
+  const attn = list.filter((r) => r.flags.length);
+  const kpis = [
+    ['Personas a cargo', rows.length],
+    ['Evaluaciones con informe', `${rows.filter((r) => r.score != null).length}/${rows.length}`],
+    ['Puntaje promedio', avg(rows.filter((r) => r.score != null).map((r) => r.score))],
+    ['Módulo del mes aprobado', withMod.length ? `${withMod.filter((r) => r.aprobado).length}/${withMod.length}` : '—'],
+    ['Requieren atención', attn.length],
+  ];
+  return `<section class="band"><div class="band-copy"><p class="band-sub">Mi equipo · ${esc(fmonth(mes))}</p><h1>${user.leads_all ? 'Todo el personal' : `Equipo de ${esc(String(user.name).split(' ')[0])}`}</h1>
+    <div class="kpis">${kpis.map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${esc(l)}</span></div>`).join('')}</div></div></section>
+  ${rows.length ? '' : '<section class="card"><p class="muted">Todavía no tienes personas asignadas. El administrador del programa las asigna desde el panel.</p></section>'}
+  ${attn.length ? `<section class="card"><h2 style="margin-top:0">Requieren atención (${attn.length})</h2><div class="attn">${attn.map((r) => `<a href="/lider/personas/${r.id}" class="attn-item"><strong>${esc(r.name)}</strong><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span><div>${r.flags.map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ')}</div></a>`).join('')}</div></section>` : ''}
+  ${rows.length ? `<section class="card"><h2>Personas</h2><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Módulo del mes</th><th>Academia</th><th>Última entrada</th></tr></thead><tbody>
+  ${list.map((r) => `<tr><td><div class="who-cell">${avatar(r)}<div><a href="/lider/personas/${r.id}"><strong>${esc(r.name)}</strong></a><br><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span></div></div></td>
+    <td>${r.status ? badge(r.status) : '<span class="muted">—</span>'}</td><td>${r.score ?? '—'}</td>
+    <td>${r.plan_total ? `<div class="bar slim"><span style="width:${Math.round((100 * r.plan_hechos) / r.plan_total)}%"></span></div><span class="muted small">${r.plan_hechos}/${r.plan_total} hechas</span>` : '<span class="muted">—</span>'}</td>
+    <td>${modCell(r)}</td><td>${r.publicados ? `${r.aprobados}/${r.publicados} aprobados` : '<span class="muted">—</span>'}</td>
+    <td>${r.last_seen ? fdate(r.last_seen) : '<span class="muted">Nunca</span>'}</td></tr>`).join('')}
+  </tbody></table></section>` : ''}`;
+}
+
+export function leaderPerson(person, ev, plans, academy, sessions) {
+  const plan = plans[0];
+  return `<p><a href="/lider">← Mi equipo</a></p>
+  <div class="row-head"><div><p class="eyebrow">${esc(areaLabel(person.area))}${person.cargo ? ` · ${esc(person.cargo)}` : ''}${person.sede ? ` · ${esc(person.sede)}` : ''}</p><div class="person-id">${avatar(person, 'lg')}<div><h1>${esc(person.name)}</h1><p class="muted">${esc(person.email)}</p></div></div></div>
+    <div class="actions">${ev?.report ? `<a class="btn ghost" href="/lider/personas/${person.id}/informe.pdf">Descargar informe PDF</a>` : ''}<a class="btn ghost" href="#sesiones">Registrar 1:1</a></div></div>
+  <section class="card"><h2 style="margin-top:0">Academia</h2>${academy.length ? `<table class="tbl"><thead><tr><th>Módulo</th><th>Mes</th><th>Teoría</th><th>Mejor nota</th><th>Intentos</th><th>Resultado</th></tr></thead><tbody>
+    ${academy.map((m) => `<tr><td><strong>${m.numero ? `${m.numero}. ` : ''}${esc(m.titulo)}</strong></td><td>${esc(fmonth(m.mes))}</td><td>${m.leido ? '<span class="badge ok">Leída</span>' : '<span class="badge muted">Pendiente</span>'}</td>
+      <td>${m.best != null ? `${m.best}%` : '—'}</td><td>${m.intentos}/2</td><td>${m.aprobado ? '<span class="badge ok">Aprobado</span>' : m.intentos >= 2 ? '<span class="badge err">No aprobó</span>' : '<span class="badge warn">En curso</span>'}</td></tr>`).join('')}
+  </tbody></table>` : '<p class="muted">Aún no hay módulos publicados para su área.</p>'}</section>
+  ${plan ? `<section class="card"><h2 style="margin-top:0">Plan de ${esc(fmonth(plan.mes))}</h2>${plan.objetivo ? `<p><strong>${esc(plan.objetivo)}</strong></p>` : ''}<ul class="ev">${plan.items.map((i) => `<li><strong>${esc(i.accion)} ${badge(i.estado)}</strong>${i.indicador ? `<span>Indicador: ${esc(i.indicador)}</span>` : ''}${i.nota ? `<em>${esc(i.nota)}</em>` : ''}</li>`).join('')}</ul></section>` : ''}
+  ${ev?.report ? reportView(ev) : `<section class="card"><p class="muted">${ev ? `Evaluación: ${badge(ev.status)} · el informe aparecerá cuando esté analizada.` : 'Sin evaluación asignada.'}</p></section>`}
+  <section class="card" id="sesiones"><h2>Sesiones uno a uno</h2>
+    <form method="post" action="/lider/personas/${person.id}/sesiones" class="stack">
+      <div class="grid2"><label>Fecha<input type="date" name="fecha" required value="${new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' })}"></label></div>
+      <label>Notas de la sesión<textarea name="notas" rows="3" required></textarea></label>
+      <label>Compromisos<textarea name="compromisos" rows="2"></textarea></label><button class="btn">Guardar sesión</button></form>
+    ${sessions.map((x) => `<div class="session"><p class="eyebrow">${fdate(x.fecha)}${x.autor ? ` · ${esc(x.autor)}` : ''}</p><p class="pre">${esc(x.notas)}</p>${x.compromisos ? `<p class="pre"><strong>Compromisos:</strong> ${esc(x.compromisos)}</p>` : ''}</div>`).join('')}
+  </section>`;
+}
+
+export function adminLeaders(rows, ok) {
+  const leaders = rows.filter((r) => r.lider);
+  const count = (id) => rows.filter((r) => r.leader_id === id).length;
+  const opts = (sel, self) => `<option value="">Sin líder</option>${leaders.filter((l) => l.id !== self).map((l) => `<option value="${l.id}" ${l.id === sel ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}`;
+  return `<section class="band"><div class="band-copy"><p class="band-sub">Seguimiento por líder</p><h1>Líderes</h1></div></section>
+  ${ok ? '<p class="notice ok">Cambios guardados.</p>' : ''}
+  <section class="card"><h2 style="margin-top:0">Líderes (${leaders.length})</h2><p class="muted small">Cada líder ve en “Mi equipo” los resultados, informes, planes y avance en la Academia de las personas que tiene asignadas.</p>
+    <table class="tbl"><thead><tr><th>Líder</th><th>Alcance</th><th></th></tr></thead><tbody>
+    ${leaders.map((l) => `<tr><td><strong>${esc(l.name)}</strong><br><span class="muted small">${esc(l.email)}</span></td><td>${l.leads_all ? '<span class="badge info">Todo el personal</span>' : `${count(l.id)} personas`}</td>
+      <td class="row-actions"><form method="post" action="/admin/lideres" class="inline"><button class="btn ghost small" name="todos" value="${l.id}">${l.leads_all ? 'Solo su equipo' : 'Ver todo el personal'}</button></form>
+      <form method="post" action="/admin/lideres" class="inline" onsubmit="return confirm('¿Quitar este líder? Su equipo queda sin líder.')"><button class="btn ghost small" name="quitar" value="${l.id}">Quitar</button></form></td></tr>`).join('') || '<tr><td colspan="3" class="muted">Aún no hay líderes.</td></tr>'}
+    </tbody></table>
+    <form method="post" action="/admin/lideres" class="actions" style="margin-top:14px"><select name="nuevo" required><option value="">Elegir persona…</option>${rows.filter((r) => !r.lider).map((r) => `<option value="${r.id}">${esc(r.name)} · ${esc(areaName(r.area))}</option>`).join('')}</select><button class="btn">Agregar como líder</button></form></section>
+  <section class="card"><h2 style="margin-top:0">Asignación del personal</h2>
+    <form method="post" action="/admin/lideres"><input type="hidden" name="asignar" value="1"><table class="tbl"><thead><tr><th>Persona</th><th>Área</th><th>Sede</th><th>Líder</th></tr></thead><tbody>
+    ${rows.map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(areaName(r.area))}</td><td>${esc(r.sede)}</td><td><select name="l_${r.id}">${opts(r.leader_id, r.id)}</select></td></tr>`).join('')}
+    </tbody></table><div class="actions" style="margin-top:14px"><button class="btn">Guardar asignaciones</button></div></form></section>`;
 }

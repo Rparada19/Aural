@@ -122,6 +122,7 @@ input.copy { margin-top: 8px; font-size: .85rem; background: var(--bg); }
 .top-nav .navlink:hover { background: var(--bg); color: var(--navy); }
 .top-nav .navlink.on { background: var(--bg); color: var(--navy); box-shadow: none; }
 .content.staff { max-width: 880px; margin: 0 auto; padding: 28px 20px 64px; }
+.content.staff.wide { max-width: 1240px; }
 
 /* Banda azul (panel y saludo) */
 .band, .greet { position: relative; overflow: hidden; background: var(--navy); color: #fff; border-radius: var(--r-lg); padding: 30px 32px; margin-bottom: 22px; }
