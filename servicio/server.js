@@ -11,6 +11,7 @@ import { newDoc, renderReport, footer } from './pdf.js';
 import { learnArea, latestKnowledge } from './knowledge.js';
 import { generateModule, generateAcademy, userModuleState, grade, drawQuiz, windowState, PASS, MAX_ATTEMPTS } from './study.js';
 import { rankingFor } from './ranking.js';
+import { qrToken, qrSvg, surveyFor, saveFeedback, voiceOf } from './voz.js';
 import { notifyPlanPublished, METODOLOGIA } from './notify.js';
 import { generateMonthlyPlan, generateInsights, runDaily, sendMessage, getSetting, setSetting, today, thisMonth, PULSE } from './growth.js';
 
@@ -68,6 +69,51 @@ async function assignEvaluation(userId) {
 app.get('/health', (req, res) => res.send('ok'));
 
 // ---------- Acceso ----------
+// ---------- Voz de quienes atendemos (QR público y anónimo) ----------
+const fbHits = new Map();
+const fbLimited = (ip) => {
+  const now = Date.now(), h = (fbHits.get(ip) || []).filter((t) => now - t < 3600e3);
+  h.push(now); fbHits.set(ip, h);
+  if (fbHits.size > 5000) fbHits.clear();
+  return h.length > 30;
+};
+const byToken = (t) => one('SELECT id, name, area, active, (photo IS NOT NULL) AS has_photo FROM users WHERE qr_token = $1 AND active AND approved', [String(t || '')]);
+
+app.get('/c/:t', async (req, res) => {
+  const u = await byToken(req.params.t);
+  if (!u) return page(res, 'Encuesta', V.feedbackDone('Este código ya no está activo.'), null);
+  page(res, 'Califica la atención', V.feedbackForm(u, surveyFor(u.area), req.params.t), null);
+});
+
+app.post('/c/:t', async (req, res) => {
+  const u = await byToken(req.params.t);
+  if (!u) return page(res, 'Encuesta', V.feedbackDone('Este código ya no está activo.'), null);
+  const ck = `fb${u.id}`;
+  const seen = (req.headers.cookie || '').split(/;\s*/).some((c) => c.startsWith(ck + '='));
+  if (!req.body.website && !seen && !fbLimited(req.ip)) {
+    if (!(await saveFeedback(u, req.body))) return page(res, 'Califica la atención', V.feedbackForm(u, surveyFor(u.area), req.params.t, 'Por favor responde las 5 preguntas.'), null);
+    res.setHeader('Set-Cookie', `${ck}=1; Path=/c; Max-Age=${12 * 3600}; HttpOnly; SameSite=Lax${BASE.startsWith('https') ? '; Secure' : ''}`);
+  }
+  page(res, 'Gracias', V.feedbackDone(), null);
+});
+
+app.get('/qr/:t.svg', async (req, res) => {
+  if (!(await byToken(req.params.t))) return res.status(404).end();
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.send(await qrSvg(`${BASE}/c/${req.params.t}`));
+});
+
+// Tarjeta imprimible con el QR: la persona, su líder o el administrador
+app.get('/tarjeta/:id', needUser, async (req, res) => {
+  const id = Number(req.params.id);
+  const ok = id === req.user.id || req.user.role === 'admin' || (req.user.lider && await inTeam(req.user, id));
+  const u = ok && await one('SELECT id, name, area, (photo IS NOT NULL) AS has_photo FROM users WHERE id = $1', [id]);
+  if (!u) return res.redirect('/');
+  const t = await qrToken(u.id);
+  res.send(V.qrCard(u, t, `${BASE}/c/${t}`, surveyFor(u.area)));
+});
+
 app.get('/login', (req, res) => (req.user ? res.redirect('/') : page(res, 'Entrar', V.loginPage())));
 
 app.post('/login', async (req, res) => {
@@ -184,7 +230,7 @@ app.get(['/', '/mi'], needUser, async (req, res) => {
   const mod = await one('SELECT * FROM study_modules WHERE area = $1 AND mes = $2 AND published', [req.user.area, thisMonth()]);
   if (mod) mod.st = await userModuleState(req.user.id, mod);
   const comps = (await q("SELECT * FROM compromisos WHERE user_id = $1 AND (estado IN ('pendiente','parcial') OR updated_at > now() - interval '30 days') ORDER BY created_at DESC, id", [req.user.id])).rows;
-  page(res, 'Mi espacio', V.staffHome(req.user, await currentEval(req.user.id), await currentPlan(req.user.id, true), await todayMessage(req.user.area), pulseDone ? null : PULSE, mod) + V.myCommitments(comps), req.user);
+  page(res, 'Mi espacio', V.staffHome(req.user, await currentEval(req.user.id), await currentPlan(req.user.id, true), await todayMessage(req.user.area), pulseDone ? null : PULSE, mod) + V.myCommitments(comps) + V.voiceCard(req.user, await voiceOf(req.user.id), { token: await qrToken(req.user.id), base: BASE, survey: surveyFor(req.user.area), self: true }), req.user);
 });
 
 app.post('/pulso', needUser, async (req, res) => {
@@ -296,7 +342,10 @@ app.get('/admin', needAdmin, async (req, res) => {
   const gaps = (await q(`SELECT o->>'titulo' AS t, count(*)::int AS n FROM users u JOIN LATERAL (SELECT report FROM evaluations WHERE user_id = u.id AND report IS NOT NULL ORDER BY id DESC LIMIT 1) e ON true,
       jsonb_array_elements(e.report->'oportunidades') o WHERE u.role = 'staff' AND u.active AND u.approved ${area ? 'AND u.area = $1' : ''} GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 7`, area ? [area] : [])).rows;
   const clientes = await one('SELECT * FROM customer_insights ORDER BY id DESC LIMIT 1');
-  page(res, 'Panel', V.dashboard(rows, mes, area, pending, Object.values(series).sort((a, b) => a.mes.localeCompare(b.mes)), comments, PULSE, insight, req.query.error, gaps, clientes), req.user, { wide: true });
+  const voz = { tot: await one(`SELECT count(*)::int AS n, round(avg(promedio), 1)::float AS prom FROM feedback f JOIN users u ON u.id = f.user_id WHERE true ${af.replace('$2', '$1')}`, ap),
+    areas: (await q(`SELECT f.area, round(avg(f.promedio), 1)::float AS v, count(*)::int AS n FROM feedback f GROUP BY 1 ORDER BY 2 DESC`)).rows,
+    people: area ? (await q(`SELECT u.name, round(avg(f.promedio), 1)::float AS v, count(*)::int AS n FROM feedback f JOIN users u ON u.id = f.user_id WHERE u.area = $1 GROUP BY u.id ORDER BY 2 DESC`, [area])).rows : [] };
+  page(res, 'Panel', V.dashboard(rows, mes, area, pending, Object.values(series).sort((a, b) => a.mes.localeCompare(b.mes)), comments, PULSE, insight, req.query.error, gaps, clientes, voz), req.user, { wide: true });
 });
 
 app.post('/admin/recomendaciones', needAdmin, async (req, res) => {
@@ -499,7 +548,7 @@ app.get('/admin/personas/:id', needAdmin, async (req, res) => {
   const sessions = await oneOnOneCtx(person);
   const plans = (await q(`SELECT p.*, coalesce(json_agg(i ORDER BY i.position, i.id) FILTER (WHERE i.id IS NOT NULL), '[]') AS items
     FROM plans p LEFT JOIN plan_items i ON i.plan_id = p.id WHERE p.user_id = $1 GROUP BY p.id ORDER BY p.mes DESC`, [person.id])).rows;
-  page(res, person.name, V.adminPerson(person, evs, sessions, req.query.link, mailConfigured(), plans, thisMonth(), req.query.error), req.user, { wide: true });
+  page(res, person.name, V.adminPerson(person, evs, sessions, req.query.link, mailConfigured(), plans, thisMonth(), req.query.error) + V.voiceCard(person, await voiceOf(person.id), { survey: surveyFor(person.area) }), req.user, { wide: true });
 });
 
 app.post('/admin/personas/:id/enlace', needAdmin, async (req, res) => {
@@ -537,7 +586,8 @@ const teamSql = (where) => `SELECT u.id, u.name, u.email, u.area, u.sede, u.carg
     m.id AS mod_id, m.numero AS mod_num, m.titulo AS mod_titulo, (r.user_id IS NOT NULL) AS leido, a.best, coalesce(a.n, 0)::int AS intentos, coalesce(a.passed, false) AS aprobado,
     ac.publicados, ac.aprobados, pl.total AS plan_total, pl.hechos AS plan_hechos,
     (SELECT max(fecha) FROM sessions_1a1 s WHERE s.user_id = u.id AND to_char(s.fecha, 'YYYY-MM') = $1) AS uno_mes,
-    (SELECT count(*) FROM compromisos c WHERE c.user_id = u.id AND c.estado IN ('pendiente','parcial'))::int AS comp_abiertos
+    (SELECT count(*) FROM compromisos c WHERE c.user_id = u.id AND c.estado IN ('pendiente','parcial'))::int AS comp_abiertos,
+    (SELECT round(avg(promedio), 1)::float FROM feedback f WHERE f.user_id = u.id) AS voz, (SELECT count(*) FROM feedback f WHERE f.user_id = u.id)::int AS voz_n
   FROM users u
   LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
   LEFT JOIN study_modules m ON m.area = u.area AND m.mes = $1 AND m.published
@@ -596,7 +646,7 @@ app.get('/lider/personas/:id', needLeader, async (req, res) => {
   const ev = await one('SELECT * FROM evaluations WHERE user_id = $1 ORDER BY id DESC LIMIT 1', [person.id]);
   const plans = (await q(`SELECT p.*, coalesce(json_agg(i ORDER BY i.position, i.id) FILTER (WHERE i.id IS NOT NULL), '[]') AS items
     FROM plans p LEFT JOIN plan_items i ON i.plan_id = p.id WHERE p.user_id = $1 AND p.published GROUP BY p.id ORDER BY p.mes DESC LIMIT 3`, [person.id])).rows;
-  page(res, person.name, V.leaderPerson(person, ev, plans, await personAcademy(person), await oneOnOneCtx(person)), req.user, { wide: true });
+  page(res, person.name, V.leaderPerson(person, ev, plans, await personAcademy(person), await oneOnOneCtx(person)) + V.voiceCard(person, await voiceOf(person.id), { survey: surveyFor(person.area) }), req.user, { wide: true });
 });
 
 app.post('/lider/personas/:id/sesiones', needLeader, async (req, res) => {

@@ -167,6 +167,19 @@ export async function migrate() {
   await q('ALTER TABLE sessions_1a1 ADD COLUMN IF NOT EXISTS autor_id INT REFERENCES users(id) ON DELETE SET NULL');
   await q('ALTER TABLE sessions_1a1 ADD COLUMN IF NOT EXISTS module_id INT REFERENCES study_modules(id) ON DELETE SET NULL');
   await q("ALTER TABLE sessions_1a1 ADD COLUMN IF NOT EXISTS brecha TEXT NOT NULL DEFAULT ''");
+  await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS qr_token TEXT UNIQUE');
+  await q(`CREATE TABLE IF NOT EXISTS feedback (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    area TEXT NOT NULL DEFAULT '',
+    encuesta TEXT NOT NULL DEFAULT '',
+    quien TEXT NOT NULL DEFAULT '',
+    answers JSONB NOT NULL,
+    promedio NUMERIC(3,2) NOT NULL,
+    comentario TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  )`);
+  await q('CREATE INDEX IF NOT EXISTS feedback_user ON feedback (user_id, created_at)');
   await q(`CREATE TABLE IF NOT EXISTS compromisos (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

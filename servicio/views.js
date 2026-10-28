@@ -427,7 +427,7 @@ function hbars(items, { max = 100, unit = '', empty = 'Sin datos todavía', colo
     <div class="hb-t"><span style="width:${x.v == null ? 0 : Math.max(2, Math.min(100, (x.v / max) * 100))}%;background:${x.c || color}"></span></div><b>${x.v == null ? '—' : `${x.v}${unit}`}</b></div>`).join('')}</div>`;
 }
 
-function execSummary(list, all, area, series, gaps, clientes) {
+function execSummary(list, all, area, series, gaps, clientes, voz) {
   const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
   const st = (k) => list.filter((r) => (k === 'sin' ? !r.status || r.status === 'pendiente' : k === 'curso' ? r.status === 'en_curso' : k === 'env' ? ['enviada', 'analizando'].includes(r.status) : r.status === 'analizada')).length;
   const done = list.filter((r) => ['enviada', 'analizando', 'analizada'].includes(r.status)).length;
@@ -451,6 +451,7 @@ function execSummary(list, all, area, series, gaps, clientes) {
     <div class="chart-card"><h3>Avance de la evaluación</h3>${evalDonut}</div>
     <div class="chart-card"><h3>Nivel de servicio</h3>${levelDonut}</div>
     <a class="chart-card ai-card" href="/admin/clientes"><h3>Percepción de la IA · clientes en Google</h3>${clientes ? `<p class="ai-score"><b>${clientes.data.promedio.toFixed(1)}</b><span>de 5 · ${clientes.data.resenas} reseñas</span></p>${hbars(clientes.data.dimensiones.map((x) => ({ l: x.l, v: x.v, c: x.v >= 4 ? COL.signal : x.v >= 3 ? COL.info : x.v >= 2.2 ? COL.amber : COL.err })), { max: 5 })}<p class="muted small">Ver análisis completo</p>` : '<p class="muted small">Sin análisis todavía.</p>'}</a>
+    <div class="chart-card"><h3>Voz de quienes atendemos · QR</h3>${voz?.tot?.n ? `<p class="ai-score"><b>${voz.tot.prom.toFixed(1)}</b><span>de 5 · ${voz.tot.n} respuestas</span></p>${hbars((area ? voz.people.map((p) => ({ l: p.name, v: p.v })) : voz.areas.map((a) => ({ l: areaName(a.area), v: a.v }))).map((x) => ({ ...x, c: x.v >= 4 ? COL.signal : x.v >= 3 ? COL.amber : COL.err })), { max: 5 })}` : '<p class="muted small">Aparece cuando pacientes, médicos y clientes escaneen los códigos QR del equipo.</p>'}</div>
     <div class="chart-card"><h3>Percepción del equipo${last.mes ? ` · ${esc(fmonth(last.mes).split(' ')[0])}` : ''}</h3>${hbars(pulseBars, { max: 5, empty: 'Aparece cuando el equipo responde el pulso del mes.' })}${pulseBars.length ? '<p class="muted small">Promedio de 1 a 5</p>' : ''}</div>
     ${area ? `<div class="chart-card wide"><h3>Puntaje por persona</h3>${hbars(peopleScore, { empty: 'Aparece cuando haya informes.' })}</div>`
       : `<div class="chart-card wide"><h3>Puntaje promedio por área</h3>${hbars(byScore, { empty: 'Aparece cuando haya informes.' })}</div>`}
@@ -459,7 +460,7 @@ function execSummary(list, all, area, series, gaps, clientes) {
   </section>`;
 }
 
-export function dashboard(rows, mes, area, pending = 0, series = [], comments = [], pulse = [], insight = null, error = '', gaps = [], clientes = null) {
+export function dashboard(rows, mes, area, pending = 0, series = [], comments = [], pulse = [], insight = null, error = '', gaps = [], clientes = null, voz = null) {
   const dayOfMonth = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(8, 10));
   const enrich = (r) => {
     const f = [];
@@ -502,7 +503,7 @@ export function dashboard(rows, mes, area, pending = 0, series = [], comments = 
   return `<section class="band"><div class="band-copy"><div class="row-head"><div><p class="band-sub">Panel de ${esc(fmonth(mes))}</p><h1>${area ? esc(areaLabel(area)) : 'Todo el equipo'}</h1></div>
     <div class="actions">${pending ? `<a class="btn light" href="/admin/solicitudes">${pending} solicitud${pending > 1 ? 'es' : ''} por aprobar</a>` : ''}<a class="btn outline-light" href="/admin/equipo">Agregar personas</a></div></div>
   <div class="kpis">${kpis.map(([l, v, h]) => `<a class="kpi" href="${h}"><b>${v}</b><span>${esc(l)}</span></a>`).join('')}</div></div></section>
-  ${execSummary(list, all, area, series, gaps, clientes)}
+  ${execSummary(list, all, area, series, gaps, clientes, voz)}
   <div class="areas"><a class="areacard all ${area ? '' : 'on'}" href="/admin"><p class="eyebrow">Todas las áreas</p><div class="ac-row"><div><b>${all.length}</b><span>personas</span></div></div></a>${byArea}</div>
   ${error ? `<p class="notice err">${esc(error)}</p>` : ''}
   ${evolution(series, comments, pulse)}
@@ -861,12 +862,13 @@ export function leaderHome(user, rows, mes, base = '/lider/personas', me = null)
     <div class="actions">${me.status === 'pendiente' || me.status === 'en_curso' ? '<a class="btn" href="/evaluacion">Hacer mi evaluación</a>' : ''}<a class="btn ${me.status === 'pendiente' || me.status === 'en_curso' ? 'ghost' : ''}" href="/estudio">Ir a mi Academia</a><a class="btn ghost" href="/mi">Mi espacio</a></div></div></section>` : ''}
   ${rows.length ? '' : '<section class="card"><p class="muted">Todavía no tienes personas asignadas. El administrador del programa las asigna desde el panel.</p></section>'}
   ${attn.length ? `<section class="card"><h2 style="margin-top:0">Requieren atención (${attn.length})</h2><div class="attn">${attn.map((r) => `<a href="${base}/${r.id}" class="attn-item"><strong>${esc(r.name)}</strong><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span><div>${r.flags.map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ')}</div></a>`).join('')}</div></section>` : ''}
-  ${rows.length ? `<section class="card"><h2>Personas</h2><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Módulo del mes</th><th>Academia</th><th>Uno a uno</th><th>Última entrada</th></tr></thead><tbody>
+  ${rows.length ? `<section class="card"><h2>Personas</h2><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Módulo del mes</th><th>Academia</th><th>Uno a uno</th><th>Voz QR</th><th>Última entrada</th></tr></thead><tbody>
   ${list.map((r) => `<tr><td><div class="who-cell">${avatar(r)}<div><a href="${base}/${r.id}"><strong>${esc(r.name)}</strong></a><br><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span></div></div></td>
     <td>${r.status ? badge(r.status) : '<span class="muted">—</span>'}</td><td>${r.score ?? '—'}</td>
     <td>${r.plan_total ? `<div class="bar slim"><span style="width:${Math.round((100 * r.plan_hechos) / r.plan_total)}%"></span></div><span class="muted small">${r.plan_hechos}/${r.plan_total} hechas</span>` : '<span class="muted">—</span>'}</td>
     <td>${modCell(r)}</td><td>${r.publicados ? `${r.aprobados}/${r.publicados} aprobados` : '<span class="muted">—</span>'}</td>
     <td>${r.uno_mes ? '<span class="badge ok">Hecho</span>' : '<span class="badge warn">Pendiente</span>'}${r.comp_abiertos ? `<br><span class="muted small">${r.comp_abiertos} compromiso${r.comp_abiertos > 1 ? 's' : ''} abierto${r.comp_abiertos > 1 ? 's' : ''}</span>` : ''}</td>
+    <td>${r.voz_n ? `<strong>${r.voz.toFixed(1)}</strong><br><span class="muted small">${r.voz_n} resp.</span>` : '<span class="muted">—</span>'}</td>
     <td>${r.last_seen ? fdate(r.last_seen) : '<span class="muted">Nunca</span>'}</td></tr>`).join('')}
   </tbody></table></section>` : ''}`;
 }
@@ -951,4 +953,47 @@ export function myCommitments(list) {
   if (!list.length) return '';
   return `<section class="card" id="compromisos"><h2 style="margin-top:0">Mis compromisos del uno a uno</h2><p class="muted small">Lo que acordaste con tu líder. En el próximo uno a uno revisarán cómo te fue.</p>
     <ul class="comp-list">${list.map((c) => `<li>${compBadge(c.estado)} <strong>${esc(c.texto)}</strong>${c.fecha_limite ? ` <span class="muted small">· hasta el ${fdate(c.fecha_limite)}</span>` : ''}</li>`).join('')}</ul></section>`;
+}
+
+// ---------- Voz de quienes atendemos ----------
+const first = (n) => esc(String(n || '').trim().split(/\s+/)[0] || '');
+const scale = (name) => `<div class="fb-scale">${[1, 2, 3, 4, 5].map((v) => `<label><input type="radio" name="${name}" value="${v}" required><span>${v}</span></label>`).join('')}</div><div class="fb-ends"><span>Muy poco</span><span>Totalmente</span></div>`;
+
+export function feedbackForm(u, survey, token, err = '') {
+  return `<div class="fb"><header class="fb-head"><img src="/logo-aural.png" alt="Aural" class="fb-logo">
+    <div class="fb-who">${avatar({ ...u, has_photo: false }, 'lg')}<div><p class="eyebrow">Califica la atención de</p><h1>${first(u.name)}</h1><p class="muted small">${esc(areaName(u.area))}</p></div></div>
+    <p class="fb-lead">Son 5 preguntas y toma menos de un minuto. <strong>Es anónima:</strong> no te pedimos nombre, teléfono ni correo.</p></header>
+    ${err ? `<p class="notice err">${esc(err)}</p>` : ''}
+    <form method="post" action="/c/${esc(token)}" class="fb-form">
+      <fieldset class="fb-q"><legend>Tú eres</legend><div class="fb-chips">${survey.quien.map((x) => `<label><input type="radio" name="quien" value="${esc(x)}"><span>${esc(x)}</span></label>`).join('')}</div></fieldset>
+      ${survey.preguntas.map(([k, t], i) => `<fieldset class="fb-q"><legend><span class="num">${i + 1}</span>${esc(t)}</legend>${scale(k)}</fieldset>`).join('')}
+      <label class="fb-q">¿Algo que quieras contarnos? <span class="muted small">(opcional)</span><textarea name="comentario" rows="3" maxlength="600" placeholder="Lo que más te gustó o lo que podemos mejorar"></textarea></label>
+      <input type="text" name="website" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
+      <button class="btn fb-send">Enviar mi opinión</button></form></div>`;
+}
+
+export const feedbackDone = (msg = '') => `<div class="fb fb-done"><img src="/logo-aural.png" alt="Aural" class="fb-logo">
+  ${msg ? `<h1>Código no disponible</h1><p>${esc(msg)}</p>` : '<h1>¡Gracias!</h1><p>Tu opinión nos ayuda a darte cada vez un mejor servicio.</p>'}</div>`;
+
+export function qrCard(u, token, url, survey) {
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Código QR · ${esc(u.name)}</title><link rel="stylesheet" href="/style.css?v=${V}"></head>
+  <body class="qr-body"><div class="qr-card"><img src="/logo-aural.png" alt="Aural" class="qr-logo">
+    <p class="qr-k">¿Cómo te atendió</p><h1>${esc(String(u.name).trim().split(/\s+/).slice(0, 2).join(' '))}?</h1>
+    <img class="qr-img" src="/qr/${esc(token)}.svg" alt="Código QR">
+    <p class="qr-t">Escanea y responde 5 preguntas.<br><strong>Es anónimo y toma menos de un minuto.</strong></p>
+    <p class="qr-url">${esc(url)}</p></div>
+    <div class="qr-actions"><button class="btn" onclick="print()">Imprimir</button><a class="btn ghost" href="https://wa.me/?text=${encodeURIComponent(`Cuéntanos cómo te atendimos (anónimo, 1 minuto): ${url}`)}" target="_blank" rel="noopener">Compartir por WhatsApp</a><a class="btn ghost" href="javascript:history.back()">Volver</a></div>
+    <p class="qr-note muted small">Para ${esc(survey.publico)}.</p></body></html>`;
+}
+
+export function voiceCard(person, v, { token = '', base = '', survey, self = false } = {}) {
+  const url = token ? `${base}/c/${token}` : '';
+  const dims = survey.preguntas.map(([k, t]) => ({ l: t.replace(/^¿|\?$/g, ''), v: v.dims.find((d) => d.k === k)?.v ?? null, c: (v.dims.find((d) => d.k === k)?.v ?? 0) >= 4 ? COL.signal : (v.dims.find((d) => d.k === k)?.v ?? 0) >= 3 ? COL.amber : COL.err }));
+  return `<section class="card voice" id="voz"><div class="row-head"><div><p class="eyebrow">Voz de quienes ${self ? 'atiendes' : 'atiende'} · ${esc(survey.publico)}</p><h2 style="margin:4px 0">${self ? 'Así te ven' : 'Cómo lo ven'}</h2></div>
+    <div class="actions">${self ? `<a class="btn" href="/tarjeta/${person.id}">Ver e imprimir mi código QR</a>` : `<a class="btn ghost" href="/tarjeta/${person.id}">Código QR</a>`}</div></div>
+    ${self ? `<div class="voice-qr"><img src="/qr/${esc(token)}.svg" alt="Tu código QR" width="120" height="120"><div><p>Muestra tu código al terminar cada atención o comparte el enlace. Las respuestas son anónimas.</p><input class="copy" readonly value="${esc(url)}" onclick="this.select()"></div></div>` : ''}
+    ${v.n ? `<p class="ai-score"><b>${v.prom.toFixed(1)}</b><span>de 5 · ${v.n} respuesta${v.n > 1 ? 's' : ''}${v.n30 ? ` · ${v.n30} en los últimos 30 días` : ''}</span></p>${hbars(dims, { max: 5 })}
+      ${v.comments.length ? `<h3>Comentarios recientes</h3><ul class="voice-c">${v.comments.map((c) => `<li><span class="badge ${c.prom >= 4 ? 'ok' : c.prom >= 3 ? 'warn' : 'err'}">${c.prom.toFixed(1)}</span> ${esc(c.comentario)}<span class="muted small"> · ${c.quien ? `${esc(c.quien)} · ` : ''}${fdate(c.created_at)}</span></li>`).join('')}</ul>` : ''}`
+      : `<p class="muted">${self ? 'Aún no tienes respuestas. Empieza a compartir tu código hoy.' : 'Aún no tiene respuestas.'}</p>`}
+  </section>`;
 }
