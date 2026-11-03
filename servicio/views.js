@@ -180,16 +180,17 @@ const pulseCard = (pulse) => (pulse ? `<section class="card pulse"><p class="eye
   <label>¿Qué fue lo que más ayudó o afectó el servicio este mes?<textarea name="comentario" rows="3" placeholder="Opcional"></textarea></label>
   <div><button class="btn">Enviar pulso</button></div></form></section>` : '');
 
-export function staffHome(user, ev, plan, msg, pulse, mod) {
+export function staffHome(user, ev, plan, msg, pulse, mod, dash = null) {
   const first = esc((user.name || '').split(' ')[0]);
-  const top = greet(user, msg) + (user.has_photo ? '' : `<section class="card photo-card"><h2>Tu foto para el ranking</h2>${photoWidget('perfil')}</section><script src="/photo.js?v=${V}"></script>`) + studyCard(mod) + (ev && ['enviada', 'analizando', 'analizada'].includes(ev.status) ? pulseCard(pulse) : '');
+  const top = (dash ? staffDash(user, dash) : greet(user, msg)) + (user.has_photo ? '' : `<section class="card photo-card"><h2>Tu foto para el ranking</h2>${photoWidget('perfil')}</section><script src="/photo.js?v=${V}"></script>`) + (dash ? '' : studyCard(mod)) + (!dash && ev && ['enviada', 'analizando', 'analizada'].includes(ev.status) ? pulseCard(pulse) : '');
+  const pulseLate = dash && ev && ['enviada', 'analizando', 'analizada'].includes(ev.status) ? pulseCard(pulse) : '';
   if (!ev) return `${top}<section class="card"><h2>Tu evaluación</h2><p class="muted">Aún no tienes una evaluación asignada. Tu líder te avisará cuando esté lista.</p></section>`;
   if (ev.plan_published && ev.report) {
-    return `${top}${plan ? monthlyPlanStaff(plan) : ''}${plan ? `<details class="card"><summary><h2>Mi ruta de 8 semanas</h2></summary>${planView(user, ev.report)}</details>` : planView(user, ev.report)}`;
+    return `${top}${plan ? monthlyPlanStaff(plan) : ''}${pulseLate}<div id="ruta"></div>${plan ? `<details class="card"><summary><h2>Mi ruta de 8 semanas</h2></summary>${planView(user, ev.report)}</details>` : planView(user, ev.report)}`;
   }
   if (['enviada', 'analizando', 'analizada'].includes(ev.status)) {
     return `${top}<section class="card"><p class="eyebrow">Evaluación enviada</p><h2>¡Gracias${first ? `, ${first}` : ''}!</h2>
-      <p>Recibimos tus respuestas el ${fdate(ev.submitted_at)}. Tu líder revisará los resultados y en los próximos días tendrás aquí tu plan de trabajo personal.</p></section>`;
+      <p>Recibimos tus respuestas el ${fdate(ev.submitted_at)}. Tu líder revisará los resultados y en los próximos días tendrás aquí tu plan de trabajo personal.</p></section>${pulseLate}`;
   }
   const total = ev.questions.length;
   const done = Object.keys(ev.answers || {}).filter((k) => !empty(ev.answers[k])).length;
@@ -1060,5 +1061,102 @@ export function voiceCard(person, v, { token = '', base = '', survey, self = fal
     ${v.review?.length ? `<h3>Calificaciones en revisión o excluidas (${v.review.length})</h3><p class="muted small">No cuentan para el promedio ni para la meta. Valida las que sean legítimas o anula las sospechosas.</p>
       <ul class="voice-c">${v.review.map((r) => `<li><span class="badge ${r.estado === 'excluida' ? 'err' : 'warn'}">${r.estado === 'excluida' ? 'Excluida' : 'En revisión'}</span> <strong>${r.prom.toFixed(1)}</strong> · ${esc(r.flags.join(' · '))}<span class="muted small"> · ${fdate(r.created_at)}${r.comentario ? ` · “${esc(r.comentario)}”` : ''}</span>
         <form method="post" action="/voz/${r.id}" class="inline">${r.estado === 'revision' ? '<button class="btn ghost small" name="accion" value="validar">Validar</button>' : ''}<button class="btn ghost small" name="accion" value="anular">Anular</button></form></li>`).join('')}</ul>` : ''}
+  </section>`;
+}
+
+// ---------- Mi espacio: tablero cálido con gráficos y motivación ----------
+const FRASES = [
+  'Hoy alguien va a volver a escuchar a su familia gracias a ti.',
+  'Escuchar con calma también es atender.',
+  'Cada atención es una oportunidad de dejar huella.',
+  'La paciencia es la forma más bonita del respeto.',
+  'Lo que haces hoy, alguien lo recordará por años.',
+  'Una explicación clara vale más que mil folletos.',
+  'El servicio de excelencia se construye en los detalles pequeños.',
+  'Cuando el paciente se siente escuchado, ya empezó a mejorar.',
+  'Tu mejor versión de hoy puede cambiarle el día a alguien.',
+  'No vendemos audífonos: devolvemos conversaciones.',
+  'Detrás de cada cita hay una familia que quiere volver a conectarse.',
+  'Hacerlo bien una vez es talento; hacerlo bien siempre es servicio.',
+  'Hacer seguimiento es la forma de decir: me importas.',
+  'Pregunta, escucha y confirma: así se construye la confianza.',
+  'Una sonrisa también se escucha.',
+  'Aprender un poco cada día es la forma de ser excelente cada año.',
+];
+const FRASES_AREA = {
+  call_center: ['Contestar a tiempo es la primera forma de cuidar.', 'Una sonrisa se escucha por teléfono: úsala en cada llamada.'],
+  recepcion: ['Eres la primera impresión de Aural: que sea inolvidable.', 'Una bienvenida cálida hace que la espera se sienta corta.'],
+  audiologia: ['Tu criterio y tu calidez cambian vidas, una consulta a la vez.', 'Explicar con calma es parte del tratamiento.'],
+  visitadores: ['Cada visita bien preparada abre una puerta para un paciente.', 'La confianza del médico se gana con constancia y seguimiento.'],
+  audiologico: ['Tu respuesta rápida es la tranquilidad de una colega y de su paciente.', 'Resolver un caso difícil es enseñar sin dar una clase.'],
+  wholesale: ['Cuando tu cliente crece, Aural crece contigo.', 'Cumplir lo prometido es la mejor estrategia comercial.'],
+  lideres: ['Un equipo que atiende bien sin ti es tu mejor legado.', 'Lidera con el ejemplo: tu equipo copia lo que haces, no lo que dices.'],
+};
+function fraseDelDia(u) {
+  const list = [...(FRASES_AREA[u.area] || []), ...FRASES];
+  const d = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }));
+  const day = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5);
+  return list[(day + u.id) % list.length];
+}
+const saludo = () => { const h = Number(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota', hour: 'numeric', hour12: false })); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; };
+
+function ring(p, color, center, sub, size = 132) {
+  const r = 52, c = 2 * Math.PI * r, v = Math.max(0, Math.min(100, p ?? 0));
+  return `<div class="ring" style="width:${size}px;height:${size}px"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="${r}" fill="none" stroke="currentColor" stroke-opacity=".14" stroke-width="11"/>
+    <circle cx="60" cy="60" r="${r}" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${((c * v) / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 60 60)" class="ring-arc"/></svg>
+    <div class="ring-c"><b>${center}</b>${sub ? `<span>${sub}</span>` : ''}</div></div>`;
+}
+
+function bars(items, { max = 100, line = null, unit = '', color = '#1FA59A', empty = '' } = {}) {
+  if (!items.length) return `<p class="muted small chart-empty">${empty}</p>`;
+  const W = 520, H = 180, pad = 26, bw = Math.min(56, (W - pad * 2) / items.length - 14);
+  const x = (i) => pad + i * ((W - pad * 2) / items.length) + ((W - pad * 2) / items.length - bw) / 2;
+  const y = (v) => H - 28 - ((H - 48) * Math.min(v, max)) / max;
+  return `<svg class="mini-bars" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(items.map((i) => `${i.l}: ${i.v}${unit}`).join(', '))}">
+    ${line != null ? `<line x1="${pad}" x2="${W - pad}" y1="${y(line)}" y2="${y(line)}" stroke="#E2A03F" stroke-dasharray="5 5" stroke-width="2"/><text x="${W - pad}" y="${y(line) - 6}" text-anchor="end" class="mb-ref">${line}${unit}</text>` : ''}
+    ${items.map((it, i) => `<rect x="${x(i)}" y="${y(it.v)}" width="${bw}" height="${H - 28 - y(it.v)}" rx="8" fill="${it.c || color}"/><text x="${x(i) + bw / 2}" y="${y(it.v) - 7}" text-anchor="middle" class="mb-v">${it.v}${unit}</text><text x="${x(i) + bw / 2}" y="${H - 8}" text-anchor="middle" class="mb-l">${esc(it.l)}</text>`).join('')}</svg>`;
+}
+
+const mesCorto = (mes) => new Date(`${mes}-15T12:00:00`).toLocaleDateString('es-CO', { month: 'short' }).replace('.', '');
+
+export function staffDash(u, d) {
+  const first = esc((u.name || '').split(' ')[0]);
+  const comp = [];
+  if (d.mod) comp.push(d.mod.st.passed ? 100 : d.mod.st.attempts.length ? 60 : d.mod.st.read ? 40 : 0);
+  if (d.plan?.items?.length) comp.push(pct(d.plan.items.filter((i) => i.estado === 'hecho').length, d.plan.items.length));
+  if (d.meta) comp.push(Math.min(100, pct(d.vozMes, d.meta)));
+  comp.push(d.unoMes ? 100 : 0);
+  const mesPct = Math.round(comp.reduce((a, b) => a + b, 0) / comp.length);
+  const r = d.report;
+  // Próximo paso
+  let next;
+  if (d.ev && ['pendiente', 'en_curso'].includes(d.ev.status)) next = ['Termina tu evaluación de servicio', 'Es el punto de partida de tu plan personal.', '/evaluacion', 'Ir a mi evaluación'];
+  else if (d.mod && !d.mod.st.read && !d.mod.st.passed) next = [`Estudia tu módulo: ${d.mod.titulo}`, 'La teoría es corta y práctica.', `/estudio/${d.mod.id}`, 'Empezar a estudiar'];
+  else if (d.mod && d.mod.st.canTake) next = ['Presenta la evaluación del módulo', `10 casos · necesitas 85% · intento ${d.mod.st.attempts.length + 1} de 2.`, `/estudio/${d.mod.id}/evaluacion`, 'Presentar ahora'];
+  else if (d.plan?.items?.some((i) => i.estado !== 'hecho')) { const n = d.plan.items.filter((i) => i.estado !== 'hecho').length; next = [`Avanza en tu plan: te falta${n > 1 ? 'n' : ''} ${n} acci${n > 1 ? 'ones' : 'ón'}`, 'Marca lo que ya hiciste y cuéntanos cómo te fue.', '#plan', 'Ver mi plan']; }
+  else if (d.meta && d.vozMes < d.meta) next = [`Comparte tu código QR: te faltan ${d.meta - d.vozMes}`, 'Al terminar cada atención, invita a calificarte.', `/tarjeta/${u.id}`, 'Ver mi código QR'];
+  else next = ['¡Vas al día!', 'Sigue así: repasa tu ruta o mira cómo va el ranking.', '/ranking', 'Ver el ranking'];
+  const acadBars = d.academy.filter((m) => m.best != null).slice(-6).map((m) => ({ l: mesCorto(m.mes), v: m.best, c: m.aprobado ? '#1FA59A' : '#E2A03F' }));
+  const vozBars = [...(d.vozMeses || [])].reverse().slice(-6).map((m) => ({ l: mesCorto(m.mes), v: m.prom, c: m.prom >= 4 ? '#1FA59A' : m.prom >= 3 ? '#E2A03F' : '#C8473E' }));
+  const evalBars = d.evals.map((e, i) => ({ l: `#${i + 1}`, v: e.s, c: '#163E73' }));
+  const pos = d.rank?.pos;
+  return `<section class="hero-me">
+    <div class="hm-main"><div class="hm-who">${avatar(u, 'lg')}<div><p class="hm-hello">${saludo()}, ${first}</p><p class="hm-area">${esc(areaName(u.area))}${u.sede ? ` · ${esc(u.sede)}` : ''}</p></div></div>
+      <blockquote class="hm-quote">“${esc(fraseDelDia(u))}”</blockquote>
+      ${d.msg ? `<div class="hm-msg"><strong>${esc(d.msg.titulo)}</strong><p>${esc(d.msg.mensaje)}</p>${d.msg.tip ? `<p class="hm-tip"><b>${d.msg.tipo === 'manual' ? 'De tu líder:' : 'Tip para hoy:'}</b> ${esc(d.msg.tip)}</p>` : ''}</div>` : ''}</div>
+    <div class="hm-ring">${ring(mesPct, '#8FE3D9', `${mesPct}%`, 'tu mes', 170)}<p>Así vas en ${esc(fmonth(d.mes).split(' ')[0])}: módulo, plan, calificaciones y uno a uno.</p></div></section>
+  <section class="next-step"><div class="ns-ico">${icon('inicio')}</div><div class="ns-txt"><p class="eyebrow">Tu próximo paso</p><h2>${esc(next[0])}</h2><p class="muted">${esc(next[1])}</p></div><a class="btn" href="${next[2]}">${esc(next[3])}</a></section>
+  <div class="me-tiles">
+    <a class="me-tile" href="${d.ev?.report ? '#ruta' : '/evaluacion'}">${ring(r?.puntaje_global ?? 0, '#163E73', r ? r.puntaje_global : '—', r ? esc(r.nivel || '') : 'evaluación', 104)}<div><p class="eyebrow">Mi evaluación</p><p class="t-big">${r ? `${r.puntaje_global} de 100` : d.ev ? 'En curso' : 'Pendiente'}</p><p class="muted small">${r ? (d.evals.length > 1 ? `Antes: ${d.evals[d.evals.length - 2].s}` : 'Tu punto de partida') : 'Hazla para recibir tu plan'}</p></div></a>
+    <a class="me-tile" href="${d.mod ? `/estudio/${d.mod.id}` : '/estudio'}">${ring(d.mod ? (d.mod.st.passed ? 100 : d.mod.st.best) : 0, d.mod?.st.passed ? '#1FA59A' : '#E2A03F', d.mod ? (d.mod.st.best ? `${d.mod.st.best}%` : '0%') : '—', 'módulo', 104)}<div><p class="eyebrow">Módulo del mes</p><p class="t-big">${d.mod ? (d.mod.st.passed ? '¡Aprobado!' : d.mod.st.read ? 'Listo para evaluar' : 'Por estudiar') : 'Muy pronto'}</p><p class="muted small">${d.academy.length ? `Academia: ${d.academy.filter((m) => m.aprobado).length} de ${d.academy.length} aprobados` : 'Tu ruta de 12 módulos'}</p></div></a>
+    <a class="me-tile" href="${d.meta ? `/tarjeta/${u.id}` : '#voz'}">${ring(d.meta ? pct(d.vozMes, d.meta) : 0, '#1FA59A', d.meta ? `${d.vozMes}/${d.meta}` : d.vozMes, 'QR del mes', 104)}<div><p class="eyebrow">Calificaciones QR</p><p class="t-big">${d.meta ? (d.vozMes >= d.meta ? '¡Meta cumplida!' : `Te faltan ${d.meta - d.vozMes}`) : `${d.vozMes} este mes`}</p><p class="muted small">Tu resultado se publica al cierre del mes</p></div></a>
+    <a class="me-tile" href="/ranking">${ring(pos != null && d.rank.total ? Math.round(100 - (100 * pos) / d.rank.total) : 0, '#F2B24A', pos != null ? `#${pos + 1}` : '—', `de ${d.rank?.total || 0}`, 104)}<div><p class="eyebrow">Ranking del mes</p><p class="t-big">${d.rank?.puntos ?? 0} puntos</p><p class="muted small">${pos != null && pos < 2 && d.rank.puntos > 0 ? '¡Vas en zona de premio!' : !d.rank?.puntos ? 'Suma puntos con tu módulo y tu plan' : d.rank?.gap ? `Te faltan ${d.rank.gap} pts para el top 2` : 'Suma con tu módulo y tu plan'}</p></div></a>
+  </div>
+  ${r ? `<section class="card me-strengths"><div class="ms-col"><p class="eyebrow">Lo que haces muy bien</p><div class="chips">${(r.fortalezas || []).slice(0, 4).map((f) => `<span class="chip-ok">${icon('ranking')}${esc(f.titulo)}</span>`).join('')}</div></div>
+    <div class="ms-col"><p class="eyebrow">Tu foco para crecer</p>${(r.oportunidades || []).slice(0, 2).map((o) => `<p class="foco"><strong>${esc(o.titulo)}</strong>${o.impacto ? `<span class="muted small">${esc(o.impacto)}</span>` : ''}</p>`).join('')}</div></section>` : ''}
+  <section class="me-charts">
+    <div class="card"><p class="eyebrow">Mi Academia mes a mes</p><h3>Nota del módulo</h3>${bars(acadBars, { line: 85, unit: '%', empty: 'Aquí verás tu evolución cuando presentes tu primer módulo.' })}</div>
+    <div class="card"><p class="eyebrow">Así me califican</p><h3>Voz QR por mes</h3>${bars(vozBars, { max: 5, empty: 'Tus resultados aparecen al cierre de cada mes. ¡Comparte tu código!' })}</div>
+    ${evalBars.length > 1 ? `<div class="card"><p class="eyebrow">Mi evaluación de servicio</p><h3>Puntaje en cada evaluación</h3>${bars(evalBars, { empty: '' })}</div>` : ''}
   </section>`;
 }

@@ -301,7 +301,15 @@ async function staffHomeHtml(u, self = true) {
   if (mod) mod.st = await userModuleState(u.id, mod);
   const comps = (await q("SELECT * FROM compromisos WHERE user_id = $1 AND (estado IN ('pendiente','parcial') OR updated_at > now() - interval '30 days') ORDER BY created_at DESC, id", [u.id])).rows;
   const pw = await one('SELECT pass_hash IS NOT NULL AS tiene FROM users WHERE id = $1', [u.id]);
-  return (self && !pw?.tiene ? V.setPasswordCard() : '') + V.staffHome(u, await currentEval(u.id), await currentPlan(u.id, true), await todayMessage(u.area), pulseDone ? null : PULSE, mod) + V.myCommitments(comps) + V.voiceCard(u, await voiceOf(u.id, true), { token: await qrToken(u.id), base: BASE, survey: surveyFor(u.area), self: true });
+  const ev = await currentEval(u.id), plan = await currentPlan(u.id, true), msg = await todayMessage(u.area);
+  const voz = await voiceOf(u.id, true);
+  const rk = (await rankingFor(thisMonth())).filter((r) => r.area === u.area);
+  const pos = rk.findIndex((r) => r.id === u.id);
+  const evals = (await q('SELECT (report->>\'puntaje_global\')::int AS s FROM evaluations WHERE user_id = $1 AND report IS NOT NULL ORDER BY id', [u.id])).rows;
+  const uno = await one("SELECT max(fecha) AS f FROM sessions_1a1 WHERE user_id = $1 AND to_char(fecha, 'YYYY-MM') = $2", [u.id, thisMonth()]);
+  const dash = { mes: thisMonth(), ev, plan, mod, msg, report: ev?.plan_published ? ev.report : null, evals, academy: await personAcademy(u), meta: voz.meta, vozMes: voz.n_mes, vozMeses: voz.months, unoMes: uno?.f,
+    rank: { pos: pos < 0 ? null : pos, total: rk.length, puntos: rk[pos]?.puntos ?? 0, gap: pos > 1 ? Math.max(0, (rk[1]?.puntos ?? 0) - (rk[pos]?.puntos ?? 0) + 1) : 0 } };
+  return (self && !pw?.tiene ? V.setPasswordCard() : '') + V.staffHome(u, ev, plan, msg, pulseDone ? null : PULSE, mod, dash) + V.myCommitments(comps) + V.voiceCard(u, voz, { token: await qrToken(u.id), base: BASE, survey: surveyFor(u.area), self: true });
 }
 
 app.get(['/', '/mi'], needUser, async (req, res) => {
