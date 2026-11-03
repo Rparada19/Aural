@@ -12,6 +12,7 @@ import archiver from 'archiver';
 import { learnArea, latestKnowledge } from './knowledge.js';
 import { generateModule, generateAcademy, userModuleState, grade, drawQuiz, windowState, PASS, MAX_ATTEMPTS } from './study.js';
 import { rankingFor } from './ranking.js';
+import { teamOf, selfRow, alarmsFor, sortAlarms } from './equipo.js';
 import { qrToken, qrSvg, surveyFor, surveyKey, saveFeedback, voiceOf, metaFor, markStaff, signTs } from './voz.js';
 import { notifyPlanPublished, METODOLOGIA } from './notify.js';
 import { generateMonthlyPlan, generateInsights, runDaily, sendMessage, getSetting, setSetting, today, thisMonth, PULSE } from './growth.js';
@@ -720,30 +721,6 @@ app.post('/admin/personas/:id/sesiones', needAdmin, async (req, res) => {
 });
 
 // ---------- Líderes: seguimiento de su equipo ----------
-const teamSql = (where) => `SELECT u.id, u.name, u.email, u.area, u.sede, u.cargo, u.last_seen, (u.photo IS NOT NULL) AS has_photo, u.leader_id,
-    e.status, e.plan_published, (e.report->>'puntaje_global')::int AS score,
-    m.id AS mod_id, m.numero AS mod_num, m.titulo AS mod_titulo, (r.user_id IS NOT NULL) AS leido, a.best, coalesce(a.n, 0)::int AS intentos, coalesce(a.passed, false) AS aprobado,
-    ac.publicados, ac.aprobados, pl.total AS plan_total, pl.hechos AS plan_hechos,
-    (SELECT max(fecha) FROM sessions_1a1 s WHERE s.user_id = u.id AND to_char(s.fecha, 'YYYY-MM') = $1) AS uno_mes,
-    (SELECT count(*) FROM compromisos c WHERE c.user_id = u.id AND c.estado IN ('pendiente','parcial'))::int AS comp_abiertos,
-    (SELECT round(avg(promedio), 1)::float FROM feedback f WHERE f.user_id = u.id AND f.estado = 'valida') AS voz,
-    (SELECT count(*) FROM feedback f WHERE f.user_id = u.id AND f.estado = 'valida' AND to_char(f.created_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') = $1)::int AS voz_mes,
-    (SELECT count(*) FROM feedback f WHERE f.user_id = u.id AND f.estado = 'revision')::int AS voz_rev, u.meta_voz,
-    (SELECT round(avg(promedio), 1)::float FROM feedback f WHERE f.user_id = u.id AND f.estado = 'valida' AND to_char(f.created_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') = $1) AS voz_pmes,
-    (SELECT round(avg(promedio), 1)::float FROM feedback f WHERE f.user_id = u.id AND f.estado = 'valida' AND to_char(f.created_at AT TIME ZONE 'America/Bogota', 'YYYY-MM') = to_char((to_date($1, 'YYYY-MM') - interval '1 month'), 'YYYY-MM')) AS voz_pprev
-  FROM users u
-  LEFT JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id ORDER BY id DESC LIMIT 1) e ON true
-  LEFT JOIN study_modules m ON m.area = u.area AND m.mes = $1 AND m.published
-  LEFT JOIN study_reads r ON r.user_id = u.id AND r.module_id = m.id
-  LEFT JOIN LATERAL (SELECT max(score) AS best, count(*) AS n, bool_or(passed) AS passed FROM study_attempts WHERE user_id = u.id AND module_id = m.id) a ON true
-  LEFT JOIN LATERAL (SELECT count(*)::int AS publicados, count(*) FILTER (WHERE EXISTS (SELECT 1 FROM study_attempts sa WHERE sa.module_id = sm.id AND sa.user_id = u.id AND sa.passed))::int AS aprobados
-    FROM study_modules sm WHERE sm.area = u.area AND sm.published AND sm.mes <= $1) ac ON true
-  LEFT JOIN LATERAL (SELECT count(*)::int AS total, count(*) FILTER (WHERE i.estado = 'hecho')::int AS hechos FROM plan_items i JOIN plans p ON p.id = i.plan_id WHERE p.user_id = u.id AND p.mes = $1 AND p.published) pl ON true
-  WHERE ${where}
-  ORDER BY u.area, u.name`;
-const withMeta = (rows) => rows.map((r) => ({ ...r, meta: metaFor(r) }));
-const teamOf = async (leader) => withMeta((await q(teamSql("u.role = 'staff' AND u.approved AND u.active AND u.id <> $2 AND ($3 OR u.leader_id = $2)"), [thisMonth(), leader.id, Boolean(leader.leads_all)])).rows);
-const selfRow = async (u) => (await q(teamSql('u.id = $2'), [thisMonth(), u.id])).rows[0];
 const inTeam = async (leader, id) => one(`SELECT * FROM users_v WHERE id = $1 AND role = 'staff' AND id <> $2 AND ($3 OR leader_id = $2)`, [id, leader.id, Boolean(leader.leads_all)]);
 
 // ---------- Uno a uno mensual: va de cara al módulo, con compromisos y seguimiento ----------
@@ -774,8 +751,15 @@ async function saveOneOnOne(personId, authorId, b) {
   }
 }
 
+const withAlarms = (rows) => rows.map((r) => ({ ...r, alarms: sortAlarms(alarmsFor(r)) }));
 app.get('/lider', needLeader, async (req, res) => {
-  page(res, 'Mi equipo', V.leaderHome(req.user, await teamOf(req.user), thisMonth(), '/lider/personas', await selfRow(req.user)), req.user, { wide: true });
+  const g = await one('SELECT guia_lider FROM users WHERE id = $1', [req.user.id]);
+  page(res, 'Mi equipo', V.leaderHome(req.user, withAlarms(await teamOf(req.user)), thisMonth(), '/lider/personas', await selfRow(req.user), { guia: !g?.guia_lider }), req.user, { wide: true });
+});
+app.get('/lider/guia', needLeader, (req, res) => page(res, 'Guía del líder', V.leaderGuide(req.user), req.user, { wide: true }));
+app.post('/lider/guia', needLeader, async (req, res) => {
+  await q('UPDATE users SET guia_lider = true WHERE id = $1', [req.user.id]);
+  res.redirect('/lider');
 });
 
 async function personAcademy(person) {
@@ -817,7 +801,7 @@ app.get('/admin/lideres', needAdmin, async (req, res) => {
 app.get('/admin/lideres/:id', needAdmin, async (req, res) => {
   const l = await one('SELECT * FROM users_v WHERE id = $1 AND lider', [req.params.id]);
   if (!l) return res.redirect('/admin/lideres');
-  page(res, `Equipo de ${l.name}`, `<p><a href="/admin/lideres">← Líderes</a></p>${V.leaderHome(l, await teamOf(l), thisMonth(), '/admin/personas')}`, req.user, { wide: true });
+  page(res, `Equipo de ${l.name}`, `<p><a href="/admin/lideres">← Líderes</a></p>${V.leaderHome(l, withAlarms(await teamOf(l)), thisMonth(), '/admin/personas', null, { admin: true })}`, req.user, { wide: true });
 });
 
 app.post('/admin/lideres', needAdmin, async (req, res) => {

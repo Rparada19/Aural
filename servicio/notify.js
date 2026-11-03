@@ -3,6 +3,7 @@ import { q, one } from './db.js';
 import { AREAS } from './areas.js';
 import { sendMail, mailConfigured } from './mail.js';
 import { PASS, MAX_ATTEMPTS, lastDay } from './study.js';
+import { teamOf, alarmsFor, sortAlarms } from './equipo.js';
 
 const TZ = 'America/Bogota';
 const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ });
@@ -152,6 +153,25 @@ async function remindOneOnOne() {
   return n;
 }
 
+// Resumen semanal de alarmas para cada líder (lunes)
+async function leaderDigest() {
+  const dow = new Date().toLocaleDateString('en-US', { timeZone: 'America/Bogota', weekday: 'short' });
+  if (dow !== 'Mon') return 0;
+  let n = 0;
+  for (const l of (await q("SELECT id, email, name, leads_all FROM users WHERE lider AND active AND NOT leads_all")).rows) {
+    const all = sortAlarms((await teamOf(l)).flatMap((r) => alarmsFor(r).map((a) => ({ ...a, name: r.name }))));
+    const urg = all.filter((a) => a.sev === 'alta'), med = all.filter((a) => a.sev === 'media'), log = all.filter((a) => a.sev === 'logro');
+    if (!urg.length && !med.length && !log.length) continue;
+    const top = [...urg, ...med].slice(0, 8).map((a) => `${esc(a.name)}: ${esc(a.t)}`);
+    n += await once(`digest:${todayStr()}:${l.id}`, () => toPerson(l, `Tu equipo esta semana: ${urg.length} urgente${urg.length === 1 ? '' : 's'}`, {
+      title: 'Resumen semanal de tu equipo',
+      paras: [`Tienes ${urg.length} alarma${urg.length === 1 ? '' : 's'} urgente${urg.length === 1 ? '' : 's'}, ${med.length} de atención y ${log.length} logro${log.length === 1 ? '' : 's'} para reconocer.`],
+      list: top, cta: 'Abrir mi equipo', link: `${BASE()}/lider`,
+    }));
+  }
+  return n;
+}
+
 // Paso 7: ganadores del mes anterior
 export async function announceWinners(rankingFor, sendMessage) {
   const now = todayStr();
@@ -181,5 +201,5 @@ export async function announceWinners(rankingFor, sendMessage) {
 
 export async function runReminders() {
   if (!mailConfigured()) return {};
-  return { evaluaciones: await remindEvaluations(), estudio: await remindStudy(), inactivos: await remindInactive(), uno_a_uno: await remindOneOnOne() };
+  return { evaluaciones: await remindEvaluations(), estudio: await remindStudy(), inactivos: await remindInactive(), uno_a_uno: await remindOneOnOne(), resumen_lideres: await leaderDigest() };
 }

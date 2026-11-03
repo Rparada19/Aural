@@ -885,37 +885,95 @@ function leaderFlags(r) {
 }
 const modCell = (r) => (r.mod_id ? `${r.aprobado ? `<span class="badge ok">Aprobado · ${r.best}%</span>` : r.intentos ? `<span class="badge ${r.intentos >= 2 ? 'err' : 'warn'}">${r.best}% · ${r.intentos}/2 intentos</span>` : r.leido ? '<span class="badge info">Leyó la teoría</span>' : '<span class="badge muted">Sin empezar</span>'}` : '<span class="muted small">Sin módulo este mes</span>');
 
-export function leaderHome(user, rows, mes, base = '/lider/personas', me = null) {
-  const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : '—');
-  const withMod = rows.filter((r) => r.mod_id);
-  const list = rows.map((r) => ({ ...r, flags: leaderFlags(r) }));
-  const attn = list.filter((r) => r.flags.length);
-  const kpis = [
-    ['Personas a cargo', rows.length],
-    ['Evaluaciones con informe', `${rows.filter((r) => r.score != null).length}/${rows.length}`],
-    ['Puntaje promedio', avg(rows.filter((r) => r.score != null).map((r) => r.score))],
-    ['Módulo del mes aprobado', withMod.length ? `${withMod.filter((r) => r.aprobado).length}/${withMod.length}` : '—'],
-    ['Uno a uno del mes', `${rows.filter((r) => r.uno_mes).length}/${rows.length}`],
-    ['Calificaciones QR del mes', `${rows.reduce((a, r) => a + (r.voz_mes || 0), 0)}/${rows.reduce((a, r) => a + (r.meta || 0), 0)}`],
-    ['Requieren atención', attn.length],
-  ];
-  return `<section class="band"><div class="band-copy"><p class="band-sub">Mi equipo · ${esc(fmonth(mes))}</p><h1>${user.leads_all ? 'Todo el personal' : `Equipo de ${esc(base === '/lider/personas' ? String(user.name).split(' ')[0] : user.name)}`}</h1>
-    <div class="kpis">${kpis.map(([l, v]) => `<div class="kpi"><b>${v}</b><span>${esc(l)}</span></div>`).join('')}</div></div></section>
-  <div class="actions" style="margin:-8px 0 16px;justify-content:flex-end"><a class="btn ghost" href="/tarjetas">Imprimir tarjetas QR del equipo</a></div>
+const SEVL = { alta: ['Urgente', 'err'], media: ['Atención', 'warn'], info: ['Por revisar', 'info'], logro: ['Para reconocer', 'ok'] };
+const shortName = (n) => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[p.length > 3 ? 2 : 1][0]}.` : p[0]; };
+const personMonth = (r) => {
+  const c = [];
+  if (r.mod_id) c.push(r.aprobado ? 100 : r.intentos ? 60 : r.leido ? 40 : 0);
+  if (r.plan_total) c.push(pct(r.plan_hechos, r.plan_total));
+  if (r.meta) c.push(Math.min(100, pct(r.voz_mes, r.meta)));
+  c.push(r.uno_mes ? 100 : 0);
+  return Math.round(c.reduce((a, b) => a + b, 0) / c.length);
+};
+
+export function leaderHome(user, rows, mes, base = '/lider/personas', me = null, opt = {}) {
+  const avg = (xs) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
+  const first = esc(String(user.name || '').split(' ')[0]);
+  const list = rows.map((r) => ({ ...r, prog: personMonth(r), alarms: r.alarms || [] }));
+  const all = list.flatMap((r) => r.alarms.map((a) => ({ ...a, r })));
+  const cnt = (k) => all.filter((a) => a.sev === k).length;
+  const teamPct = avg(list.map((r) => r.prog)) ?? 0;
+  const withMod = list.filter((r) => r.mod_id);
+  const modPct = withMod.length ? pct(withMod.filter((r) => r.aprobado).length, withMod.length) : null;
+  const unoPct = list.length ? pct(list.filter((r) => r.uno_mes).length, list.length) : 0;
+  const metaT = list.reduce((a, r) => a + (r.meta || 0), 0), vozT = list.reduce((a, r) => a + Math.min(r.voz_mes || 0, r.meta || 99), 0);
+  const infPct = list.length ? pct(list.filter((r) => r.score != null).length, list.length) : 0;
+  const vozAvg = list.filter((r) => r.voz_pmes != null);
+  const scoreBars = list.filter((r) => r.score != null).sort((a, b) => b.score - a.score).slice(0, 12).map((r) => ({ l: shortName(r.name), v: r.score, c: r.score >= 80 ? '#1FA59A' : r.score >= 65 ? '#163E73' : r.score >= 50 ? '#E2A03F' : '#C8473E' }));
+  const vozBars = vozAvg.sort((a, b) => b.voz_pmes - a.voz_pmes).slice(0, 12).map((r) => ({ l: shortName(r.name), v: r.voz_pmes, c: r.voz_pmes >= 4 ? '#1FA59A' : r.voz_pmes >= 3.5 ? '#E2A03F' : '#C8473E' }));
+  const frase = FRASES_AREA.lideres[(new Date().getDate() + user.id) % FRASES_AREA.lideres.length];
+  const group = (k) => all.filter((a) => a.sev === k);
+  const alarmList = (items) => {
+    if (!items.length) return '<p class="muted">Nada por aquí. ¡Bien!</p>';
+    const by = new Map(); items.forEach((a) => { if (!by.has(a.r.id)) by.set(a.r.id, []); by.get(a.r.id).push(a); });
+    return `<div class="al-list">${[...by.values()].map((g) => `<a class="al-item ${g[0].sev}" href="${base}/${g[0].r.id}">${avatar(g[0].r)}<div class="al-txt"><p><strong>${esc(g[0].r.name)}</strong></p>${g.map((a) => `<p class="al-line">${esc(a.t)} <span class="muted small">· ${esc(a.accion)}</span></p>`).join('')}</div><span class="badge ${SEVL[g[0].sev][1]}">${g.length > 1 ? `${g.length} ` : ''}${SEVL[g[0].sev][0]}</span></a>`).join('')}</div>`;
+  };
+  return `${opt.guia ? `<section class="guide-banner"><div><p class="eyebrow">Bienvenido a tu panel de líder</p><h2>¿Primera vez aquí? Mira la guía en 2 minutos</h2><p class="muted">Te explicamos qué ves, qué significan las alarmas y qué hacer cada semana y cada mes.</p></div><div class="actions"><a class="btn" href="/lider/guia">Ver la guía</a><form method="post" action="/lider/guia" class="inline"><button class="btn ghost">Ya la vi</button></form></div></section>` : ''}
+  <section class="hero-me lead-hero">
+    <div class="hm-main"><p class="hm-hello">${opt.admin ? `Equipo de ${esc(user.name)}` : `${saludo()}, ${first}`}</p><p class="hm-area">${user.leads_all ? 'Todo el personal' : `${list.length} persona${list.length === 1 ? '' : 's'} a tu cargo`} · ${esc(fmonth(mes))}</p>
+      <blockquote class="hm-quote">“${esc(frase)}”</blockquote>
+      <div class="al-sum"><a href="#alarmas" class="al-pill alta"><b>${cnt('alta')}</b> urgentes</a><a href="#alarmas" class="al-pill media"><b>${cnt('media')}</b> de atención</a><a href="#alarmas" class="al-pill info"><b>${cnt('info')}</b> por revisar</a><a href="#logros" class="al-pill logro"><b>${cnt('logro')}</b> para reconocer</a></div></div>
+    <div class="hm-ring">${ring(teamPct, '#8FE3D9', `${teamPct}%`, 'equipo', 170)}<p>Avance del equipo este mes: módulo, plan, calificaciones QR y uno a uno.</p></div></section>
+  <div class="actions" style="margin:-4px 0 16px;justify-content:flex-end">${opt.admin ? '' : '<a class="btn ghost" href="/lider/guia">Guía del líder</a>'}<a class="btn ghost" href="/tarjetas">Imprimir tarjetas QR del equipo</a></div>
+  ${list.length ? `<div class="lead-rings">
+    <div class="lr">${ring(modPct ?? 0, '#1FA59A', modPct == null ? '—' : `${modPct}%`, 'módulo', 112)}<p><strong>Módulo del mes aprobado</strong><span>${withMod.filter((r) => r.aprobado).length} de ${withMod.length}</span></p></div>
+    <div class="lr">${ring(unoPct, '#163E73', `${unoPct}%`, 'uno a uno', 112)}<p><strong>Uno a uno del mes</strong><span>${list.filter((r) => r.uno_mes).length} de ${list.length}</span></p></div>
+    <div class="lr">${ring(metaT ? pct(vozT, metaT) : 0, '#E2A03F', metaT ? `${pct(vozT, metaT)}%` : '—', 'meta QR', 112)}<p><strong>Meta QR del equipo</strong><span>${list.reduce((a, r) => a + (r.voz_mes || 0), 0)} de ${metaT} calificaciones</span></p></div>
+    <div class="lr">${ring(infPct, '#8FA9C4', `${infPct}%`, 'informes', 112)}<p><strong>Evaluaciones con informe</strong><span>Promedio ${avg(list.filter((r) => r.score != null).map((r) => r.score)) ?? '—'}</span></p></div>
+  </div>` : '<section class="card"><p class="muted">Todavía no tienes personas asignadas. El administrador del programa las asigna desde el panel.</p></section>'}
   ${me ? `<section class="card"><div class="row-head"><div><p class="eyebrow">Tu formación como líder</p><h2 style="margin:4px 0 6px">Tú también te formas con tu equipo</h2>
     <p class="muted small">Evaluación: ${me.status ? badge(me.status) : '—'}${me.score != null ? ` · Puntaje <strong>${me.score}</strong>` : ''} · Módulo del mes: ${modCell(me)}${me.publicados ? ` · Academia ${me.aprobados}/${me.publicados} aprobados` : ''}${me.plan_total ? ` · Tu plan ${me.plan_hechos}/${me.plan_total} hechas` : ''}</p></div>
     <div class="actions">${me.status === 'pendiente' || me.status === 'en_curso' ? '<a class="btn" href="/evaluacion">Hacer mi evaluación</a>' : ''}<a class="btn ${me.status === 'pendiente' || me.status === 'en_curso' ? 'ghost' : ''}" href="/estudio">Ir a mi Academia</a><a class="btn ghost" href="/mi">Mi espacio</a></div></div></section>` : ''}
-  ${rows.length ? '' : '<section class="card"><p class="muted">Todavía no tienes personas asignadas. El administrador del programa las asigna desde el panel.</p></section>'}
-  ${attn.length ? `<section class="card"><h2 style="margin-top:0">Requieren atención (${attn.length})</h2><div class="attn">${attn.map((r) => `<a href="${base}/${r.id}" class="attn-item"><strong>${esc(r.name)}</strong><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span><div>${r.flags.map(([l, c]) => `<span class="badge ${c}">${esc(l)}</span>`).join(' ')}</div></a>`).join('')}</div></section>` : ''}
-  ${rows.length ? `<section class="card"><h2>Personas</h2><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Módulo del mes</th><th>Academia</th><th>Uno a uno</th><th>Voz QR</th><th>Última entrada</th></tr></thead><tbody>
+  ${list.length ? `<section class="card" id="alarmas"><div class="row-head"><div><p class="eyebrow">Centro de alarmas</p><h2 style="margin:4px 0">Qué necesita tu equipo hoy</h2></div></div>
+    <h3 class="al-h alta">Urgentes (${cnt('alta')})</h3>${alarmList(group('alta'))}
+    <h3 class="al-h media">De atención (${cnt('media')})</h3>${alarmList(group('media'))}
+    ${cnt('info') ? `<h3 class="al-h info">Por revisar (${cnt('info')})</h3>${alarmList(group('info'))}` : ''}</section>
+  <section class="card" id="logros"><p class="eyebrow">Para reconocer</p><h2 style="margin:4px 0 10px">Logros de tu equipo este mes</h2>${alarmList(group('logro'))}</section>
+  <section class="me-charts">
+    <div class="card"><p class="eyebrow">Evaluación de servicio</p><h3>Puntaje por persona</h3>${bars(scoreBars, { empty: 'Aparece cuando haya informes.' })}</div>
+    <div class="card"><p class="eyebrow">Voz QR del mes</p><h3>Promedio por persona</h3>${bars(vozBars, { max: 5, empty: 'Aparece cuando el equipo reciba calificaciones este mes.' })}</div>
+  </section>
+  <section class="card"><h2>Tu equipo</h2><p class="muted small">Toca una persona para ver su ficha completa.</p><div class="team-grid">${list.map((r) => { const top = r.alarms.find((a) => a.sev !== 'logro'); return `<a class="tg-card" href="${base}/${r.id}">${ring(r.prog, r.prog >= 70 ? '#1FA59A' : r.prog >= 40 ? '#E2A03F' : '#C8473E', `${r.prog}%`, '', 70)}<div class="tg-txt"><p class="tg-name">${esc(r.name)}</p><p class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</p>
+      <p class="tg-stats"><span>Eval. ${r.score ?? '—'}</span><span>QR ${r.voz_mes}${r.meta ? `/${r.meta}` : ''}</span><span>${r.uno_mes ? '1:1 ✓' : '1:1 pendiente'}</span></p>
+      ${top ? `<span class="badge ${SEVL[top.sev][1]}">${esc(top.t)}</span>` : '<span class="badge ok">Al día</span>'}</div></a>`; }).join('')}</div></section>
+  <details class="card"><summary><h2>Vista en tabla</h2></summary><table class="tbl dash"><thead><tr><th>Profesional</th><th>Evaluación</th><th>Puntaje</th><th>Plan del mes</th><th>Módulo del mes</th><th>Academia</th><th>Uno a uno</th><th>Voz QR</th><th>Última entrada</th></tr></thead><tbody>
   ${list.map((r) => `<tr><td><div class="who-cell">${avatar(r)}<div><a href="${base}/${r.id}"><strong>${esc(r.name)}</strong></a><br><span class="muted small">${esc(areaName(r.area))}${r.sede ? ` · ${esc(r.sede)}` : ''}</span></div></div></td>
     <td>${r.status ? badge(r.status) : '<span class="muted">—</span>'}</td><td>${r.score ?? '—'}</td>
     <td>${r.plan_total ? `<div class="bar slim"><span style="width:${Math.round((100 * r.plan_hechos) / r.plan_total)}%"></span></div><span class="muted small">${r.plan_hechos}/${r.plan_total} hechas</span>` : '<span class="muted">—</span>'}</td>
     <td>${modCell(r)}</td><td>${r.publicados ? `${r.aprobados}/${r.publicados} aprobados` : '<span class="muted">—</span>'}</td>
-    <td>${r.uno_mes ? '<span class="badge ok">Hecho</span>' : '<span class="badge warn">Pendiente</span>'}${r.comp_abiertos ? `<br><span class="muted small">${r.comp_abiertos} compromiso${r.comp_abiertos > 1 ? 's' : ''} abierto${r.comp_abiertos > 1 ? 's' : ''}</span>` : ''}</td>
-    <td>${r.meta ? `<strong>${r.voz_mes}/${r.meta}</strong>` : `<strong>${r.voz_mes}</strong>`}${r.voz_pmes != null ? `<br><span class="small">Mes ${r.voz_pmes.toFixed(1)}${r.voz_pprev != null ? (r.voz_pmes > r.voz_pprev ? ` <span class="up">▲ ${(r.voz_pmes - r.voz_pprev).toFixed(1)}</span>` : r.voz_pmes < r.voz_pprev ? ` <span class="down">▼ ${(r.voz_pprev - r.voz_pmes).toFixed(1)}</span>` : ' · igual') : ''}</span>` : r.voz != null ? `<br><span class="muted small">Promedio ${r.voz.toFixed(1)}</span>` : ''}${r.voz_rev ? `<br><span class="badge warn">${r.voz_rev} en revisión</span>` : ''}</td>
+    <td>${r.uno_mes ? '<span class="badge ok">Hecho</span>' : '<span class="badge warn">Pendiente</span>'}</td>
+    <td>${r.meta ? `<strong>${r.voz_mes}/${r.meta}</strong>` : `<strong>${r.voz_mes}</strong>`}${r.voz_pmes != null ? `<br><span class="small">Mes ${r.voz_pmes.toFixed(1)}</span>` : ''}</td>
     <td>${r.last_seen ? fdate(r.last_seen) : '<span class="muted">Nunca</span>'}</td></tr>`).join('')}
-  </tbody></table></section>` : ''}`;
+  </tbody></table></details>` : ''}`;
+}
+
+export function leaderGuide(user) {
+  const steps = [
+    ['Activity', 'Mira el avance del equipo', 'Arriba ves el anillo con el avance del mes de tu equipo: módulo, plan, calificaciones QR y uno a uno. Cada persona tiene su propio anillo en "Tu equipo".'],
+    ['Warning', 'Atiende las alarmas', 'El Centro de alarmas te dice qué necesita cada persona hoy, ordenado por prioridad: urgentes, de atención y por revisar. Cada alarma trae una acción sugerida. Los lunes te llega un resumen al correo.'],
+    ['Star', 'Reconoce los logros', 'En "Para reconocer" aparecen quienes aprobaron su módulo, cumplieron su meta QR o subieron su calificación. Felicítalos a tiempo: el reconocimiento multiplica el esfuerzo.'],
+    ['Users', 'Abre la ficha de cada persona', 'Ahí ves su informe, su plan, su Academia, su voz QR mes a mes y sus comentarios. Puedes descargar su informe en PDF.'],
+    ['Chat', 'Haz el uno a uno del mes', 'Una sesión al mes, de cara al módulo: revisas los compromisos anteriores, conversan sobre la brecha y acuerdan hasta 3 compromisos nuevos con fecha. Desde el día 20 la plataforma te avisa con quién te falta.'],
+    ['Verified', 'Cuida las calificaciones QR', 'Imprime las tarjetas de tu equipo. Las calificaciones sospechosas quedan en revisión en la ficha de la persona: valida las legítimas y anula las demás. Compara con las atenciones reales de la agenda.'],
+    ['GraduationCap', 'Fórmate tú también', 'Tienes tu propia evaluación, tu Academia y tu QR. Tu equipo copia lo que haces: sé el primero en aprobar el módulo.'],
+  ];
+  const ICONS = { Activity: 'panel', Warning: 'preguntas', Star: 'ranking', Users: 'equipo', Chat: 'mensajes', Verified: 'evaluaciones', GraduationCap: 'estudio' };
+  return `<p><a href="/lider">← Mi equipo</a></p>
+  <section class="hero-me guide-hero"><div class="hm-main"><p class="eyebrow" style="color:#8FE3D9">Guía del líder</p><p class="hm-hello">Tu equipo, en 7 pasos</p><blockquote class="hm-quote">“Un equipo que atiende bien sin ti es tu mejor legado.”</blockquote></div></section>
+  <div class="guide-steps">${steps.map(([ic, t, d], i) => `<section class="card gstep"><div class="gs-n">${i + 1}</div><div><h3>${icon(ICONS[ic])} ${esc(t)}</h3><p>${esc(d)}</p></div></section>`).join('')}</div>
+  <section class="card"><h2 style="margin-top:0">Tu ritmo</h2><div class="two"><div><h3>Cada semana</h3><ul><li>Revisa las alarmas urgentes y actúa.</li><li>Reconoce a quien tuvo un logro.</li><li>Valida las calificaciones QR en revisión.</li></ul></div>
+    <div><h3>Cada mes</h3><ul><li>Día 1: anima a tu equipo a empezar el módulo.</li><li>Días 15 a 25: un uno a uno con cada persona.</li><li>Fin de mes: celebra a los ganadores del ranking.</li></ul></div></div></section>
+  <form method="post" action="/lider/guia"><button class="btn">Entendido, ir a mi equipo</button></form>`;
 }
 
 export function leaderPerson(person, ev, plans, academy, ctx) {
@@ -1103,7 +1161,7 @@ const saludo = () => { const h = Number(new Date().toLocaleString('en-US', { tim
 function ring(p, color, center, sub, size = 132) {
   const r = 52, c = 2 * Math.PI * r, v = Math.max(0, Math.min(100, p ?? 0));
   return `<div class="ring" style="width:${size}px;height:${size}px"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="${r}" fill="none" stroke="currentColor" stroke-opacity=".14" stroke-width="11"/>
-    <circle cx="60" cy="60" r="${r}" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${((c * v) / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 60 60)" class="ring-arc"/></svg>
+    ${v > 0 ? `<circle cx="60" cy="60" r="${r}" fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${((c * v) / 100).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 60 60)" class="ring-arc"/>` : ''}</svg>
     <div class="ring-c"><b>${center}</b>${sub ? `<span>${sub}</span>` : ''}</div></div>`;
 }
 

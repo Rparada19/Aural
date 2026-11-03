@@ -717,3 +717,35 @@ ul.ev.neg li { border-left-color: var(--err); }
   .me-tiles, .me-strengths { grid-template-columns: 1fr; }
 }
 .scale label { position: relative; } .hero-me .arcs { right: -150px; opacity: .3; }
+/* ---------- Panel del líder ---------- */
+.guide-banner { display: flex; justify-content: space-between; gap: 20px; align-items: center; background: linear-gradient(120deg, #E3F5F2, #F3F8FC); border: 1px solid #BFE5DF; border-radius: 22px; padding: 20px 24px; margin-bottom: 16px; }
+.guide-banner h2 { margin: 2px 0 4px; font-size: 1.25rem; } .guide-banner p { margin: 0; }
+.lead-hero .hm-hello { font-size: 2rem; }
+.al-sum { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.al-pill { display: inline-flex; gap: 6px; align-items: baseline; padding: 8px 14px; border-radius: 999px; text-decoration: none; font-size: .9rem; color: #fff; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); }
+.al-pill b { font: 700 1.15rem Gotham, sans-serif; }
+.al-pill.alta b { color: #FF9C8F; } .al-pill.media b { color: #F2B24A; } .al-pill.info b { color: #9CC3F5; } .al-pill.logro b { color: #8FE3D9; }
+.lead-rings { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+.lr { background: #fff; border: 1px solid #DCE3EC; border-radius: 20px; padding: 18px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+.lr p { margin: 0; display: grid; gap: 2px; } .lr span { color: #5B6478; font-size: .86rem; }
+.al-h { margin: 18px 0 8px; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+.al-h::before { content: ''; width: 10px; height: 10px; border-radius: 50%; background: #8A93A6; }
+.al-h.alta::before { background: #C8473E; } .al-h.media::before { background: #E2A03F; } .al-h.info::before { background: #6B8CC7; }
+.al-list { display: grid; gap: 8px; }
+.al-item { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid #DCE3EC; border-left: 5px solid #8A93A6; border-radius: 14px; background: #fff; text-decoration: none; color: inherit; transition: background .15s; }
+.al-item:hover { background: #F7F9FC; }
+.al-item.alta { border-left-color: #C8473E; } .al-item.media { border-left-color: #E2A03F; } .al-item.info { border-left-color: #6B8CC7; } .al-item.logro { border-left-color: #1FA59A; background: #F4FBFA; }
+.al-item .avatar { width: 44px; height: 44px; } .al-txt p { margin: 0; }
+.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.tg-card { display: flex; gap: 14px; align-items: center; border: 1px solid #DCE3EC; border-radius: 18px; padding: 14px; text-decoration: none; color: inherit; background: #fff; transition: transform .15s, box-shadow .15s; }
+.tg-card:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(4,30,66,.08); }
+.tg-card .ring-c b { font-size: 1rem; }
+.tg-txt p { margin: 0; } .tg-name { font-weight: 700; color: #041E42; }
+.tg-stats { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: .8rem; color: #3E4A61; margin: 6px 0 !important; }
+.guide-hero { grid-template-columns: 1fr; }
+.guide-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.gstep { display: flex; gap: 16px; margin: 0; } .gstep h3 { margin: 0 0 6px; display: flex; gap: 8px; align-items: center; } .gstep h3 .ico { color: #1FA59A; } .gstep p { margin: 0; color: #3E4A61; }
+.gs-n { flex: none; width: 44px; height: 44px; border-radius: 50%; background: #041E42; color: #fff; display: grid; place-items: center; font: 700 1.1rem Gotham, sans-serif; }
+@media (max-width: 900px) { .lead-rings { grid-template-columns: 1fr 1fr; } .guide-banner { flex-direction: column; align-items: flex-start; } }
+@media (max-width: 560px) { .al-item { grid-template-columns: 36px 1fr; } .al-item .badge { grid-column: 2; justify-self: start; } }
+.al-line { margin: 2px 0 0 !important; font-size: .92rem; }

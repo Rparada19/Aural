@@ -189,6 +189,7 @@ export async function migrate() {
   await q('CREATE TABLE IF NOT EXISTS staff_marks (kind TEXT NOT NULL, hash TEXT NOT NULL, user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE, last_seen TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY (kind, hash, user_id))');
   await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS meta_voz INT');
   await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS pass_hash TEXT');
+  await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS guia_lider BOOLEAN NOT NULL DEFAULT false');
   await q('ALTER TABLE users ADD COLUMN IF NOT EXISTS pass_temp BOOLEAN NOT NULL DEFAULT false');
   await q(`CREATE TABLE IF NOT EXISTS compromisos (
     id SERIAL PRIMARY KEY,
