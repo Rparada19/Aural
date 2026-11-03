@@ -62,6 +62,19 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// Respaldo del cron: la primera visita del día (lunes a sábado, desde las 6:00 a. m.) dispara el envío diario, que es idempotente
+let dailyKickedOn = '', dailyRunning = null;
+const daily = () => (dailyRunning ||= runDaily().finally(() => { dailyRunning = null; }));
+app.use((req, res, next) => {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
+  const d = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  if (dailyKickedOn !== d && now.getDay() !== 0 && now.getHours() >= 6) {
+    dailyKickedOn = d;
+    daily().then((r) => console.log('diario (respaldo)', r)).catch((e) => console.error('diario', e));
+  }
+  next();
+});
+
 // Protección CSRF básica: los POST deben venir del mismo sitio
 app.use((req, res, next) => {
   if (req.method !== 'POST') return next();
@@ -1051,9 +1064,11 @@ app.post('/cron/diario', async (req, res) => {
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));
   const mins = now.getHours() * 60 + now.getMinutes();
   const authorized = process.env.CRON_SECRET && req.headers['x-cron-secret'] === process.env.CRON_SECRET;
-  if (!authorized && (now.getDay() === 0 || mins < 330 || mins > 570)) return res.status(403).send('fuera de horario');
+  // GitHub suele retrasar los cron programados varias horas: se acepta de lunes a sábado entre 5:30 a. m. y 9:00 p. m.
+  if (!authorized && (now.getDay() === 0 || mins < 330 || mins > 1260)) return res.status(403).send('fuera de horario');
   res.status(202).send('ok');
-  runDaily().then((r) => console.log('diario', r)).catch((e) => console.error('diario', e));
+  dailyKickedOn = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  daily().then((r) => console.log('diario', r)).catch((e) => console.error('diario', e));
 });
 
 app.post('/admin/evaluaciones/:id/analizar', needAdmin, async (req, res) => {
