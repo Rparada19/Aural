@@ -8,6 +8,7 @@ import { sendLoginLink, sendMail, mailConfigured } from './mail.js';
 import * as V from './views.js';
 import { AREA_KEYS } from './areas.js';
 import { newDoc, renderReport, footer } from './pdf.js';
+import archiver from 'archiver';
 import { learnArea, latestKnowledge } from './knowledge.js';
 import { generateModule, generateAcademy, userModuleState, grade, drawQuiz, windowState, PASS, MAX_ATTEMPTS } from './study.js';
 import { rankingFor } from './ranking.js';
@@ -452,6 +453,33 @@ app.get('/admin/personas/:id/informe.pdf', needAdmin, async (req, res) => {
   const ev = person && await one('SELECT * FROM evaluations WHERE user_id = $1 AND report IS NOT NULL AND ($2::int IS NULL OR id = $2) ORDER BY id DESC LIMIT 1', [person.id, req.query.ev ? Number(req.query.ev) : null]);
   if (!ev) return res.redirect(`/admin/personas/${req.params.id}`);
   sendPdf(res, `informe-${slug(person.name)}`, (doc) => renderReport(doc, person, ev));
+});
+
+// Todos los informes por separado: un PDF por persona dentro de un .zip
+const pdfBuffer = (person, ev) => new Promise((resolve, reject) => {
+  const doc = newDoc(person.name); const parts = [];
+  doc.on('data', (c) => parts.push(c)); doc.on('end', () => resolve(Buffer.concat(parts))); doc.on('error', reject);
+  renderReport(doc, person, ev); footer(doc); doc.end();
+});
+app.get('/admin/informes.zip', needAdmin, async (req, res) => {
+  const area = AREA_KEYS.includes(req.query.area) ? req.query.area : '';
+  const { rows } = await q(`SELECT u.id, u.name, u.area, u.sede, u.cargo, e.report, e.submitted_at, e.analyzed_at FROM users u
+    JOIN LATERAL (SELECT * FROM evaluations WHERE user_id = u.id AND report IS NOT NULL ORDER BY id DESC LIMIT 1) e ON true
+    WHERE u.role = 'staff' AND u.active AND u.approved ${area ? 'AND u.area = $1' : ''} ORDER BY u.area, u.name`, area ? [area] : []);
+  if (!rows.length) return res.redirect('/admin/evaluaciones');
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', `attachment; filename="informes-${area || 'equipo'}-${thisMonth()}.zip"`);
+  const zip = archiver('zip', { zlib: { level: 6 } });
+  zip.on('error', (e) => { console.error('zip', e); res.destroy(e); });
+  zip.pipe(res);
+  const used = new Set();
+  for (const r of rows) {
+    let name = `${slug(V.areaName(r.area))}/informe-${slug(r.name)}.pdf`;
+    for (let i = 2; used.has(name); i++) name = `${slug(V.areaName(r.area))}/informe-${slug(r.name)}-${i}.pdf`;
+    used.add(name);
+    zip.append(await pdfBuffer(r, r), { name });
+  }
+  await zip.finalize();
 });
 
 app.get('/admin/informes.pdf', needAdmin, async (req, res) => {
