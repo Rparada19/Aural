@@ -22,6 +22,11 @@ const ADMINS = (process.env.ADMIN_EMAILS || '').toLowerCase().split(',').map((s)
 const COOKIE = 'aural_sid';
 const hash = (s) => crypto.createHash('sha256').update(s).digest('hex');
 const token = () => crypto.randomBytes(32).toString('base64url');
+const hashPw = (pw) => { const salt = crypto.randomBytes(16).toString('hex'); return `${salt}:${crypto.scryptSync(pw, salt, 64).toString('hex')}`; };
+const checkPw = (pw, stored) => { const [salt, h] = String(stored || '').split(':'); if (!salt || !h) return false; const a = crypto.scryptSync(String(pw), salt, 64), b = Buffer.from(h, 'hex'); return a.length === b.length && crypto.timingSafeEqual(a, b); };
+const tempPw = () => { const A = 'abcdefghjkmnpqrstuvwxyz23456789'; return Array.from(crypto.randomBytes(10), (x) => A[x % A.length]).join('').replace(/(.{5})(.{5})/, '$1-$2'); };
+const loginHits = new Map();
+const loginLimited = (k) => { const now = Date.now(), h = (loginHits.get(k) || []).filter((t) => now - t < 15 * 60e3); h.push(now); loginHits.set(k, h); if (loginHits.size > 5000) loginHits.clear(); return h.length > 10; };
 
 app.set('trust proxy', 1);
 app.use(express.static(path.join(path.dirname(fileURLToPath(import.meta.url)), 'public'), { maxAge: '7d' }));
@@ -156,8 +161,22 @@ app.get('/tarjetas', needUser, async (req, res) => {
 
 app.get('/login', (req, res) => (req.user ? res.redirect('/') : page(res, 'Entrar', V.loginPage())));
 
+async function startSession(req, res, userId) {
+  const sid = token();
+  await q("INSERT INTO sessions (id_hash, user_id, expires_at) VALUES ($1, $2, now() + interval '30 days')", [hash(sid), userId]);
+  res.append('Set-Cookie', `${COOKIE}=${sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 86400}${BASE.startsWith('https') ? '; Secure' : ''}`);
+  markStaff(userId, deviceId(req, res), req.ip).catch(() => {});
+}
+
 app.post('/login', async (req, res) => {
   const email = String(req.body.email || '').trim().toLowerCase();
+  if (req.body.clave) {
+    if (loginLimited(`${email}|${req.ip}`)) return page(res, 'Entrar', V.loginPage('', 'Demasiados intentos. Espera unos minutos o pide un enlace al correo.', email));
+    const u = await one('SELECT id, pass_hash, pass_temp FROM users WHERE email = $1 AND active AND approved', [email]);
+    if (!u || !checkPw(req.body.clave, u.pass_hash)) return page(res, 'Entrar', V.loginPage('', 'Correo o clave incorrectos.', email));
+    await startSession(req, res, u.id);
+    return res.redirect(u.pass_temp ? '/clave' : '/');
+  }
   let user = await one('SELECT * FROM users_v WHERE email = $1 AND active', [email]);
   if (!user && ADMINS.includes(email)) user = await one("INSERT INTO users (email, name, role) VALUES ($1, $1, 'admin') RETURNING *", [email]);
   if (user && ADMINS.includes(email) && user.role !== 'admin') await q("UPDATE users SET role = 'admin' WHERE id = $1", [user.id]);
@@ -177,11 +196,23 @@ app.get('/entrar/:t', async (req, res) => {
 app.post('/entrar/:t', async (req, res) => {
   const row = await one('UPDATE login_tokens SET used_at = now() WHERE token_hash = $1 AND expires_at > now() AND used_at IS NULL RETURNING user_id', [hash(req.params.t)]);
   if (!row) return page(res, 'Enlace vencido', V.loginPage('', 'Este enlace ya se usó o venció. Pide uno nuevo.'));
-  const sid = token();
-  await q("INSERT INTO sessions (id_hash, user_id, expires_at) VALUES ($1, $2, now() + interval '30 days')", [hash(sid), row.user_id]);
-  res.append('Set-Cookie', `${COOKIE}=${sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 86400}${BASE.startsWith('https') ? '; Secure' : ''}`);
-  markStaff(row.user_id, deviceId(req, res), req.ip).catch(() => {});
-  res.redirect('/');
+  await startSession(req, res, row.user_id);
+  const p = await one('SELECT pass_hash IS NOT NULL AS tiene FROM users WHERE id = $1', [row.user_id]);
+  res.redirect(p?.tiene ? '/' : '/clave');
+});
+
+// Crear o cambiar la clave
+app.get('/clave', needUser, async (req, res) => {
+  const u = await one('SELECT pass_hash IS NOT NULL AS tiene, pass_temp FROM users WHERE id = $1', [req.user.id]);
+  page(res, 'Mi clave', V.passwordPage(u), req.user);
+});
+app.post('/clave', needUser, async (req, res) => {
+  const a = String(req.body.clave || ''), b = String(req.body.clave2 || '');
+  const u = await one('SELECT pass_hash IS NOT NULL AS tiene, pass_temp FROM users WHERE id = $1', [req.user.id]);
+  if (a.length < 8) return page(res, 'Mi clave', V.passwordPage(u, 'La clave debe tener al menos 8 caracteres.'), req.user);
+  if (a !== b) return page(res, 'Mi clave', V.passwordPage(u, 'Las dos claves no coinciden.'), req.user);
+  await q('UPDATE users SET pass_hash = $2, pass_temp = false WHERE id = $1', [req.user.id, hashPw(a)]);
+  res.redirect(req.user.role === 'admin' ? '/admin' : '/?clave=1');
 });
 
 app.post('/salir', async (req, res) => {
@@ -264,14 +295,46 @@ async function currentPlan(userId, onlyPublished) {
   return plan;
 }
 
+async function staffHomeHtml(u, self = true) {
+  const pulseDone = await one('SELECT 1 FROM pulses WHERE user_id = $1 AND mes = $2', [u.id, thisMonth()]);
+  const mod = await one('SELECT * FROM study_modules WHERE area = $1 AND mes = $2 AND published', [u.area, thisMonth()]);
+  if (mod) mod.st = await userModuleState(u.id, mod);
+  const comps = (await q("SELECT * FROM compromisos WHERE user_id = $1 AND (estado IN ('pendiente','parcial') OR updated_at > now() - interval '30 days') ORDER BY created_at DESC, id", [u.id])).rows;
+  const pw = await one('SELECT pass_hash IS NOT NULL AS tiene FROM users WHERE id = $1', [u.id]);
+  return (self && !pw?.tiene ? V.setPasswordCard() : '') + V.staffHome(u, await currentEval(u.id), await currentPlan(u.id, true), await todayMessage(u.area), pulseDone ? null : PULSE, mod) + V.myCommitments(comps) + V.voiceCard(u, await voiceOf(u.id, true), { token: await qrToken(u.id), base: BASE, survey: surveyFor(u.area), self: true });
+}
+
 app.get(['/', '/mi'], needUser, async (req, res) => {
   if (req.user.role === 'admin') return res.redirect('/admin');
   if (req.user.lider && req.path === '/') return res.redirect('/lider');
-  const pulseDone = await one('SELECT 1 FROM pulses WHERE user_id = $1 AND mes = $2', [req.user.id, thisMonth()]);
-  const mod = await one('SELECT * FROM study_modules WHERE area = $1 AND mes = $2 AND published', [req.user.area, thisMonth()]);
-  if (mod) mod.st = await userModuleState(req.user.id, mod);
-  const comps = (await q("SELECT * FROM compromisos WHERE user_id = $1 AND (estado IN ('pendiente','parcial') OR updated_at > now() - interval '30 days') ORDER BY created_at DESC, id", [req.user.id])).rows;
-  page(res, 'Mi espacio', V.staffHome(req.user, await currentEval(req.user.id), await currentPlan(req.user.id, true), await todayMessage(req.user.area), pulseDone ? null : PULSE, mod) + V.myCommitments(comps) + V.voiceCard(req.user, await voiceOf(req.user.id, true), { token: await qrToken(req.user.id), base: BASE, survey: surveyFor(req.user.area), self: true }), req.user);
+  page(res, 'Mi espacio', (req.query.clave ? '<p class="notice ok">Tu clave quedó guardada. La próxima vez entra con tu correo y tu clave.</p>' : '') + await staffHomeHtml(req.user), req.user);
+});
+
+// El director ve exactamente lo que ve la persona en su espacio (solo lectura)
+app.get('/admin/personas/:id/vista', needAdmin, async (req, res) => {
+  const u = await one("SELECT id, email, name, role, area, sede, cargo, active, last_seen, lider, leads_all, (photo IS NOT NULL) AS has_photo FROM users WHERE id = $1 AND role = 'staff'", [req.params.id]);
+  if (!u) return res.redirect('/admin');
+  page(res, `Espacio de ${u.name}`, V.asView(u, await staffHomeHtml(u, false)), req.user, { wide: true });
+});
+
+app.post('/admin/personas/:id/clave', needAdmin, async (req, res) => {
+  const u = await one("SELECT id, name FROM users WHERE id = $1 AND role = 'staff'", [req.params.id]);
+  if (!u) return res.redirect('/admin');
+  const pw = tempPw();
+  await q('UPDATE users SET pass_hash = $2, pass_temp = true WHERE id = $1', [u.id, hashPw(pw)]);
+  page(res, 'Clave temporal', V.tempPasswordPage(u, pw, BASE), req.user);
+});
+
+app.post('/admin/personas/:id/datos', needAdmin, async (req, res) => {
+  const b = req.body;
+  const email = String(b.email || '').trim().toLowerCase();
+  const area = AREA_KEYS.includes(b.area) ? b.area : null;
+  if (!email || !String(b.name || '').trim() || !area) return res.redirect(`/admin/personas/${req.params.id}?error=${encodeURIComponent('Nombre, correo y área son obligatorios.')}`);
+  const clash = await one('SELECT 1 FROM users WHERE email = $1 AND id <> $2', [email, req.params.id]);
+  if (clash) return res.redirect(`/admin/personas/${req.params.id}?error=${encodeURIComponent('Ese correo ya lo usa otra persona.')}`);
+  await q("UPDATE users SET name = $2, email = $3, area = $4, sede = $5, cargo = $6, telefono = $7 WHERE id = $1 AND role = 'staff'",
+    [req.params.id, String(b.name).trim(), email, area, String(b.sede || '').trim(), String(b.cargo || '').trim(), String(b.telefono || '').trim()]);
+  res.redirect(`/admin/personas/${req.params.id}?ok=1`);
 });
 
 app.post('/pulso', needUser, async (req, res) => {
@@ -616,7 +679,7 @@ app.get('/admin/personas/:id', needAdmin, async (req, res) => {
   const sessions = await oneOnOneCtx(person);
   const plans = (await q(`SELECT p.*, coalesce(json_agg(i ORDER BY i.position, i.id) FILTER (WHERE i.id IS NOT NULL), '[]') AS items
     FROM plans p LEFT JOIN plan_items i ON i.plan_id = p.id WHERE p.user_id = $1 GROUP BY p.id ORDER BY p.mes DESC`, [person.id])).rows;
-  page(res, person.name, V.adminPerson(person, evs, sessions, req.query.link, mailConfigured(), plans, thisMonth(), req.query.error) + V.voiceCard(person, await voiceOf(person.id), { survey: surveyFor(person.area) }), req.user, { wide: true });
+  page(res, person.name, V.adminPerson(person, evs, sessions, req.query.link, mailConfigured(), plans, thisMonth(), req.query.error) + V.academyCard(await personAcademy(person)) + V.voiceCard(person, await voiceOf(person.id), { survey: surveyFor(person.area), token: await qrToken(person.id), base: BASE }) + V.editPerson(person, await sedesList(), Boolean(req.query.ok), await one('SELECT pass_hash IS NOT NULL AS tiene, pass_temp FROM users WHERE id = $1', [person.id])), req.user, { wide: true });
 });
 
 app.post('/admin/personas/:id/enlace', needAdmin, async (req, res) => {
@@ -719,7 +782,7 @@ app.get('/lider/personas/:id', needLeader, async (req, res) => {
   const ev = await one('SELECT * FROM evaluations WHERE user_id = $1 ORDER BY id DESC LIMIT 1', [person.id]);
   const plans = (await q(`SELECT p.*, coalesce(json_agg(i ORDER BY i.position, i.id) FILTER (WHERE i.id IS NOT NULL), '[]') AS items
     FROM plans p LEFT JOIN plan_items i ON i.plan_id = p.id WHERE p.user_id = $1 AND p.published GROUP BY p.id ORDER BY p.mes DESC LIMIT 3`, [person.id])).rows;
-  page(res, person.name, V.leaderPerson(person, ev, plans, await personAcademy(person), await oneOnOneCtx(person)) + V.voiceCard(person, await voiceOf(person.id), { survey: surveyFor(person.area) }), req.user, { wide: true });
+  page(res, person.name, V.leaderPerson(person, ev, plans, await personAcademy(person), await oneOnOneCtx(person)) + V.voiceCard(person, await voiceOf(person.id), { survey: surveyFor(person.area), token: await qrToken(person.id), base: BASE }), req.user, { wide: true });
 });
 
 app.post('/lider/personas/:id/sesiones', needLeader, async (req, res) => {

@@ -77,19 +77,59 @@ const photoWidget = (mode, endpoint = '') => `<div class="photo-widget" ${mode !
 const authArt = (title, text) => `<aside class="auth-art"><img src="/logo-aural-blanco.png" alt="Aural" class="auth-logo">
   <div class="auth-copy"><h1>${title}</h1><p>${text}</p></div>${arcs('draw')}</aside>`;
 
-export const loginPage = (msg = '', err = '') => `<div class="split">
+export const loginPage = (msg = '', err = '', email = '') => `<div class="split">
 ${authArt('Cada atención cuenta.', 'Tu evaluación, tu plan de trabajo y tu ruta de estudio en un solo lugar.')}
 <section class="auth-panel"><div class="auth-form">
   <h2>Entra a tu espacio</h2>
-  <p class="muted">Escribe tu correo y te enviamos un enlace de acceso. No necesitas contraseña.</p>
+  <p class="muted">Entra con tu correo y tu clave. Si aún no tienes clave o la olvidaste, deja la clave vacía y te enviamos un enlace al correo.</p>
   ${msg ? `<p class="notice ok">${esc(msg)}</p>` : ''}${err ? `<p class="notice err">${esc(err)}</p>` : ''}
   <form method="post" action="/login" class="stack">
-    <label>Correo<input type="email" name="email" required autocomplete="email" placeholder="tu@correo.com"></label>
-    <button class="btn block">Enviarme el enlace</button>
+    <label>Correo<input type="email" name="email" required autocomplete="email" placeholder="tu@correo.com" value="${esc(email)}"></label>
+    <label>Clave <span class="muted small">(opcional)</span><input type="password" name="clave" autocomplete="current-password" placeholder="Tu clave"></label>
+    <button class="btn block">Entrar</button>
   </form>
   <p class="muted small switch">¿Aún no tienes cuenta? <a href="/registro">Regístrate</a></p>
 </div></section></div>`;
 
+export const passwordPage = (u, err = '') => `<section class="card" style="max-width:560px;margin:0 auto">
+  <p class="eyebrow">Tu acceso</p><h1 style="margin-top:4px">${u?.tiene && !u.pass_temp ? 'Cambiar mi clave' : 'Crea tu clave'}</h1>
+  <p class="muted">${u?.pass_temp ? 'Entraste con una clave temporal. Crea ahora tu propia clave.' : 'Con tu clave entras directo, sin esperar el enlace al correo.'} Mínimo 8 caracteres.</p>
+  ${err ? `<p class="notice err">${esc(err)}</p>` : ''}
+  <form method="post" action="/clave" class="stack"><label>Nueva clave<input type="password" name="clave" minlength="8" required autocomplete="new-password"></label>
+    <label>Repite la clave<input type="password" name="clave2" minlength="8" required autocomplete="new-password"></label>
+    <button class="btn">Guardar mi clave</button></form></section>`;
+
+export const setPasswordCard = () => `<section class="card notice-card"><div class="row-head"><div><h2 style="margin:0 0 4px">Crea tu clave</h2><p class="muted" style="margin:0">Así entras directo con tu correo y tu clave, sin esperar el enlace.</p></div><a class="btn" href="/clave">Crear mi clave</a></div></section>`;
+
+export const asView = (u, html) => `<p><a href="/admin/personas/${u.id}">← Ficha de ${esc(u.name)}</a></p>
+  <div class="notice info"><strong>Vista de ${esc(u.name)}:</strong> así ve su espacio. Es solo lectura${u.lider ? `. Su panel de líder: <a href="/admin/lideres/${u.id}">ver su equipo</a>` : ''}.</div>
+  <div class="as-view" inert>${html}</div>`;
+
+export const tempPasswordPage = (u, pw, base) => `<section class="card" style="max-width:640px">
+  <p class="eyebrow">Clave temporal</p><h1 style="margin-top:4px">${esc(u.name)}</h1>
+  <p>Entrégale esta clave. Al entrar con ella, la plataforma le pedirá crear su propia clave.</p>
+  <p class="temp-pw">${esc(pw)}</p>
+  <p class="muted small">Entra en <strong>${esc(base)}</strong> con su correo y esta clave. No se vuelve a mostrar: si se pierde, genera otra.</p>
+  <p><a class="btn ghost" href="/admin/personas/${u.id}">Volver a la ficha</a></p></section>`;
+
+export function academyCard(academy) {
+  return `<section class="card"><h2 style="margin-top:0">Academia</h2>${academy.length ? `<table class="tbl"><thead><tr><th>Módulo</th><th>Mes</th><th>Teoría</th><th>Mejor nota</th><th>Intentos</th><th>Resultado</th></tr></thead><tbody>
+    ${academy.map((m) => `<tr><td><strong>${m.numero ? `${m.numero}. ` : ''}${esc(m.titulo)}</strong></td><td>${esc(fmonth(m.mes))}</td><td>${m.leido ? '<span class="badge ok">Leída</span>' : '<span class="badge muted">Pendiente</span>'}</td>
+      <td>${m.best != null ? `${m.best}%` : '—'}</td><td>${m.intentos}/2</td><td>${m.aprobado ? '<span class="badge ok">Aprobado</span>' : m.intentos >= 2 ? '<span class="badge err">No aprobó</span>' : '<span class="badge warn">En curso</span>'}</td></tr>`).join('')}
+  </tbody></table>` : '<p class="muted">Aún no hay módulos publicados para su área.</p>'}</section>`;
+}
+
+export function editPerson(p, sedes, ok, pw) {
+  return `<section class="card" id="datos"><div class="row-head"><div><h2 style="margin-top:0">Datos y acceso</h2><p class="muted small">Acceso: ${pw?.tiene ? (pw.pass_temp ? '<span class="badge warn">Clave temporal sin cambiar</span>' : '<span class="badge ok">Tiene clave</span>') : '<span class="badge muted">Sin clave · entra con enlace al correo</span>'}</p></div>
+    <form method="post" action="/admin/personas/${p.id}/clave" class="inline" onsubmit="return confirm('¿Generar una clave temporal? La clave actual dejará de funcionar.')"><button class="btn ghost">Asignar clave temporal</button></form></div>
+    ${ok ? '<p class="notice ok">Datos guardados.</p>' : ''}
+    <form method="post" action="/admin/personas/${p.id}/datos" class="stack">
+      <div class="grid2"><label>Nombre<input name="name" required value="${esc(p.name)}"></label><label>Correo<input type="email" name="email" required value="${esc(p.email)}"></label></div>
+      <div class="grid2"><label>Área<select name="area" required>${AREA_OPTS(p.area)}</select></label><label>Sede<input name="sede" list="sedes-list" value="${esc(p.sede)}"><datalist id="sedes-list">${sedes.map((x) => `<option value="${esc(x)}">`).join('')}</datalist></label></div>
+      <div class="grid2"><label>Cargo<input name="cargo" value="${esc(p.cargo)}"></label><label>Teléfono<input name="telefono" value="${esc(p.telefono)}"></label></div>
+      <p class="muted small">Si cambias el área, su evaluación actual se conserva; asigna una nueva evaluación si quieres medirla con las preguntas de la nueva área.</p>
+      <div><button class="btn">Guardar datos</button></div></form></section>`;
+}
 export const enterPage = (t) => `<div class="split">${authArt('Bienvenido.', 'Estás a un paso de entrar a tu espacio.')}
 <section class="auth-panel"><div class="auth-form"><h2>Entra a tu espacio</h2><p class="muted">Toca el botón para iniciar sesión en este dispositivo.</p>
 <form method="post" action="/entrar/${esc(t)}"><button class="btn block">Entrar</button></form></div></section></div>`;
@@ -277,7 +317,7 @@ export function adminPerson(person, evs, sessions, inviteLink, mailOk, plans = [
     ${ev.report ? `<a class="btn ghost" href="/admin/personas/${person.id}/informe.pdf?ev=${ev.id}">Descargar PDF</a>` : ''}` : '';
   return `<p><a href="/admin">← Panel</a></p>${error ? `<p class="notice err">${esc(error)}</p>` : ''}${person.active ? '' : '<p class="notice warn">Esta persona está desactivada: no puede entrar ni recibe mensajes.</p>'}
   <div class="row-head"><div><p class="eyebrow">${esc(areaLabel(person.area))}${person.cargo ? ` · ${esc(person.cargo)}` : ''}${person.sede ? ` · ${esc(person.sede)}` : ''}</p><div class="person-id">${avatar(person, 'lg')}<div><h1>${esc(person.name)}</h1><p class="muted">${esc(person.email)}</p></div></div></div>
-    <div class="actions"><form method="post" action="/admin/personas/${person.id}/enlace" class="inline"><button class="btn ghost">${mailOk ? 'Reenviar enlace' : 'Generar enlace'}</button></form>
+    <div class="actions"><a class="btn" href="/admin/personas/${person.id}/vista">Ver su espacio</a>${person.lider ? `<a class="btn ghost" href="/admin/lideres/${person.id}">Ver su equipo</a>` : ''}<a class="btn ghost" href="#datos">Editar datos</a><form method="post" action="/admin/personas/${person.id}/enlace" class="inline"><button class="btn ghost">${mailOk ? 'Reenviar enlace' : 'Generar enlace'}</button></form>
     ${person.telefono ? `<form method="post" action="/admin/personas/${person.id}/whatsapp" class="inline" target="_blank"><button class="btn ghost">Enviar enlace por WhatsApp</button></form>` : ''}
     <form method="post" action="/admin/personas/${person.id}/evaluacion" class="inline" onsubmit="return confirm('¿Asignar una nueva evaluación? La anterior queda en el historial.')"><button class="btn ghost">Nueva evaluación</button></form>
     <form method="post" action="/admin/personas/${person.id}/desactivar" class="inline" onsubmit="return confirm('¿Cambiar el estado de esta persona?')"><button class="btn ghost">${person.active ? 'Desactivar' : 'Reactivar'}</button></form>
@@ -882,10 +922,7 @@ export function leaderPerson(person, ev, plans, academy, ctx) {
   return `<p><a href="/lider">← Mi equipo</a></p>
   <div class="row-head"><div><p class="eyebrow">${esc(areaLabel(person.area))}${person.cargo ? ` · ${esc(person.cargo)}` : ''}${person.sede ? ` · ${esc(person.sede)}` : ''}</p><div class="person-id">${avatar(person, 'lg')}<div><h1>${esc(person.name)}</h1><p class="muted">${esc(person.email)}</p></div></div></div>
     <div class="actions">${ev?.report ? `<a class="btn ghost" href="/lider/personas/${person.id}/informe.pdf">Descargar informe PDF</a>` : ''}<a class="btn ghost" href="#sesiones">Registrar 1:1</a></div></div>
-  <section class="card"><h2 style="margin-top:0">Academia</h2>${academy.length ? `<table class="tbl"><thead><tr><th>Módulo</th><th>Mes</th><th>Teoría</th><th>Mejor nota</th><th>Intentos</th><th>Resultado</th></tr></thead><tbody>
-    ${academy.map((m) => `<tr><td><strong>${m.numero ? `${m.numero}. ` : ''}${esc(m.titulo)}</strong></td><td>${esc(fmonth(m.mes))}</td><td>${m.leido ? '<span class="badge ok">Leída</span>' : '<span class="badge muted">Pendiente</span>'}</td>
-      <td>${m.best != null ? `${m.best}%` : '—'}</td><td>${m.intentos}/2</td><td>${m.aprobado ? '<span class="badge ok">Aprobado</span>' : m.intentos >= 2 ? '<span class="badge err">No aprobó</span>' : '<span class="badge warn">En curso</span>'}</td></tr>`).join('')}
-  </tbody></table>` : '<p class="muted">Aún no hay módulos publicados para su área.</p>'}</section>
+  ${academyCard(academy)}
   ${plan ? `<section class="card"><h2 style="margin-top:0">Plan de ${esc(fmonth(plan.mes))}</h2>${plan.objetivo ? `<p><strong>${esc(plan.objetivo)}</strong></p>` : ''}<ul class="ev">${plan.items.map((i) => `<li><strong>${esc(i.accion)} ${badge(i.estado)}</strong>${i.indicador ? `<span>Indicador: ${esc(i.indicador)}</span>` : ''}${i.nota ? `<em>${esc(i.nota)}</em>` : ''}</li>`).join('')}</ul></section>` : ''}
   ${ev?.report ? reportView(ev) : `<section class="card"><p class="muted">${ev ? `Evaluación: ${badge(ev.status)} · el informe aparecerá cuando esté analizada.` : 'Sin evaluación asignada.'}</p></section>`}
   ${oneOnOne(person, ctx, `/lider/personas/${person.id}/sesiones`)}`;
@@ -1013,7 +1050,7 @@ export function voiceCard(person, v, { token = '', base = '', survey, self = fal
   const dims = survey.dims.map(([k, t]) => ({ l: t, v: v.dims.find((d) => d.k === k)?.v ?? null, c: (v.dims.find((d) => d.k === k)?.v ?? 0) >= 4 ? COL.signal : (v.dims.find((d) => d.k === k)?.v ?? 0) >= 3 ? COL.amber : COL.err }));
   return `<section class="card voice" id="voz"><div class="row-head"><div><p class="eyebrow">Voz de quienes ${self ? 'atiendes' : 'atiende'} · ${esc(survey.publico)}</p><h2 style="margin:4px 0">${self ? 'Así te ven' : 'Cómo lo ven'}</h2></div>
     <div class="actions">${self ? `<a class="btn" href="/tarjeta/${person.id}">Ver e imprimir mi código QR</a>` : `<a class="btn ghost" href="/tarjeta/${person.id}">Código QR</a>`}</div></div>
-    ${self ? `<div class="voice-qr"><img src="/qr/${esc(token)}.svg" alt="Tu código QR" width="120" height="120"><div><p>Muestra tu código al terminar cada atención o comparte el enlace. Las respuestas son anónimas.</p><input class="copy" readonly value="${esc(url)}" onclick="this.select()"></div></div>` : ''}
+    ${token ? `<div class="voice-qr"><img src="/qr/${esc(token)}.svg" alt="Código QR" width="120" height="120"><div><p>${self ? 'Muestra tu código al terminar cada atención o comparte el enlace. Las respuestas son anónimas.' : 'Su código QR personal. Las respuestas son anónimas.'}</p><input class="copy" readonly value="${esc(url)}" onclick="this.select()"></div></div>` : ''}
     ${v.meta ? `<div class="voice-meta"><div class="row-head"><strong>Meta del mes: ${v.n_mes} de ${v.meta} calificaciones</strong><span class="muted small">${Math.min(100, Math.round((100 * v.n_mes) / v.meta))}%</span></div><div class="bar"><span style="width:${Math.min(100, Math.round((100 * v.n_mes) / v.meta))}%"></span></div><p class="muted small">Solo cuentan las calificaciones válidas: las hechas desde celulares o computadores del equipo no cuentan.</p></div>` : ''}
     ${v.closedOnly ? `<p class="notice info">Tus resultados se publican al cierre de cada mes${v.n ? '; abajo ves los de los meses anteriores' : ''}.</p>` : ''}
     ${v.n ? `<p class="ai-score"><b>${v.prom.toFixed(1)}</b><span>de 5 · ${v.n} respuesta${v.n > 1 ? 's' : ''}${v.closedOnly ? ' hasta el mes pasado' : v.n30 ? ` · ${v.n30} en los últimos 30 días` : ''}</span></p>${hbars(dims, { max: 5 })}

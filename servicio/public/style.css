@@ -667,3 +667,4 @@ ul.ev.neg li { border-left-color: var(--err); }
 .voice-meta { background: #EEF2F7; border-radius: 14px; padding: 12px 14px; margin: 10px 0 14px; } .voice-meta .row-head { margin: 0 0 8px; } .voice-meta p { margin: 8px 0 0; } .voice-c form.inline { display: inline-flex; gap: 6px; margin-left: 6px; }
 .fb-scale label, .fb-chips label { position: relative; } .fb { overflow-x: hidden; }
 .fb-q .num { color: #041E42; font-weight: 700; background: #E3F5F2; }
+.temp-pw { font: 700 2.2rem/1 Gotham, monospace; letter-spacing: .08em; background: #EEF2F7; border-radius: 14px; padding: 18px; text-align: center; color: #041E42; } .as-view { border: 2px dashed #C9D4E2; border-radius: 22px; padding: 18px; background: #F7F9FC; } .notice-card { border-left: 6px solid #1FA59A; }
