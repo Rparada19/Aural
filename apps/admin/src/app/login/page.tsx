@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -12,6 +12,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Si un enlace de correo vencido trae al login, se explica en vez de no hacer nada.
+  useEffect(() => {
+    const h = new URLSearchParams(window.location.hash.slice(1));
+    if (h.get('error_code') === 'otp_expired' || h.get('error_description')) setError('El enlace del correo expiró o ya se usó. Pide uno nuevo en "¿Olvidaste tu contraseña?".');
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

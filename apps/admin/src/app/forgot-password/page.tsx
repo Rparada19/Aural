@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -10,6 +10,10 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search), h = new URLSearchParams(window.location.hash.slice(1));
+    if (q.get('error') || h.get('error_description')) setError('El enlace que abriste no es válido o ya expiró. Pide uno nuevo y ábrelo en este mismo navegador.');
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

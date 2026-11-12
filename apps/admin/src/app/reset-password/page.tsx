@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -12,6 +13,22 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [ready, setReady] = useState<'checking' | 'ok' | 'missing'>('checking');
+
+  // El enlace del correo debe dejar una sesión de recuperación; si no la hay, el enlace expiró o se abrió en otro navegador.
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient();
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    if (hash.get('error_description')) { setReady('missing'); return; }
+    let alive = true;
+    const check = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (alive) setReady(data.session ? 'ok' : 'missing');
+    };
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => { if (session && alive) setReady('ok'); });
+    setTimeout(check, 400);
+    return () => { alive = false; sub.subscription.unsubscribe(); };
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -24,7 +41,7 @@ export default function ResetPasswordPage() {
     setLoading(false);
     if (err) { setError(err.message); return; }
     setDone(true);
-    setTimeout(() => router.replace('/login'), 1500);
+    setTimeout(() => router.replace('/'), 1500);
   }
 
   return (
@@ -36,7 +53,15 @@ export default function ResetPasswordPage() {
         </div>
 
         {done ? (
-          <p className="text-success text-center font-semibold">Contraseña actualizada. Redirigiendo…</p>
+          <p className="text-success text-center font-semibold">Contraseña actualizada. Entrando…</p>
+        ) : ready === 'checking' ? (
+          <p className="text-secondary text-center text-sm">Verificando el enlace…</p>
+        ) : ready === 'missing' ? (
+          <div className="text-center space-y-3">
+            <p className="text-danger font-semibold">El enlace no es válido o ya expiró</p>
+            <p className="text-sm text-secondary">Pide un enlace nuevo y ábrelo en este mismo navegador, unos segundos después de que llegue el correo.</p>
+            <Link href="/forgot-password" className="inline-block mt-2 text-primary text-sm font-semibold hover:underline">Pedir un enlace nuevo</Link>
+          </div>
         ) : (
           <form onSubmit={onSubmit} className="space-y-4">
             <label className="block">

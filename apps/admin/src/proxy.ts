@@ -25,6 +25,25 @@ export async function proxy(req: NextRequest) {
     },
   );
 
+  // Enlaces de correo (recuperar contraseña): si Supabase devuelve el código a cualquier
+  // ruta (por ejemplo a la raíz cuando la URL de retorno no está permitida), se canjea aquí
+  // y se lleva a la persona a crear su nueva contraseña, en vez de perder el código en /login.
+  const sp = req.nextUrl.searchParams;
+  const code = sp.get('code');
+  const tokenHash = sp.get('token_hash');
+  if ((code || tokenHash) && !req.nextUrl.pathname.startsWith('/auth')) {
+    const { error } = code
+      ? await supabase.auth.exchangeCodeForSession(code)
+      : await supabase.auth.verifyOtp({ type: (sp.get('type') as 'recovery') || 'recovery', token_hash: tokenHash! });
+    const url = req.nextUrl.clone();
+    url.search = '';
+    url.pathname = error ? '/forgot-password' : '/reset-password';
+    if (error) url.searchParams.set('error', 'enlace');
+    const redirect = NextResponse.redirect(url);
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
+  }
+
   const { data: { user } } = await supabase.auth.getUser();
 
   const path = req.nextUrl.pathname;
