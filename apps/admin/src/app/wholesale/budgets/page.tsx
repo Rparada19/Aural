@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { WholesaleLayout, PageHead } from '@/components/WholesaleLayout';
 import { EmptyState } from '@/components/wholesale/MetricCard';
+import { BudgetImport } from '@/components/wholesale/BudgetImport';
 import { requireWholesaleMe, cop } from '@/lib/wholesale';
 
 export const dynamic = 'force-dynamic';
@@ -188,7 +189,8 @@ export default async function WholesaleBudgetsPage({
             : 'Por zona. Entra a una para ver sus clientes mes a mes.'
         }
         actions={
-          <div className="flex gap-1.5">
+          <div className="flex gap-1.5 items-center">
+            {me.isCoordination && <span className="mr-2"><BudgetImport defaultYear={new Date().getMonth() >= 9 ? new Date().getFullYear() + 1 : year} /></span>}
             {years.map((y) => (
               <Link key={y} href={`/wholesale/budgets?year=${y}`} className="wsale-chip" data-on={y === year}>
                 {y}
