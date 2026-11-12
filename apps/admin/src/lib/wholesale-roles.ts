@@ -106,6 +106,7 @@ export const ROLE_LABEL: Record<WholesaleRole, string> = {
 export const MODULES = [
   { key: 'resumen', label: 'Resumen', href: '/wholesale', hint: 'Ventas del mes y del año' },
   { key: 'alertas', label: 'Alertas', href: '/wholesale/alertas', hint: 'Lo que hay que atender hoy' },
+  { key: 'agenda', label: 'Mi agenda', href: '/wholesale/mi-agenda', hint: 'Visitas, metas, gastos e informe del mes' },
   { key: 'pendientes', label: 'Mis pendientes', href: '/wholesale/pendientes', hint: 'Tareas y bloc de notas personal' },
   { key: 'clientes', label: 'Clientes', href: '/wholesale/clients', hint: 'Fichas de los centros' },
   { key: 'casos', label: 'Casos de servicio', href: '/wholesale/casos', hint: 'Reparaciones, garantías, pedidos y despachos' },
@@ -124,11 +125,13 @@ export type ModuleKey = (typeof MODULES)[number]['key'];
 
 /** Secciones que solo coordinación puede tener, nunca se le dan a otros. */
 export const COORDINATION_ONLY: ModuleKey[] = ['comerciales', 'equipo', 'accesos'];
+/** Secciones que solo tienen sentido para quien tiene ficha de comercial. */
+export const REP_ONLY: ModuleKey[] = ['agenda'];
 
 export const DEFAULT_MODULES: Record<WholesaleRole, ModuleKey[]> = {
-  admin: MODULES.map((m) => m.key),
-  coordinator: MODULES.map((m) => m.key),
-  rep: ['resumen', 'alertas', 'pendientes', 'clientes', 'casos', 'prestamos', 'oportunidades', 'ventas', 'presupuestos', 'proyectos', 'celebraciones', 'documentos'],
+  admin: MODULES.map((m) => m.key).filter((k) => k !== 'agenda'),
+  coordinator: MODULES.map((m) => m.key).filter((k) => k !== 'agenda'),
+  rep: ['resumen', 'alertas', 'agenda', 'pendientes', 'clientes', 'casos', 'prestamos', 'oportunidades', 'ventas', 'presupuestos', 'proyectos', 'celebraciones', 'documentos'],
   assistant: ['alertas', 'pendientes', 'clientes', 'casos', 'prestamos', 'oportunidades', 'celebraciones', 'documentos'],
 };
 
