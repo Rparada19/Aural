@@ -13,7 +13,8 @@ export const dynamic = 'force-dynamic';
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-export default async function WholesaleDashboard() {
+export default async function WholesaleDashboard({ searchParams }: { searchParams: Promise<{ rep?: string }> }) {
+  const sp = await searchParams;
   const me = await requireWholesaleMe('resumen');
   const supabase = await createSupabaseServerClient();
   const alerts = me.modules.includes('alertas') ? await buildAlerts(supabase, me).catch(() => []) : [];
@@ -35,7 +36,7 @@ export default async function WholesaleDashboard() {
       .is('deleted_at', null),
     supabase
       .from('wholesale_budgets')
-      .select('month, amount, units')
+      .select('client_id, month, amount, units')
       .eq('year', now.getFullYear()),
     supabase
       .from('wholesale_loans')
@@ -45,15 +46,28 @@ export default async function WholesaleDashboard() {
       .order('due_on'),
     supabase.from('wholesale_reps').select('id, name').is('deleted_at', null),
   ]);
+  const [{ data: zoneBudgets }, { data: opps }] = await Promise.all([
+    supabase.from('wholesale_zone_budgets').select('zone, month, amount').eq('year', now.getFullYear()),
+    supabase.from('wholesale_opportunities').select('rep_id, client_id, stage, kind, est_amount, probability, won_on').is('deleted_at', null),
+  ]);
 
-  const clientList = clients ?? [];
-  const allSales = sales ?? [];
+  // Coordinación puede mirar el resumen de un solo comercial
+  const repFilter = me.isCoordination && sp.rep ? sp.rep : null;
+  const allClients = clients ?? [];
+  const clientList = repFilter ? allClients.filter((c) => c.rep_id === repFilter) : allClients;
+  const inScope = new Set(clientList.map((c) => c.id));
+  const allSalesRaw = sales ?? [];
+  const allSales = allSalesRaw.filter((s) => inScope.has(s.client_id));
   const saleList = allSales.filter((s) => s.sold_on >= yearStart);
   const monthSales = saleList.filter((s) => s.sold_on >= monthStart);
   const month = salesMetrics(monthSales);
   const year = salesMetrics(saleList);
 
-  const budgetList = budgets ?? [];
+  // Presupuesto: el oficial por zona si existe y se mira todo el canal; si no, el de los clientes
+  const useZone = !repFilter && (zoneBudgets ?? []).length > 0;
+  const budgetList = useZone
+    ? (zoneBudgets ?? []).map((z) => ({ month: z.month, amount: z.amount, units: 0 }))
+    : (budgets ?? []).filter((b) => inScope.has(b.client_id));
   const monthBudget = budgetList
     .filter((b) => b.month === now.getMonth() + 1)
     .reduce((a, b) => a + Number(b.amount ?? 0), 0);
@@ -79,7 +93,7 @@ export default async function WholesaleDashboard() {
     .slice(0, 5);
 
   // Equipos prestados que hay que recuperar
-  const openLoans = ((loans ?? []) as Loan[]).sort((a, b) => a.due_on.localeCompare(b.due_on));
+  const openLoans = ((loans ?? []) as Loan[]).filter((l) => !repFilter || l.rep_id === repFilter).sort((a, b) => a.due_on.localeCompare(b.due_on));
   const overdueLoans = openLoans.filter((l) => daysLeft(l.due_on) < 0);
   const repNameById = new Map((reps ?? []).map((r) => [r.id, r.name]));
   const clientNameById = new Map(clientList.map((c) => [c.id, c.name]));
@@ -116,18 +130,65 @@ export default async function WholesaleDashboard() {
     // Primero los que más pesan: quien más compra es quien más duele perder
     .sort((a, b) => b.lifetime - a.lifetime);
 
+  // Estadísticas por comercial y del canal completo
+  const repOfClient = new Map(allClients.map((c) => [c.id, c.rep_id as string | null]));
+  const OPEN = ['identificado', 'contactado', 'visitado', 'demo', 'propuesta', 'negociacion'];
+  const thisYear = String(now.getFullYear());
+  const statRow = (repId: string | null | 'all') => {
+    const match = (cid: string) => repId === 'all' || (repOfClient.get(cid) ?? null) === repId;
+    const ys = allSalesRaw.filter((x) => x.sold_on >= yearStart && match(x.client_id));
+    const ms = ys.filter((x) => x.sold_on >= monthStart);
+    const yM = salesMetrics(ys), mM = salesMetrics(ms);
+    const cb = repId === 'all' && (zoneBudgets ?? []).length
+      ? (zoneBudgets ?? []).map((z) => ({ month: z.month, amount: Number(z.amount) }))
+      : (budgets ?? []).filter((b) => match(b.client_id)).map((b) => ({ month: b.month, amount: Number(b.amount) }));
+    const bMonth = cb.filter((b) => b.month === now.getMonth() + 1).reduce((a, b) => a + b.amount, 0);
+    const bYtd = cb.filter((b) => b.month <= now.getMonth() + 1).reduce((a, b) => a + b.amount, 0);
+    const portfolio = allClients.filter((c) => repId === 'all' || (c.rep_id ?? null) === repId).length;
+    const buyers = new Set(ys.map((x) => x.client_id)).size;
+    const ls = ((loans ?? []) as Loan[]).filter((l) => repId === 'all' || (l.rep_id ?? null) === repId);
+    const os = (opps ?? []).filter((o) => repId === 'all' || (o.rep_id ?? null) === repId);
+    const open = os.filter((o) => OPEN.includes(o.stage));
+    return {
+      month: mM, year: yM, bMonth, bYtd, portfolio, buyers,
+      loans: ls.length, loansLate: ls.filter((l) => daysLeft(l.due_on) < 0).length,
+      openOpps: open.length,
+      weighted: open.reduce((a, o) => a + Number(o.est_amount ?? 0) * (o.probability ?? 0) / 100, 0),
+      newWon: os.filter((o) => o.stage === 'ganado' && o.kind === 'cuenta_nueva' && (o.won_on ?? '').startsWith(thisYear)).length,
+    };
+  };
+  const repStats = me.isCoordination && !repFilter
+    ? [
+        ...(reps ?? []).map((r) => ({ id: r.id, name: r.name, ...statRow(r.id) })),
+        ...(allClients.some((c) => !c.rep_id) ? [{ id: 'none', name: 'Sin comercial', ...statRow(null) }] : []),
+      ].filter((r) => r.portfolio > 0 || r.year.count > 0 || r.openOpps > 0)
+    : [];
+  const channel = repStats.length ? statRow('all') : null;
+  const ratio = (a: number, b: number) => (b > 0 ? `${Math.round(a / b * 100)}%` : '—');
+  const ratioCls = (a: number, b: number) => (b <= 0 ? 'text-[var(--ink-faint)]' : a / b >= 1 ? 'wsale-good font-semibold' : a / b >= 0.8 ? 'wsale-warn' : 'wsale-bad');
+  const repName = repFilter ? repNameById.get(repFilter) : null;
+
   const MONTHS_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
       <PageHead
         overline={`${MONTHS_FULL[now.getMonth()]} ${now.getFullYear()}`}
-        title={me.isCoordination ? 'Resumen del canal' : `Tu zona, ${me.full_name.split(' ')[0]}`}
+        title={repName ? `Resumen de ${repName}` : me.isCoordination ? 'Resumen del canal' : `Tu zona, ${me.full_name.split(' ')[0]}`}
         subtitle={`${clientList.length} cliente${clientList.length === 1 ? '' : 's'} activo${clientList.length === 1 ? '' : 's'} · ${openLoans.length} equipo${openLoans.length === 1 ? '' : 's'} prestado${openLoans.length === 1 ? '' : 's'}`}
         actions={
           <Link href="/wholesale/sales/new" className="wsale-btn">Registrar venta</Link>
         }
       />
+
+      {me.isCoordination && (reps ?? []).length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          <Link href="/wholesale" className="wsale-chip" data-on={!repFilter}>Todo el canal</Link>
+          {(reps ?? []).map((r) => (
+            <Link key={r.id} href={`/wholesale?rep=${r.id}`} className="wsale-chip" data-on={repFilter === r.id}>{r.name}</Link>
+          ))}
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_380px] mb-8 items-start">
         <section>
@@ -173,6 +234,59 @@ export default async function WholesaleDashboard() {
               tone={month.rechargeableRate >= 0.5 ? 'success' : 'warning'}
             />
           </section>
+
+          {channel && (
+            <section className="wsale-panel mt-8 overflow-x-auto">
+              <div className="flex items-baseline justify-between gap-4 px-6 pt-5 pb-3">
+                <h2 className="wsale-display text-[17px]">Estadísticas por comercial</h2>
+                <p className="text-[12px] text-[var(--ink-soft)]">{MONTHS_FULL[now.getMonth()]} y acumulado {now.getFullYear()} · toca un nombre para ver su resumen</p>
+              </div>
+              <table className="wsale-table min-w-[1100px]">
+                <thead>
+                  <tr>
+                    <th>Comercial</th>
+                    <th className="num">Venta mes</th>
+                    <th className="num">% ppto mes</th>
+                    <th className="num">Venta año</th>
+                    <th className="num">% ppto año</th>
+                    <th className="num">Unid. año</th>
+                    <th className="num">ASP</th>
+                    <th className="num">Binaural</th>
+                    <th className="num">Recargable</th>
+                    <th className="num">Clientes que compran</th>
+                    <th className="num">Préstamos</th>
+                    <th className="num">Oport. abiertas</th>
+                    <th className="num">Embudo ponderado</th>
+                    <th className="num">Cuentas nuevas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...repStats, { id: 'all', name: 'Canal completo', ...channel }].map((r) => {
+                    const total = r.id === 'all';
+                    return (
+                      <tr key={r.id} className={total ? 'font-semibold bg-[var(--paper)]' : ''}>
+                        <td>{total || r.id === 'none' ? r.name : <Link href={`/wholesale?rep=${r.id}`} className="hover:text-[var(--accent)]">{r.name}</Link>}</td>
+                        <td className="num">{cop(r.month.revenue)}</td>
+                        <td className={`num ${ratioCls(r.month.revenue, r.bMonth)}`}>{ratio(r.month.revenue, r.bMonth)}</td>
+                        <td className="num">{cop(r.year.revenue)}</td>
+                        <td className={`num ${ratioCls(r.year.revenue, r.bYtd)}`}>{ratio(r.year.revenue, r.bYtd)}</td>
+                        <td className="num">{r.year.units}</td>
+                        <td className="num">{r.year.asp > 0 ? cop(r.year.asp) : '—'}</td>
+                        <td className="num">{r.year.count ? pct(r.year.binauralRate) : '—'}</td>
+                        <td className="num">{r.year.count ? pct(r.year.rechargeableRate) : '—'}</td>
+                        <td className="num">{r.buyers} de {r.portfolio}</td>
+                        <td className={`num ${r.loansLate ? 'wsale-bad' : ''}`}>{r.loans}{r.loansLate ? ` (${r.loansLate} venc.)` : ''}</td>
+                        <td className="num">{r.openOpps}</td>
+                        <td className="num">{r.weighted ? cop(r.weighted) : '—'}</td>
+                        <td className="num">{r.newWon}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="text-[11px] text-[var(--ink-faint)] px-6 py-3">% ppto año compara contra lo presupuestado hasta este mes. En “Canal completo” se usa el presupuesto oficial por zona cuando está cargado.</p>
+            </section>
+          )}
 
           {/* Tendencia del año: columnas finas, el mes en curso en cobre */}
           <section className="wsale-panel mt-8 p-6">
