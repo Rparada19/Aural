@@ -507,7 +507,7 @@ export async function createLoan(input: {
   });
   if (error) throw error;
 
-  revalidatePath('/wholesale/loans');
+  revalidatePath('/wholesale/prestamos');
   if (client.rep_id) revalidatePath(`/wholesale/reps/${client.rep_id}`);
   revalidatePath(`/wholesale/clients/${input.client_id}`);
 }
@@ -519,7 +519,7 @@ export async function returnLoan(loanId: string, returnedOn?: string) {
     .update({ status: 'returned', returned_on: returnedOn ?? new Date().toISOString().slice(0, 10) })
     .eq('id', loanId);
   if (error) throw error;
-  revalidatePath('/wholesale/loans');
+  revalidatePath('/wholesale/prestamos');
   revalidatePath('/wholesale/reps', 'layout');
 }
 
@@ -574,8 +574,22 @@ export async function sellLoan(loanId: string, input: {
     .eq('id', loanId);
   if (error) throw error;
 
-  revalidatePath('/wholesale/loans');
+  revalidatePath('/wholesale/prestamos');
   revalidatePath('/wholesale/sales');
+  revalidatePath(`/wholesale/clients/${loan.client_id}`);
+}
+
+/** Más días de prueba: cuenta desde el vencimiento o desde hoy si ya venció. */
+export async function extendLoan(loanId: string, days = 7) {
+  const { supabase } = await ensureMember();
+  const { data: loan, error: e1 } = await supabase.from('wholesale_loans').select('due_on, client_id').eq('id', loanId).single();
+  if (e1 || !loan) throw e1 ?? new Error('Préstamo no encontrado');
+  const today = new Date(Date.now() - 5 * 3_600_000).toISOString().slice(0, 10);
+  const base = loan.due_on > today ? loan.due_on : today;
+  const due = new Date(Date.parse(`${base}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+  const { error } = await supabase.from('wholesale_loans').update({ due_on: due }).eq('id', loanId);
+  if (error) throw error;
+  revalidatePath('/wholesale/prestamos');
   revalidatePath(`/wholesale/clients/${loan.client_id}`);
 }
 
@@ -586,7 +600,7 @@ export async function deleteLoan(loanId: string) {
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', loanId);
   if (error) throw error;
-  revalidatePath('/wholesale/loans');
+  revalidatePath('/wholesale/prestamos');
 }
 
 const DOCS_BUCKET = 'wholesale-docs';

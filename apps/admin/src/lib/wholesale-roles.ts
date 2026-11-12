@@ -105,8 +105,10 @@ export const ROLE_LABEL: Record<WholesaleRole, string> = {
  *  quitarle o darle secciones a una persona puntual. */
 export const MODULES = [
   { key: 'resumen', label: 'Resumen', href: '/wholesale', hint: 'Ventas del mes y del año' },
+  { key: 'alertas', label: 'Alertas', href: '/wholesale/alertas', hint: 'Lo que hay que atender hoy' },
   { key: 'clientes', label: 'Clientes', href: '/wholesale/clients', hint: 'Fichas de los centros' },
   { key: 'casos', label: 'Casos de servicio', href: '/wholesale/casos', hint: 'Reparaciones, garantías, pedidos y despachos' },
+  { key: 'prestamos', label: 'Préstamos', href: '/wholesale/prestamos', hint: 'Equipos de prueba en los centros' },
   { key: 'oportunidades', label: 'Oportunidades', href: '/wholesale/oportunidades', hint: 'CRM de prospectos y negocios' },
   { key: 'ventas', label: 'Ventas', href: '/wholesale/sales', hint: 'Facturación y mezcla de producto' },
   { key: 'presupuestos', label: 'Presupuestos', href: '/wholesale/budgets', hint: 'Metas por cliente' },
@@ -125,8 +127,8 @@ export const COORDINATION_ONLY: ModuleKey[] = ['comerciales', 'equipo', 'accesos
 export const DEFAULT_MODULES: Record<WholesaleRole, ModuleKey[]> = {
   admin: MODULES.map((m) => m.key),
   coordinator: MODULES.map((m) => m.key),
-  rep: ['resumen', 'clientes', 'casos', 'oportunidades', 'ventas', 'presupuestos', 'proyectos', 'celebraciones', 'documentos'],
-  assistant: ['clientes', 'casos', 'oportunidades', 'celebraciones', 'documentos'],
+  rep: ['resumen', 'alertas', 'clientes', 'casos', 'prestamos', 'oportunidades', 'ventas', 'presupuestos', 'proyectos', 'celebraciones', 'documentos'],
+  assistant: ['alertas', 'clientes', 'casos', 'prestamos', 'oportunidades', 'celebraciones', 'documentos'],
 };
 
 export function modulesFor(role: WholesaleRole, custom: string[] | null | undefined): ModuleKey[] {

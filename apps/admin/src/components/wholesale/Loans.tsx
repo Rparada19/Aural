@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createLoan, returnLoan, sellLoan, deleteLoan } from '@/app/actions/wholesale';
+import { createLoan, returnLoan, sellLoan, deleteLoan, extendLoan } from '@/app/actions/wholesale';
 import { Field, inputClass } from './Field';
 import { cop } from '@/lib/format';
 import { LOAN_DAYS, daysLeft, dueDateFrom, type Loan } from '@/lib/loans';
@@ -138,7 +138,14 @@ export function Loans({
                   Devuelto
                 </button>
                 <button
-                  onClick={() => run(l.id, () => deleteLoan(l.id))}
+                  onClick={() => run(l.id, () => extendLoan(l.id, 7))}
+                  disabled={busy === l.id}
+                  className="text-[var(--ink-soft)] hover:text-[var(--ink)] disabled:opacity-50"
+                >
+                  Dar 7 días más
+                </button>
+                <button
+                  onClick={() => confirm('¿Borrar este préstamo? Úsalo solo si se registró por error.') && run(l.id, () => deleteLoan(l.id))}
                   disabled={busy === l.id}
                   className="text-[var(--ink-soft)] hover:wsale-bad disabled:opacity-50 ml-auto"
                 >

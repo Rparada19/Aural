@@ -1,3 +1,5 @@
+import { buildAlerts } from '@/lib/alerts';
+import { AlertList } from '@/components/wholesale/AlertList';
 import Link from 'next/link';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { WholesaleLayout, PageHead } from '@/components/WholesaleLayout';
@@ -13,6 +15,8 @@ const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', '
 export default async function WholesaleDashboard() {
   const me = await requireWholesaleMe('resumen');
   const supabase = await createSupabaseServerClient();
+  const alerts = me.modules.includes('alertas') ? await buildAlerts(supabase, me).catch(() => []) : [];
+  const topAlerts = alerts.filter((a) => a.sev === 'alta' || a.sev === 'media' || a.sev === 'logro').slice(0, 5);
 
   const now = new Date();
   const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10);
@@ -123,6 +127,18 @@ export default async function WholesaleDashboard() {
           <Link href="/wholesale/sales/new" className="wsale-btn">Registrar venta</Link>
         }
       />
+
+      {topAlerts.length > 0 && (
+        <section className="mb-8">
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="wsale-overline">Para atender hoy</p>
+            <Link href="/wholesale/alertas" className="text-[12px] text-[var(--accent)]">
+              Ver las {alerts.length} alertas →
+            </Link>
+          </div>
+          <AlertList alerts={topAlerts} compact />
+        </section>
+      )}
 
       {clientList.length === 0 ? (
         <EmptyState

@@ -4,6 +4,8 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { WholesaleLayout } from '@/components/WholesaleLayout';
 import { MetricCard, EmptyState } from '@/components/wholesale/MetricCard';
 import { NewCase } from '@/components/wholesale/cases/CaseForms';
+import { Loans } from '@/components/wholesale/Loans';
+import type { Loan } from '@/lib/loans';
 import { CASE_KIND, CASE_STATUS, OPEN_STATUS } from '@/lib/cases';
 import { requireWholesaleMe, salesMetrics, cop, pct } from '@/lib/wholesale';
 
@@ -50,6 +52,15 @@ export default async function WholesaleClientDetail({
         .eq('client_id', id).is('deleted_at', null).order('created_at', { ascending: false }).limit(20)
     : { data: [] };
   const openCases = (clientCases ?? []).filter((c) => OPEN_STATUS.includes(c.status));
+  const [{ data: clientLoans }, { data: platforms }, { data: techLevels }] = me.modules.includes('prestamos')
+    ? await Promise.all([
+        supabase.from('wholesale_loans')
+          .select('id, client_id, rep_id, loaned_on, due_on, returned_on, platform, tech_level, style, units, binaural, rechargeable, serials, patient_name, notes, status')
+          .eq('client_id', id).is('deleted_at', null).order('due_on'),
+        supabase.from('wholesale_platforms').select('slug, label').eq('is_active', true).order('sort_order'),
+        supabase.from('wholesale_tech_levels').select('slug, label').eq('is_active', true).order('sort_order'),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }];
 
   const saleList = sales ?? [];
   const all = salesMetrics(saleList);
@@ -192,6 +203,17 @@ export default async function WholesaleClientDetail({
           </div>
         )}
       </section>
+      {me.modules.includes('prestamos') && (
+        <section className="mt-10 wsale-panel p-6">
+          <Loans
+            loans={(clientLoans ?? []) as Loan[]}
+            clients={[{ id: client.id, name: client.name }]}
+            catalogs={{ platforms: platforms ?? [], techLevels: techLevels ?? [], styles: (styles ?? []) as { slug: string; label: string }[] }}
+            canCreate
+          />
+        </section>
+      )}
+
       {me.modules.includes('casos') && (
         <section className="mt-10">
           <div className="flex items-center justify-between mb-3">
