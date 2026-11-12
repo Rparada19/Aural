@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addTask, toggleTask, deleteTask, saveNotepad } from '@/app/actions/tasks';
 
-export interface Task { id: string; title: string; due_on: string | null; done_at: string | null; created_by_name: string | null; mine: boolean }
+export interface Task { id: string; title: string; due_on: string | null; remind_at: string | null; done_at: string | null; created_by_name: string | null; mine: boolean }
 
 const today = () => new Date(Date.now() - 5 * 3_600_000).toISOString().slice(0, 10);
 
@@ -24,6 +24,7 @@ export function MyDesk({
   const [title, setTitle] = useState('');
   const [due, setDue] = useState('');
   const [owner, setOwner] = useState('');
+  const [alarm, setAlarm] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState(notepad);
@@ -63,20 +64,30 @@ export function MyDesk({
         <div className="space-y-3">
           <form className="space-y-2" onSubmit={(e) => {
             e.preventDefault();
-            run(() => addTask({ title, due_on: due || null, owner_id: owner || null })).then((ok) => { if (ok) { setTitle(''); setDue(''); setOwner(''); } });
+            const remind_at = alarm ? new Date(`${due || today()}T${alarm}:00-05:00`).toISOString() : null;
+            run(() => addTask({ title, due_on: due || (alarm ? today() : null), owner_id: owner || null, remind_at }))
+              .then((ok) => { if (ok) { setTitle(''); setDue(''); setAlarm(''); setOwner(''); } });
           }}>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} className="wsale-input" placeholder="Escribe un pendiente y presiona Enter" />
-            {title.trim() && (
-              <div className="flex flex-wrap gap-2 items-center">
-                <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="wsale-input !w-auto !h-9 text-[12px]" />
-                {people.length > 0 && (
-                  <select value={owner} onChange={(e) => setOwner(e.target.value)} className="wsale-input !w-auto !h-9 text-[12px]">
-                    <option value="">Para mí</option>
-                    {people.map((p) => <option key={p.id} value={p.id}>Para {p.name}</option>)}
-                  </select>
-                )}
-                <button className="wsale-btn !h-9" disabled={busy}>Agregar</button>
-              </div>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} className="wsale-input" placeholder="¿Qué tienes pendiente?" />
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+              <label className="block">
+                <span className="text-[11px] text-[var(--ink-soft)]">Vence</span>
+                <input type="date" value={due} onChange={(e) => setDue(e.target.value)} className="wsale-input !h-9 text-[12px]" />
+              </label>
+              <label className="block">
+                <span className="text-[11px] text-[var(--ink-soft)] flex items-center gap-1">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                  Alarma
+                </span>
+                <input type="time" value={alarm} onChange={(e) => setAlarm(e.target.value)} className="wsale-input !h-9 text-[12px]" />
+              </label>
+              <button className="wsale-btn !h-9" disabled={busy || !title.trim()}>Agregar</button>
+            </div>
+            {people.length > 0 && title.trim() && (
+              <select value={owner} onChange={(e) => setOwner(e.target.value)} className="wsale-input !h-9 text-[12px]">
+                <option value="">Para mí</option>
+                {people.map((p) => <option key={p.id} value={p.id}>Para {p.name}</option>)}
+              </select>
             )}
           </form>
 
@@ -90,9 +101,15 @@ export function MyDesk({
                   <li key={t.id} className="flex items-start gap-3 py-2 group">
                     <input type="checkbox" className="mt-1 w-4 h-4 accent-[var(--accent)] cursor-pointer" disabled={busy} onChange={() => run(() => toggleTask(t.id, true))} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] leading-snug">{t.title}</p>
+                      <p className="text-[13px] leading-snug flex items-center gap-1.5">
+                        {(d?.cls === 'wsale-bad' || d?.cls === 'wsale-warn') && (
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" className={d.cls}><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                        )}
+                        {t.title}
+                      </p>
                       <p className="text-[11px]">
                         {d && <span className={d.cls}>{d.text}</span>}
+                        {t.remind_at && <span className="text-[var(--ink-faint)]">{d ? ' · ' : ''}alarma {new Date(t.remind_at).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit', timeZone: 'America/Bogota' })}</span>}
                         {!t.mine ? null : t.created_by_name && t.created_by_name !== myName && (
                           <span className="text-[var(--ink-faint)]">{d ? ' · ' : ''}te lo asignó {t.created_by_name}</span>
                         )}

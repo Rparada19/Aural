@@ -8,7 +8,7 @@ export async function MyDeskServer({ me }: { me: WholesaleMe }) {
   const supabase = await createSupabaseServerClient();
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const [{ data: tasks }, { data: pad }] = await Promise.all([
-    supabase.from('wholesale_tasks').select('id, title, due_on, done_at, created_by_name, owner_id')
+    supabase.from('wholesale_tasks').select('id, title, due_on, remind_at, done_at, created_by_name, owner_id')
       .eq('owner_id', me.id).or(`done_at.is.null,done_at.gte.${weekAgo}`).order('created_at', { ascending: false }).limit(100),
     supabase.from('wholesale_notepads').select('body').eq('owner_id', me.id).maybeSingle(),
   ]);

@@ -4,6 +4,7 @@ import { LogoutButton } from './LogoutButton';
 import { MARKET_URL } from '@/lib/markets';
 import { ROLE_LABEL, MODULES } from '@/lib/wholesale-roles';
 import { getWholesaleMe } from '@/lib/wholesale';
+import { TaskBell } from '@/components/wholesale/TaskBell';
 
 import type { WholesaleRole } from '@/lib/wholesale-roles';
 export type { WholesaleRole };
@@ -69,7 +70,12 @@ export async function WholesaleLayout({
       </aside>
 
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-[1400px] mx-auto px-10 py-9">{children}</div>
+        {me && (
+          <div className="sticky top-0 z-30 flex justify-end px-10 pt-4 h-0 pointer-events-none">
+            <div className="pointer-events-auto"><TaskBell /></div>
+          </div>
+        )}
+        <div className="max-w-[1400px] mx-auto px-10 pt-[72px] pb-9">{children}</div>
       </main>
     </div>
   );

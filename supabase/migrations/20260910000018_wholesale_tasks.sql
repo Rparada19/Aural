@@ -38,3 +38,9 @@ create policy "wholesale_notepads_own" on public.wholesale_notepads
   for all to authenticated
   using (owner_id = auth.uid())
   with check (owner_id = auth.uid());
+
+-- Recordatorio con hora: la campana del portal avisa a esa hora
+alter table public.wholesale_tasks
+  add column if not exists remind_at timestamptz,
+  add column if not exists reminded_at timestamptz;
+create index if not exists wholesale_tasks_remind_idx on public.wholesale_tasks(owner_id, remind_at) where done_at is null and reminded_at is null;
