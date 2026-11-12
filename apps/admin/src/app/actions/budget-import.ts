@@ -3,24 +3,22 @@
 import { revalidatePath } from 'next/cache';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getWholesaleMe } from '@/lib/wholesale';
-import { parseBudgetFile } from '@/lib/budget-excel';
+import { parseBudgetFile, type ZoneMonth } from '@/lib/budget-excel';
 
-export interface PreviewRow {
-  client_id: string; name: string; zone: string | null;
-  amounts: number[]; units: number[]; total: number; totalUnits: number; replaces: boolean;
+export interface ZonePreview {
+  zone: string; known: boolean; replaces: boolean; months: number;
+  prev_amount: number; amount: number; units: number; cost: number;
 }
 
 async function coordination() {
   const me = await getWholesaleMe();
   if (!me?.isCoordination) throw new Error('Solo coordinación carga presupuestos');
-  return createSupabaseServerClient();
+  return { me, supabase: await createSupabaseServerClient() };
 }
 
-const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-/** Lee el Excel y dice qué va a cargar, sin guardar nada todavía. */
+/** Lee el Excel y resume por zona lo que va a cargar, sin guardar nada. */
 export async function previewBudgetFile(form: FormData) {
-  const supabase = await coordination();
+  const { supabase } = await coordination();
   const file = form.get('file');
   const year = Number(form.get('year'));
   if (!(file instanceof File) || file.size === 0) throw new Error('Elige el archivo');
@@ -29,38 +27,38 @@ export async function previewBudgetFile(form: FormData) {
   let parsed;
   try { parsed = await parseBudgetFile(await file.arrayBuffer()); }
   catch (e) { throw new Error(e instanceof Error ? e.message : 'No pude leer el archivo'); }
+  if (!parsed.rows.length) throw new Error('No encontré filas con zona y mes');
 
   const [{ data: clients }, { data: existing }] = await Promise.all([
-    supabase.from('wholesale_clients').select('id, name, nit, zone').is('deleted_at', null),
-    supabase.from('wholesale_budgets').select('client_id').eq('year', year),
+    supabase.from('wholesale_clients').select('zone').is('deleted_at', null),
+    supabase.from('wholesale_zone_budgets').select('zone').eq('year', year),
   ]);
-  const byNit = new Map((clients ?? []).filter((c) => c.nit).map((c) => [String(c.nit).replace(/\D/g, ''), c]));
-  const byName = new Map((clients ?? []).map((c) => [norm(c.name), c]));
-  const had = new Set((existing ?? []).map((b) => b.client_id));
+  const known = new Set((clients ?? []).map((c) => (c.zone ?? '').trim().toLowerCase()).filter(Boolean));
+  const had = new Set((existing ?? []).map((e) => e.zone.toLowerCase()));
 
-  const rows: PreviewRow[] = [];
-  const unknown: { nit: string; name: string; total: number }[] = [];
-  for (const r of parsed) {
-    const total = r.amounts.reduce((a, b) => a + b, 0);
-    const totalUnits = r.units.reduce((a, b) => a + b, 0);
-    const c = byNit.get(r.nit.replace(/\D/g, '')) ?? byName.get(norm(r.name));
-    if (!c) { if (total || totalUnits) unknown.push({ nit: r.nit, name: r.name, total }); continue; }
-    if (!total && !totalUnits) continue;
-    rows.push({ client_id: c.id, name: c.name, zone: c.zone, amounts: r.amounts, units: r.units, total, totalUnits, replaces: had.has(c.id) });
+  const byZone = new Map<string, ZonePreview>();
+  for (const r of parsed.rows) {
+    const k = r.zone.toLowerCase();
+    const z = byZone.get(k) ?? { zone: r.zone, known: known.has(k) || k === 'sin zona', replaces: had.has(k), months: 0, prev_amount: 0, amount: 0, units: 0, cost: 0 };
+    z.months += 1;
+    z.prev_amount += r.prev_amount; z.amount += r.amount; z.units += r.units; z.cost += r.cost;
+    byZone.set(k, z);
   }
-  rows.sort((a, b) => b.total - a.total);
-  return { year, rows, unknown };
+  return {
+    year, rows: parsed.rows, skipped: parsed.skipped,
+    zones: [...byZone.values()].sort((a, b) => b.amount - a.amount),
+  };
 }
 
-export async function importBudgets(year: number, rows: PreviewRow[]) {
-  const supabase = await coordination();
+export async function importBudgets(year: number, rows: ZoneMonth[]) {
+  const { me, supabase } = await coordination();
   if (!rows.length) throw new Error('No hay nada para cargar');
-  const values = rows.flatMap((r) => r.amounts.map((amount, k) => ({
-    client_id: r.client_id, year, month: k + 1, amount, units: r.units[k] ?? 0,
-  })));
-  const { error } = await supabase.from('wholesale_budgets').upsert(values, { onConflict: 'client_id,year,month' });
+  const { error } = await supabase.from('wholesale_zone_budgets').upsert(
+    rows.map((r) => ({ ...r, year, updated_by: me.id, updated_at: new Date().toISOString() })),
+    { onConflict: 'zone,year,month' },
+  );
   if (error) throw error;
   revalidatePath('/wholesale/budgets');
   revalidatePath('/wholesale');
-  return rows.length;
+  return new Set(rows.map((r) => r.zone.toLowerCase())).size;
 }

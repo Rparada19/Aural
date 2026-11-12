@@ -48,6 +48,8 @@ export default async function WholesaleBudgetsPage({
       .is('deleted_at', null),
     supabase.from('wholesale_reps').select('id, name').is('deleted_at', null),
   ]);
+  const { data: zoneBudgets } = await supabase
+    .from('wholesale_zone_budgets').select('zone, month, prev_units, prev_amount, units, amount, cost').eq('year', year);
 
   const clientList = clients ?? [];
   const repName = new Map((reps ?? []).map((r) => [r.id, r.name]));
@@ -176,6 +178,30 @@ export default async function WholesaleBudgetsPage({
     clients: acc.clients + z.clients,
   }), { budgetAmount: 0, budgetUnits: 0, ytdAmount: 0, ytdUnits: 0, actualAmount: 0, actualUnits: 0, clients: 0 });
 
+  // Presupuesto oficial por zona (cargado por Excel), contra lo vendido
+  const officialRows = (() => {
+    const map = new Map<string, { zone: string; prevYtd: number; budgetYtd: number; budget: number; cost: number; unitsYtd: number; actual: number; actualUnits: number }>();
+    for (const b of zoneBudgets ?? []) {
+      const k = b.zone.trim().toLowerCase();
+      const z = map.get(k) ?? { zone: b.zone, prevYtd: 0, budgetYtd: 0, budget: 0, cost: 0, unitsYtd: 0, actual: 0, actualUnits: 0 };
+      z.budget += Number(b.amount); z.cost += Number(b.cost);
+      if (b.month <= throughMonth) { z.prevYtd += Number(b.prev_amount); z.budgetYtd += Number(b.amount); z.unitsYtd += b.units; }
+      map.set(k, z);
+    }
+    const zoneById = new Map(clientList.map((c) => [c.id, zoneOf(c).toLowerCase()]));
+    for (const sl of saleList) {
+      if (!inYear(sl.sold_on) || Number(sl.sold_on.slice(5, 7)) > throughMonth) continue;
+      const z = map.get(zoneById.get(sl.client_id) ?? '');
+      if (z) { z.actual += Number(sl.net_amount ?? 0); z.actualUnits += Number(sl.units ?? 0); }
+    }
+    return [...map.values()].sort((a, b) => b.budget - a.budget);
+  })();
+  const official = officialRows.reduce((a, z) => ({
+    prevYtd: a.prevYtd + z.prevYtd, budgetYtd: a.budgetYtd + z.budgetYtd, budget: a.budget + z.budget, cost: a.cost + z.cost,
+    unitsYtd: a.unitsYtd + z.unitsYtd, actual: a.actual + z.actual, actualUnits: a.actualUnits + z.actualUnits,
+  }), { prevYtd: 0, budgetYtd: 0, budget: 0, cost: 0, unitsYtd: 0, actual: 0, actualUnits: 0 });
+  const growth = (a: number, b: number) => (b > 0 ? `${a >= b ? '+' : ''}${Math.round((a / b - 1) * 100)}%` : '—');
+
   const years = [year - 2, year - 1, year, year + 1];
 
   return (
@@ -291,6 +317,60 @@ export default async function WholesaleBudgetsPage({
             </section>
           )}
         </>
+      )}
+
+      {officialRows.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-baseline justify-between mb-3">
+            <h2 className="text-lg font-semibold">Presupuesto oficial por zona</h2>
+            <p className="text-xs text-[var(--ink-soft)]">{partialYear ? `Acumulado a ${MONTH_NAMES[throughMonth - 1]}` : 'Año completo'} · cargado por Excel</p>
+          </div>
+          <div className="wsale-panel overflow-x-auto">
+            <table className="wsale-table min-w-[900px]">
+              <thead>
+                <tr>
+                  <th>Zona</th>
+                  <th className="num">{year - 1}</th>
+                  <th className="num">Presupuesto</th>
+                  <th className="num">Vendido</th>
+                  <th className="num">Cumplimiento</th>
+                  <th className="num">vs {year - 1}</th>
+                  <th className="num">Unidades</th>
+                  <th className="num">Ppto. año</th>
+                  <th className="num">Margen ppto.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {officialRows.map((z) => (
+                  <tr key={z.zone}>
+                    <td><Link href={`/wholesale/budgets/zona/${encodeURIComponent(z.zone)}?year=${year}`} className="hover:text-[var(--accent)]">{z.zone}</Link></td>
+                    <td className="num text-[var(--ink-soft)]">{cop(z.prevYtd)}</td>
+                    <td className="num">{cop(z.budgetYtd)}</td>
+                    <td className="num">{cop(z.actual)}</td>
+                    <td className="num"><Compliance actual={z.actual} budget={z.budgetYtd} /></td>
+                    <td className={`num ${z.prevYtd && z.actual < z.prevYtd ? 'wsale-bad' : 'wsale-good'}`}>{growth(z.actual, z.prevYtd)}</td>
+                    <td className="num">{z.actualUnits} / {z.unitsYtd}</td>
+                    <td className="num">{cop(z.budget)}</td>
+                    <td className="num">{z.budget ? `${Math.round((z.budget - z.cost) / z.budget * 100)}%` : '—'}</td>
+                  </tr>
+                ))}
+                <tr className="font-semibold">
+                  <td>Total canal</td>
+                  <td className="num text-[var(--ink-soft)]">{cop(official.prevYtd)}</td>
+                  <td className="num">{cop(official.budgetYtd)}</td>
+                  <td className="num">{cop(official.actual)}</td>
+                  <td className="num"><Compliance actual={official.actual} budget={official.budgetYtd} /></td>
+                  <td className="num">{growth(official.actual, official.prevYtd)}</td>
+                  <td className="num">{official.actualUnits} / {official.unitsYtd}</td>
+                  <td className="num">{cop(official.budget)}</td>
+                  <td className="num">{official.budget ? `${Math.round((official.budget - official.cost) / official.budget * 100)}%` : '—'}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-[var(--ink-faint)] mt-2">“{year - 1}” es la venta del año anterior que viene en el Excel, como guía. “Vendido” sale de las ventas registradas en el portal.</p>
+          <h2 className="text-lg font-semibold mt-10 mb-3">Presupuesto por cliente</h2>
+        </section>
       )}
 
       {clientList.length === 0 ? (

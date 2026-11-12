@@ -1,61 +1,56 @@
 import ExcelJS from 'exceljs';
 
-export const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+export const MONTHS = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-export interface TemplateClient {
-  id: string; name: string; nit: string | null; zone: string | null; rep: string | null;
-  amounts: number[]; units: number[];
+export interface ZoneMonth {
+  zone: string; month: number;
+  prev_units: number; prev_amount: number; units: number; amount: number; cost: number;
 }
 
-const HEAD = ['NIT', 'Cliente', 'Zona', 'Comercial'];
+const HEAD = ['Zona', 'Mes', 'Unidades año anterior', 'Ventas año anterior ($)', 'Unidades presupuesto', 'Presupuesto ventas ($)', 'Costo de venta ($)', 'Margen ($)', 'Margen %'];
 
-/** Plantilla: una hoja de valor y otra de unidades, un cliente por fila, un mes por columna. */
-export async function buildTemplate(year: number, clients: TemplateClient[]) {
+/** Plantilla por zona: una fila por zona y mes. */
+export async function buildTemplate(year: number, rows: ZoneMonth[]) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Aural · Wholesale';
 
   const help = wb.addWorksheet('Instrucciones');
-  help.columns = [{ width: 100 }];
+  help.columns = [{ width: 110 }];
   [
-    `Presupuesto wholesale ${year}`,
+    `Presupuesto wholesale ${year} por zona`,
     '',
-    '1. En la hoja "Valor" escribe cuánto debe comprar cada cliente cada mes, en pesos y sin puntos ni signos.',
-    '2. En la hoja "Unidades" escribe cuántos audífonos debe comprar cada mes.',
-    '3. No cambies las columnas NIT ni Cliente: con ellas el portal reconoce a cada centro.',
-    '4. Para un cliente nuevo, agrega una fila al final con su NIT y nombre tal como está creado en el portal.',
-    '5. Las celdas vacías se cargan en cero. Guarda el archivo y súbelo en Presupuestos → Subir Excel.',
-  ].forEach((t, i) => {
-    const r = help.addRow([t]);
-    if (i === 0) r.font = { bold: true, size: 14 };
+    '1. En la hoja "Presupuesto" hay una fila por zona y por mes.',
+    `2. "Año anterior" son las ventas de ${year - 1}: sirven de guía para comparar el cumplimiento. Vienen de lo registrado en el portal; corrígelas si tienes la cifra oficial.`,
+    '3. Llena unidades, presupuesto de ventas y costo de venta, en pesos y sin puntos ni signos.',
+    '4. Para una zona nueva, copia sus 12 filas con el nombre de la zona igual en todas.',
+    '5. No cambies los títulos de las columnas. El margen se calcula solo y no se carga.',
+    '6. Guarda el archivo y súbelo en Presupuestos → Subir Excel.',
+  ].forEach((t, i) => { const r = help.addRow([t]); if (i === 0) r.font = { bold: true, size: 14 }; });
+
+  const ws = wb.addWorksheet('Presupuesto', { views: [{ state: 'frozen', xSplit: 2, ySplit: 1 }] });
+  ws.columns = [{ width: 26 }, { width: 12 }, { width: 12 }, { width: 18 }, { width: 12 }, { width: 18 }, { width: 18 }, { width: 18 }, { width: 10 }];
+  const head = ws.addRow(HEAD);
+  head.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  head.alignment = { wrapText: true, vertical: 'middle' };
+  head.height = 32;
+  head.eachCell((c) => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF041E42' } }; });
+
+  rows.forEach((r, i) => {
+    const n = i + 2;
+    const row = ws.addRow([r.zone, MONTHS[r.month - 1], r.prev_units || null, r.prev_amount || null, r.units || null, r.amount || null, r.cost || null]);
+    row.getCell(8).value = { formula: `F${n}-G${n}` };
+    row.getCell(9).value = { formula: `IF(F${n}>0,(F${n}-G${n})/F${n},"")` };
+    [4, 6, 7, 8].forEach((c) => { row.getCell(c).numFmt = '#,##0'; });
+    row.getCell(9).numFmt = '0%';
+    if (r.month === 12) row.border = { bottom: { style: 'thin', color: { argb: 'FF9AA5B5' } } };
   });
-
-  for (const [name, key] of [['Valor', 'amounts'], ['Unidades', 'units']] as const) {
-    const ws = wb.addWorksheet(name, { views: [{ state: 'frozen', xSplit: 2, ySplit: 1 }] });
-    ws.columns = [
-      { width: 16 }, { width: 38 }, { width: 18 }, { width: 22 },
-      ...MONTHS.map(() => ({ width: name === 'Valor' ? 14 : 8 })),
-      { width: name === 'Valor' ? 16 : 10 },
-    ];
-    const head = ws.addRow([...HEAD, ...MONTHS, 'Total']);
-    head.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    head.eachCell((c) => { c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF041E42' } }; });
-
-    clients.forEach((c, i) => {
-      const n = i + 2;
-      const r = ws.addRow([c.nit ?? '', c.name, c.zone ?? '', c.rep ?? '', ...c[key].map((v) => v || null)]);
-      r.getCell(17).value = { formula: `SUM(E${n}:P${n})` };
-      if (name === 'Valor') for (let col = 5; col <= 17; col++) r.getCell(col).numFmt = '#,##0';
-    });
-  }
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
-export interface ParsedRow { nit: string; name: string; amounts: number[]; units: number[] }
-
 function num(v: ExcelJS.CellValue): number {
-  if (v == null) return 0;
+  if (v == null || v === '') return 0;
   if (typeof v === 'number') return v;
-  if (typeof v === 'object' && 'result' in v) return num(v.result as ExcelJS.CellValue);
+  if (typeof v === 'object' && v && 'result' in v) return num(v.result as ExcelJS.CellValue);
   const s = String(v).replace(/[$\s]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.');
   const n = Number(s);
   return Number.isFinite(n) ? n : 0;
@@ -68,39 +63,55 @@ function text(v: ExcelJS.CellValue): string {
   return String(v).trim();
 }
 
-/** Lee las hojas Valor y Unidades; busca las columnas por su encabezado. */
-export async function parseBudgetFile(buf: ArrayBuffer): Promise<ParsedRow[]> {
+const plain = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+function monthOf(v: ExcelJS.CellValue): number {
+  if (v instanceof Date) return v.getUTCMonth() + 1;
+  const n = num(v);
+  if (n >= 1 && n <= 12) return Math.round(n);
+  const t = plain(text(v));
+  const k = MONTHS.findIndex((m) => t.startsWith(plain(m).slice(0, 3)));
+  return k + 1;
+}
+
+/** Lee la hoja de presupuesto; reconoce las columnas por su título. */
+export async function parseBudgetFile(buf: ArrayBuffer): Promise<{ rows: ZoneMonth[]; skipped: number }> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf);
-  const rows = new Map<string, ParsedRow>();
-  const sheets = wb.worksheets.filter((w) => w.name !== 'Instrucciones');
-  if (sheets.length === 0) throw new Error('El archivo no tiene hojas con datos');
+  const ws = wb.worksheets.find((w) => /presup/i.test(w.name)) ?? wb.worksheets.find((w) => w.name !== 'Instrucciones');
+  if (!ws) throw new Error('El archivo no tiene una hoja con datos');
 
-  for (const ws of sheets) {
-    const isUnits = /unid/i.test(ws.name);
-    const header = ws.getRow(1);
-    const col: Record<string, number> = {};
-    header.eachCell((c, i) => {
-      const h = text(c.value).toLowerCase();
-      if (h.startsWith('nit')) col.nit = i;
-      else if (h.startsWith('cliente') || h === 'nombre' || h === 'centro') col.name = i;
-      else MONTHS.forEach((m, k) => { if (h.startsWith(m.toLowerCase())) col[`m${k}`] = i; });
-    });
-    if (!col.name && !col.nit) throw new Error(`En la hoja "${ws.name}" no encuentro las columnas NIT o Cliente`);
-    if (!MONTHS.some((_, k) => col[`m${k}`])) throw new Error(`En la hoja "${ws.name}" no encuentro las columnas de los meses (Ene, Feb, …)`);
+  const col: Record<string, number> = {};
+  ws.getRow(1).eachCell((c, i) => {
+    const h = plain(text(c.value));
+    const prev = /anterior|ano pasado|real ant/.test(h);
+    if (h.startsWith('zona')) col.zone = i;
+    else if (h.startsWith('mes')) col.month = i;
+    else if (h.startsWith('margen')) return;
+    else if (h.includes('costo')) col.cost = i;
+    else if (h.includes('unid')) col[prev ? 'prev_units' : 'units'] = i;
+    else if (/venta|valor|ppto|presupuesto|\$/.test(h)) col[prev ? 'prev_amount' : 'amount'] = i;
+  });
+  const missing = [['zone', 'Zona'], ['month', 'Mes'], ['amount', 'Presupuesto ventas']].filter(([k]) => !col[k]).map(([, l]) => l);
+  if (missing.length) throw new Error(`En la hoja "${ws.name}" no encuentro las columnas: ${missing.join(', ')}`);
 
-    ws.eachRow((row, n) => {
-      if (n === 1) return;
-      const nit = col.nit ? text(row.getCell(col.nit).value) : '';
-      const name = col.name ? text(row.getCell(col.name).value) : '';
-      if (!nit && !name) return;
-      const key = nit.replace(/\D/g, '') || name.toLowerCase();
-      const r = rows.get(key) ?? { nit, name, amounts: Array(12).fill(0), units: Array(12).fill(0) };
-      MONTHS.forEach((_, k) => {
-        if (col[`m${k}`]) (isUnits ? r.units : r.amounts)[k] = Math.max(0, Math.round(num(row.getCell(col[`m${k}`]).value)));
-      });
-      rows.set(key, r);
-    });
-  }
-  return [...rows.values()];
+  const map = new Map<string, ZoneMonth>();
+  let skipped = 0;
+  ws.eachRow((row, n) => {
+    if (n === 1) return;
+    const zone = text(row.getCell(col.zone).value);
+    const month = monthOf(row.getCell(col.month).value);
+    if (!zone && !month) return;
+    if (!zone || !month || /^total/i.test(zone)) { skipped++; return; }
+    const get = (k: string) => (col[k] ? Math.max(0, Math.round(num(row.getCell(col[k]).value))) : 0);
+    const key = `${zone.toLowerCase()}|${month}`;
+    const p = map.get(key);
+    const r: ZoneMonth = {
+      zone, month,
+      prev_units: get('prev_units') + (p?.prev_units ?? 0), prev_amount: get('prev_amount') + (p?.prev_amount ?? 0),
+      units: get('units') + (p?.units ?? 0), amount: get('amount') + (p?.amount ?? 0), cost: get('cost') + (p?.cost ?? 0),
+    };
+    map.set(key, r);
+  });
+  return { rows: [...map.values()], skipped };
 }

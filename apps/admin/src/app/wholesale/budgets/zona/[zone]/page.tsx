@@ -42,12 +42,15 @@ export default async function ZoneBudgetPage({
     supabase.from('wholesale_budgets').select('client_id, amount, units').eq('year', year),
     supabase
       .from('wholesale_sales')
-      .select('client_id, units, net_amount')
+      .select('client_id, sold_on, units, net_amount')
       .is('deleted_at', null)
       .gte('sold_on', `${year}-01-01`)
       .lte('sold_on', `${year}-12-31`),
     supabase.from('wholesale_reps').select('id, name').is('deleted_at', null),
   ]);
+  const { data: zb } = await supabase.from('wholesale_zone_budgets')
+    .select('month, prev_units, prev_amount, units, amount, cost').eq('year', year).ilike('zone', zone);
+  const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
   const inZone = (clients ?? []).filter((c) => (c.zone?.trim() || SIN_ZONA) === zone);
   const repName = new Map((reps ?? []).map((r) => [r.id, r.name]));
@@ -82,6 +85,18 @@ export default async function ZoneBudgetPage({
     actualUnits: acc.actualUnits + r.actual.units,
   }), { budgetAmount: 0, budgetUnits: 0, actualAmount: 0, actualUnits: 0 });
 
+  const zoneIds = new Set(inZoneIds());
+  function inZoneIds() { return (clients ?? []).filter((c) => (c.zone?.trim() || SIN_ZONA).toLowerCase() === zone.toLowerCase()).map((c) => c.id); }
+  const monthly = MESES.map((label, k) => {
+    const b = (zb ?? []).find((x) => x.month === k + 1);
+    const sold = (sales ?? []).filter((x) => zoneIds.has(x.client_id) && Number(x.sold_on.slice(5, 7)) === k + 1);
+    return {
+      label, prev: Number(b?.prev_amount ?? 0), budget: Number(b?.amount ?? 0), cost: Number(b?.cost ?? 0),
+      units: b?.units ?? 0, prevUnits: b?.prev_units ?? 0,
+      actual: sold.reduce((a, x) => a + Number(x.net_amount ?? 0), 0), actualUnits: sold.reduce((a, x) => a + Number(x.units ?? 0), 0),
+    };
+  });
+
   return (
     <WholesaleLayout userName={me.full_name} role={me.role}>
       <PageHead
@@ -94,6 +109,36 @@ export default async function ZoneBudgetPage({
           </Link>
         }
       />
+
+      {(zb ?? []).length > 0 && (
+        <section className="mb-10">
+          <h2 className="text-lg font-semibold mb-3">Presupuesto oficial de la zona, mes a mes</h2>
+          <div className="wsale-panel overflow-x-auto">
+            <table className="wsale-table min-w-[820px]">
+              <thead>
+                <tr>
+                  <th>Mes</th><th className="num">{year - 1}</th><th className="num">Presupuesto</th><th className="num">Vendido</th>
+                  <th className="num">Cumplimiento</th><th className="num">Unidades</th><th className="num">Costo de venta</th><th className="num">Margen ppto.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthly.map((m) => (
+                  <tr key={m.label}>
+                    <td>{m.label}</td>
+                    <td className="num text-[var(--ink-soft)]">{cop(m.prev)}</td>
+                    <td className="num">{cop(m.budget)}</td>
+                    <td className="num">{m.actual ? cop(m.actual) : '—'}</td>
+                    <td className="num">{m.actual ? <Compliance actual={m.actual} budget={m.budget} /> : '—'}</td>
+                    <td className="num">{m.actualUnits} / {m.units}</td>
+                    <td className="num text-[var(--ink-soft)]">{cop(m.cost)}</td>
+                    <td className="num">{m.budget ? `${Math.round((m.budget - m.cost) / m.budget * 100)}%` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {rows.length === 0 ? (
         <EmptyState
