@@ -46,7 +46,7 @@ export async function getWholesaleMe(): Promise<WholesaleMe | null> {
 
 export async function requireWholesaleMe(): Promise<WholesaleMe> {
   const me = await getWholesaleMe();
-  if (!me) redirect('/login');
+  if (!me) redirect('/login?sin-acceso=1');
   return me;
 }
 

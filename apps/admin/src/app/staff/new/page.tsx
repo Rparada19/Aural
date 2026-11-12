@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function NewStaffPage() {
   const me = await getAdminMe();
-  if (!me) redirect('/login');
+  if (!me) redirect('/login?sin-acceso=1');
   if (!isCoordinator(me)) redirect('/');
 
   const supabase = await createSupabaseServerClient();

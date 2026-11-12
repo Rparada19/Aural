@@ -22,7 +22,7 @@ export default async function UsersPage({
   const sp = await searchParams;
   const supabase = await createSupabaseServerClient();
   const me = await getAdminMe();
-  if (!hasAccess(me)) redirect('/login');
+  if (!hasAccess(me)) redirect('/login?sin-acceso=1');
 
   let query = supabase
     .from('profiles')

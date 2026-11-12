@@ -57,7 +57,8 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isLogin) {
+  // Con sesión pero sin permiso para esta sección, se muestra el login con el aviso (evita un ciclo de redirecciones)
+  if (user && isLogin && !req.nextUrl.searchParams.has('sin-acceso')) {
     const url = req.nextUrl.clone();
     url.pathname = '/';
     return NextResponse.redirect(url);

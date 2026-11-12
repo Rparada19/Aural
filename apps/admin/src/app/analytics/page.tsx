@@ -19,10 +19,10 @@ export default async function AnalyticsPage({ searchParams }: { searchParams: Pr
 
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) redirect('/login?sin-acceso=1');
   const { data: me } = await supabase
     .from('profiles').select('is_admin, full_name').eq('id', user.id).single();
-  if (!me?.is_admin) redirect('/login');
+  if (!me?.is_admin) redirect('/login?sin-acceso=1');
 
   const [{ data: patientsAll }, { data: techs }, { data: plats }, { data: profs }, { data: cities }, { data: audios }, { data: locs }] = await Promise.all([
     supabase.from('patients')

@@ -13,6 +13,19 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Si un enlace de correo vencido trae al login, se explica en vez de no hacer nada.
+  const [denied, setDenied] = useState<string | null>(null);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has('sin-acceso')) {
+      createSupabaseBrowserClient().auth.getUser().then(({ data }) => {
+        if (data.user) setDenied(data.user.email ?? 'tu usuario');
+      });
+    }
+  }, []);
+  async function switchUser() {
+    await createSupabaseBrowserClient().auth.signOut();
+    setDenied(null);
+    router.replace('/login');
+  }
   useEffect(() => {
     const h = new URLSearchParams(window.location.hash.slice(1));
     if (h.get('error_code') === 'otp_expired' || h.get('error_description')) setError('El enlace del correo expiró o ya se usó. Pide uno nuevo en "¿Olvidaste tu contraseña?".');
@@ -55,6 +68,13 @@ export default function LoginPage() {
           <Image src="/logo-aural.png" alt="Aural" width={4191} height={1432} className="mx-auto w-[210px] h-auto" priority />
           <p className="text-secondary text-xs uppercase tracking-widest font-semibold mt-4">Portal administrativo</p>
         </div>
+
+        {denied && (
+          <div className="mb-5 rounded-lg bg-danger/10 px-4 py-3 text-sm">
+            <p className="text-danger font-semibold">Tu sesión está abierta con {denied}, pero ese usuario no tiene acceso a esta sección.</p>
+            <button type="button" onClick={switchUser} className="mt-2 text-primary font-semibold hover:underline">Entrar con otro correo</button>
+          </div>
+        )}
 
         <form onSubmit={onSubmit} className="space-y-4">
           <Field

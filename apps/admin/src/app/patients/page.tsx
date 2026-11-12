@@ -25,7 +25,7 @@ export default async function PatientsPage({
   const sp = await searchParams;
   const supabase = await createSupabaseServerClient();
   const me = await getAdminMe();
-  if (!hasAccess(me)) redirect('/login');
+  if (!hasAccess(me)) redirect('/login?sin-acceso=1');
 
   let prosQ = supabase
     .from('profiles')

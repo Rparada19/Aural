@@ -21,7 +21,7 @@ const MARKETS = [
 
 export default async function HubPage() {
   const me = await getAdminMe();
-  if (!hasAccess(me)) redirect('/login');
+  if (!hasAccess(me)) redirect('/login?sin-acceso=1');
 
   return (
     <main className="min-h-screen grid place-items-center bg-surface px-4 py-12">

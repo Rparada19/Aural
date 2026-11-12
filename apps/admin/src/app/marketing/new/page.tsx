@@ -10,10 +10,10 @@ export const dynamic = 'force-dynamic';
 export default async function NewMarketingPage() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) redirect('/login?sin-acceso=1');
   const { data: me } = await supabase
     .from('profiles').select('is_admin, full_name').eq('id', user.id).single();
-  if (!me?.is_admin) redirect('/login');
+  if (!me?.is_admin) redirect('/login?sin-acceso=1');
 
   const [{ data: cities }, { data: visitors }] = await Promise.all([
     supabase.from('cities').select('id, name').eq('is_active', true).order('name'),

@@ -17,10 +17,10 @@ const CHANNEL: Record<string, string> = { push: 'Push', email: 'Email', inapp: '
 export default async function MarketingPage() {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) redirect('/login?sin-acceso=1');
   const { data: me } = await supabase
     .from('profiles').select('is_admin, full_name').eq('id', user.id).single();
-  if (!me?.is_admin) redirect('/login');
+  if (!me?.is_admin) redirect('/login?sin-acceso=1');
 
   const { data: campaigns } = await supabase
     .from('marketing_campaigns')
