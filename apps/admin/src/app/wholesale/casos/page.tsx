@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { WholesaleLayout, PageHead } from '@/components/WholesaleLayout';
 import { MetricCard, EmptyState } from '@/components/wholesale/MetricCard';
 import { NewCase } from '@/components/wholesale/cases/CaseForms';
+import { MyDeskServer } from '@/components/wholesale/MyDeskServer';
 import { requireWholesaleMe } from '@/lib/wholesale';
 import { CASE_KIND, CASE_STATUS, OPEN_STATUS } from '@/lib/cases';
 import { today } from '@/lib/crm';
@@ -76,6 +77,13 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
         <MetricCard label="Resueltos este mes" value={String(resolvedMonth.length)} />
         <MetricCard label="Días promedio para resolver" value={avgDays === null ? '—' : avgDays.toFixed(1)} hint="Casos resueltos este mes" />
       </section>
+
+      {me.role === 'assistant' && me.modules.includes('pendientes') && (
+        <details className="mb-6" open>
+          <summary className="text-[13px] text-[var(--ink-soft)] cursor-pointer mb-3">Mis pendientes y notas</summary>
+          <div className="max-w-2xl"><MyDeskServer me={me} /></div>
+        </details>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-3">
         {VIEWS.map((v) => <Link key={v.key} href={href(v.key, sp.tipo)} className="wsale-chip" data-on={view === v.key}>{v.label}</Link>)}

@@ -4,14 +4,14 @@ import { OPEN_STAGES, daysSince, today } from './crm';
 import { OPEN_STATUS } from './cases';
 
 export type Severity = 'alta' | 'media' | 'info' | 'logro';
-export type Area = 'prestamos' | 'casos' | 'clientes' | 'oportunidades' | 'presupuesto' | 'ventas' | 'equipo' | 'celebraciones';
+export type Area = 'pendientes' | 'prestamos' | 'casos' | 'clientes' | 'oportunidades' | 'presupuesto' | 'ventas' | 'equipo' | 'celebraciones';
 
 export interface Alert {
   id: string; sev: Severity; area: Area; title: string; detail: string; href: string; who?: string | null;
 }
 
 export const AREA_LABEL: Record<Area, string> = {
-  prestamos: 'Préstamos', casos: 'Casos', clientes: 'Clientes', oportunidades: 'Oportunidades',
+  pendientes: 'Mis pendientes', prestamos: 'Préstamos', casos: 'Casos', clientes: 'Clientes', oportunidades: 'Oportunidades',
   presupuesto: 'Presupuesto', ventas: 'Ventas', equipo: 'Equipo', celebraciones: 'Celebraciones',
 };
 
@@ -157,6 +157,12 @@ export async function buildAlerts(supabase: SupabaseClient, me: WholesaleMe): Pr
         out.push({ id: `bday-${b.client_id}-${b.name}`, sev: 'info', area: 'celebraciones', title: `Cumpleaños de ${b.name} ${k === 0 ? 'hoy' : k === 1 ? 'mañana' : `en ${k} días`}`, detail: clientName.get(b.client_id) ?? '', href: '/wholesale/celebraciones' });
       }
     }
+  }
+
+  // ---------------------------- Pendientes ---------------------------
+  const { data: tasks } = await supabase.from('wholesale_tasks').select('id, title, due_on').eq('owner_id', me.id).is('done_at', null).lte('due_on', t);
+  for (const k of tasks ?? []) {
+    out.push({ id: `task-${k.id}`, sev: k.due_on! < t ? 'alta' : 'media', area: 'pendientes', title: k.due_on! < t ? `Pendiente vencido: ${k.title}` : `Pendiente para hoy: ${k.title}`, detail: k.due_on! < t ? `Era para el ${k.due_on}` : 'Márcalo cuando esté hecho', href: '/wholesale/pendientes' });
   }
 
   return out.sort((a, b) => SEV_ORDER[a.sev] - SEV_ORDER[b.sev]);

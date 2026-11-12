@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { WholesaleLayout, PageHead } from '@/components/WholesaleLayout';
 import { MetricCard, EmptyState } from '@/components/wholesale/MetricCard';
 import { AlertList } from '@/components/wholesale/AlertList';
+import { MyDeskServer } from '@/components/wholesale/MyDeskServer';
 import { requireWholesaleMe } from '@/lib/wholesale';
 import { buildAlerts, AREA_LABEL, type Area } from '@/lib/alerts';
 
@@ -53,11 +54,16 @@ export default async function AlertsPage({ searchParams }: { searchParams: Promi
         )}
       </div>
 
-      {list.length === 0 ? (
-        <EmptyState title="Todo al día" description="No hay nada pendiente por ahora. Las alertas aparecen solas cuando algo se vence, se enfría o necesita atención." />
-      ) : (
-        <AlertList alerts={list} />
-      )}
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px] items-start">
+        <div>
+          {list.length === 0 ? (
+            <EmptyState title="Todo al día" description="No hay nada pendiente por ahora. Las alertas aparecen solas cuando algo se vence, se enfría o necesita atención." />
+          ) : (
+            <AlertList alerts={list} />
+          )}
+        </div>
+        {me.modules.includes('pendientes') && <MyDeskServer me={me} />}
+      </div>
     </WholesaleLayout>
   );
 }

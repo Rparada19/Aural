@@ -68,12 +68,28 @@ export function Loans({
             {active.length} equipo{active.length === 1 ? '' : 's'} en la calle · plazo de {LOAN_DAYS} días
           </p>
         </div>
-        {active.filter((l) => daysLeft(l.due_on) < 0).length > 0 && (
-          <span className="wsale-bad text-sm font-semibold">
-            {active.filter((l) => daysLeft(l.due_on) < 0).length} vencidos
-          </span>
-        )}
+        <div className="flex items-center gap-4">
+          {active.filter((l) => daysLeft(l.due_on) < 0).length > 0 && (
+            <span className="wsale-bad text-sm font-semibold">
+              {active.filter((l) => daysLeft(l.due_on) < 0).length} vencidos
+            </span>
+          )}
+          {canCreate && !open && (
+            <button onClick={() => setOpen(true)} className="wsale-btn">+ Registrar préstamo</button>
+          )}
+        </div>
       </div>
+
+      {canCreate && open && (
+        <div className="mb-5">
+          <NewLoan
+            clients={clients}
+            catalogs={catalogs}
+            onDone={() => { setOpen(false); router.refresh(); }}
+            onCancel={() => setOpen(false)}
+          />
+        </div>
+      )}
 
       <div className="space-y-3">
         {active.length === 0 && (
@@ -156,26 +172,6 @@ export function Loans({
           </div>
         ))}
       </div>
-
-      {canCreate && (
-        <div className="mt-4">
-          {open ? (
-            <NewLoan
-              clients={clients}
-              catalogs={catalogs}
-              onDone={() => { setOpen(false); router.refresh(); }}
-              onCancel={() => setOpen(false)}
-            />
-          ) : (
-            <button
-              onClick={() => setOpen(true)}
-              className="w-full h-11 rounded-[2px] border border-dashed border-[var(--rule)] text-[var(--ink-soft)] text-sm hover:border-[var(--rule-strong)] hover:text-[var(--accent)] transition"
-            >
-              + Registrar préstamo
-            </button>
-          )}
-        </div>
-      )}
 
       {closed.length > 0 && (
         <details className="mt-5">
@@ -308,11 +304,12 @@ function NewLoan({
     serials: '',
     patient_name: '',
     notes: '',
+    days: String(LOAN_DAYS),
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const due = dueDateFrom(form.loaned_on);
+  const due = new Date(Date.parse(`${form.loaned_on}T00:00:00Z`) + Number(form.days) * 86_400_000).toISOString().slice(0, 10);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -322,6 +319,7 @@ function NewLoan({
       await createLoan({
         client_id: form.client_id,
         loaned_on: form.loaned_on,
+        due_on: due,
         platform: form.platform || null,
         tech_level: form.tech_level || null,
         style: form.style || null,
@@ -348,12 +346,19 @@ function NewLoan({
         </select>
       </Field>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <Field label="Fecha del préstamo">
           <input type="date" required value={form.loaned_on}
             onChange={(e) => setForm({ ...form, loaned_on: e.target.value })} className="wsale-input" />
         </Field>
-        <Field label="Devolver antes de" hint={`${LOAN_DAYS} días de plazo.`}>
+        <Field label="Días de prueba">
+          <select value={form.days} onChange={(e) => setForm({ ...form, days: e.target.value })} className="wsale-input">
+            {Array.from({ length: 90 }, (_, i) => i + 1).map((d) => (
+              <option key={d} value={d}>{d} día{d === 1 ? '' : 's'}{d === LOAN_DAYS ? ' (estándar)' : ''}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Devolver antes de">
           <input value={due} readOnly className={`${inputClass} bg-[var(--paper)] text-[var(--ink-soft)]`} />
         </Field>
       </div>

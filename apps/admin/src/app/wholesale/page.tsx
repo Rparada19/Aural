@@ -1,3 +1,4 @@
+import { MyDeskServer } from '@/components/wholesale/MyDeskServer';
 import { buildAlerts } from '@/lib/alerts';
 import { AlertList } from '@/components/wholesale/AlertList';
 import Link from 'next/link';
@@ -128,17 +129,16 @@ export default async function WholesaleDashboard() {
         }
       />
 
-      {topAlerts.length > 0 && (
-        <section className="mb-8">
+      <div className="grid gap-6 lg:grid-cols-[1fr_380px] mb-8 items-start">
+        <section>
           <div className="flex items-baseline justify-between mb-3">
             <p className="wsale-overline">Para atender hoy</p>
-            <Link href="/wholesale/alertas" className="text-[12px] text-[var(--accent)]">
-              Ver las {alerts.length} alertas →
-            </Link>
+            {alerts.length > 0 && <Link href="/wholesale/alertas" className="text-[12px] text-[var(--accent)]">Ver las {alerts.length} alertas →</Link>}
           </div>
-          <AlertList alerts={topAlerts} compact />
+          {topAlerts.length > 0 ? <AlertList alerts={topAlerts} compact /> : <p className="text-[13px] text-[var(--ink-soft)] wsale-panel p-4">Todo al día: no hay alertas urgentes.</p>}
         </section>
-      )}
+        {me.modules.includes('pendientes') && <MyDeskServer me={me} />}
+      </div>
 
       {clientList.length === 0 ? (
         <EmptyState
