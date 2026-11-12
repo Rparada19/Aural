@@ -1059,6 +1059,29 @@ app.post('/admin/mensajes', needAdmin, async (req, res) => {
   res.redirect(`/admin/mensajes?ok=${encodeURIComponent(`Mensaje enviado a ${n} personas.`)}`);
 });
 
+// Para el portal wholesale: el equipo de un líder con su calificación QR, Academia, uno a uno y alarmas.
+app.get('/api/equipo', async (req, res) => {
+  const key = process.env.WHOLESALE_API_KEY;
+  const got = String(req.headers['x-api-key'] || '');
+  if (!key || got.length !== key.length || !crypto.timingSafeEqual(Buffer.from(got), Buffer.from(key))) return res.status(401).json({ error: 'no autorizado' });
+  const leader = await one('SELECT id, name, email, leads_all FROM users WHERE lower(email) = lower($1) AND lider', [String(req.query.lider || '')]);
+  if (!leader) return res.status(404).json({ error: 'líder no encontrado' });
+  const rows = [await selfRow(leader), ...(await teamOf({ ...leader, leads_all: false }))].filter(Boolean);
+  res.json({
+    leader: { name: leader.name, email: leader.email },
+    team: rows.map((r) => ({
+      id: r.id, name: r.name, email: r.email, area: r.area, sede: r.sede, cargo: r.cargo, self: r.id === leader.id,
+      voz: { total: r.voz, mes: r.voz_pmes, mes_anterior: r.voz_pprev, n_mes: r.voz_mes, meta: metaFor(r), por_revisar: r.voz_rev },
+      evaluacion: { estado: r.status, puntaje: r.score },
+      academia: { modulo: r.mod_titulo, aprobado: r.aprobado, intentos: r.intentos, mejor: r.best, aprobados: r.aprobados, publicados: r.publicados },
+      uno_a_uno: r.uno_mes, compromisos: { abiertos: r.comp_abiertos, vencidos: r.comp_vencidos },
+      ultimo_ingreso: r.last_seen,
+      alarmas: sortAlarms(alarmsFor(r)).map((a) => ({ sev: a.sev, t: a.t })),
+      ficha: `${BASE}/lider/personas/${r.id}`,
+    })),
+  });
+});
+
 app.post('/cron/diario', async (req, res) => {
   // Se puede llamar sin secreto solo en la franja de la mañana; el envío es idempotente (una vez por día).
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Bogota' }));

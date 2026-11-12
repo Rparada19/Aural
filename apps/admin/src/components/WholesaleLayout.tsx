@@ -10,12 +10,14 @@ export type { WholesaleRole };
 const NAV: { href: string; label: string; num: string; allowed: WholesaleRole[] }[] = [
   { href: '/wholesale', label: 'Resumen', num: '01', allowed: ['admin', 'coordinator', 'rep'] },
   { href: '/wholesale/clients', label: 'Clientes', num: '02', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/sales', label: 'Ventas', num: '03', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/budgets', label: 'Presupuestos', num: '04', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/proyectos', label: 'Proyectos', num: '05', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/celebraciones', label: 'Celebraciones', num: '06', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/documentos', label: 'Documentos', num: '07', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/reps', label: 'Comerciales', num: '08', allowed: ['admin', 'coordinator'] },
+  { href: '/wholesale/oportunidades', label: 'Oportunidades', num: '03', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/sales', label: 'Ventas', num: '04', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/budgets', label: 'Presupuestos', num: '05', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/proyectos', label: 'Proyectos', num: '06', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/celebraciones', label: 'Celebraciones', num: '07', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/documentos', label: 'Documentos', num: '08', allowed: ['admin', 'coordinator', 'rep'] },
+  { href: '/wholesale/reps', label: 'Comerciales', num: '09', allowed: ['admin', 'coordinator'] },
+  { href: '/wholesale/equipo', label: 'Equipo y servicio', num: '10', allowed: ['admin', 'coordinator'] },
 ];
 
 export function WholesaleLayout({
