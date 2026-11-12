@@ -16,7 +16,7 @@ export default async function WholesaleSalesPage({
   searchParams: Promise<{ year?: string; month?: string; zone?: string }>;
 }) {
   const { year: yearParam, month: monthParam, zone: zoneParam } = await searchParams;
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('ventas');
   const supabase = await createSupabaseServerClient();
 
   const now = new Date();

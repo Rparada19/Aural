@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
 export default async function WholesaleDashboard() {
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('resumen');
   const supabase = await createSupabaseServerClient();
 
   const now = new Date();

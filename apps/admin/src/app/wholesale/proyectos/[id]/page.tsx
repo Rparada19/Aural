@@ -21,7 +21,7 @@ export default async function ProjectDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('proyectos');
   const supabase = await createSupabaseServerClient();
 
   const [{ data: project }, { data: notes }, { data: reps }, { data: clients }] = await Promise.all([

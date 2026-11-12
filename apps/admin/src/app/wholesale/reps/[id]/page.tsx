@@ -45,7 +45,7 @@ export default async function WholesaleRepDetail({
   const me = await requireWholesaleMe();
 
   // El comercial solo entra a su propia ficha.
-  if (me.role === 'rep' && me.repId !== id) notFound();
+  if (!me.isCoordination && me.repId !== id) notFound();
 
   const now = new Date();
   const year = Number(yearParam) || now.getFullYear();

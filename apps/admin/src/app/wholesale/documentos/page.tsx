@@ -6,7 +6,7 @@ import { requireWholesaleMe } from '@/lib/wholesale';
 export const dynamic = 'force-dynamic';
 
 export default async function DocumentsPage() {
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('documentos');
   const supabase = await createSupabaseServerClient();
 
   // La RLS ya filtra: el comercial solo recibe los públicos y los suyos.

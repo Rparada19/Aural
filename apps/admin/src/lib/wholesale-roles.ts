@@ -11,7 +11,7 @@
  * La regla de oro: el comercial mantiene lo que lo describe; coordinación
  * decide lo que lo compromete. Nadie edita su propia meta.
  */
-export type WholesaleRole = 'admin' | 'coordinator' | 'rep';
+export type WholesaleRole = 'admin' | 'coordinator' | 'rep' | 'assistant';
 
 export interface Permissions {
   /** Ver el canal entero, no solo la zona propia */
@@ -62,6 +62,20 @@ const MATRIX: Record<WholesaleRole, Permissions> = {
     manageAccess: false,
     operate: true,
   },
+  // Servicio al cliente audiológico: atiende a todos los clientes, no tiene
+  // cartera ni metas; registra casos, préstamos e interacciones.
+  assistant: {
+    seeWholeChannel: true,
+    manageClients: false,
+    setBudgets: false,
+    setGoals: false,
+    manageReps: false,
+    editRepAssignment: false,
+    publishDocuments: false,
+    manageCatalogs: false,
+    manageAccess: false,
+    operate: true,
+  },
   rep: {
     seeWholeChannel: false,
     manageClients: false,
@@ -84,7 +98,41 @@ export const ROLE_LABEL: Record<WholesaleRole, string> = {
   admin: 'Administrador',
   coordinator: 'Coordinación',
   rep: 'Comercial',
+  assistant: 'Servicio al cliente',
 };
+
+/** Secciones del portal. Cada perfil trae las suyas; coordinación puede
+ *  quitarle o darle secciones a una persona puntual. */
+export const MODULES = [
+  { key: 'resumen', label: 'Resumen', href: '/wholesale', hint: 'Ventas del mes y del año' },
+  { key: 'clientes', label: 'Clientes', href: '/wholesale/clients', hint: 'Fichas de los centros' },
+  { key: 'casos', label: 'Casos de servicio', href: '/wholesale/casos', hint: 'Reparaciones, garantías, pedidos y despachos' },
+  { key: 'oportunidades', label: 'Oportunidades', href: '/wholesale/oportunidades', hint: 'CRM de prospectos y negocios' },
+  { key: 'ventas', label: 'Ventas', href: '/wholesale/sales', hint: 'Facturación y mezcla de producto' },
+  { key: 'presupuestos', label: 'Presupuestos', href: '/wholesale/budgets', hint: 'Metas por cliente' },
+  { key: 'proyectos', label: 'Proyectos', href: '/wholesale/proyectos', hint: 'Eventos, campañas y capacitaciones' },
+  { key: 'celebraciones', label: 'Celebraciones', href: '/wholesale/celebraciones', hint: 'Cumpleaños y fechas especiales' },
+  { key: 'documentos', label: 'Documentos', href: '/wholesale/documentos', hint: 'Fichas y material de apoyo' },
+  { key: 'comerciales', label: 'Comerciales', href: '/wholesale/reps', hint: 'Agenda, metas y gastos del equipo' },
+  { key: 'equipo', label: 'Equipo y servicio', href: '/wholesale/equipo', hint: 'Calificación QR, Academia y alarmas' },
+  { key: 'accesos', label: 'Accesos', href: '/wholesale/accesos', hint: 'Quién entra y qué ve' },
+] as const;
+export type ModuleKey = (typeof MODULES)[number]['key'];
+
+/** Secciones que solo coordinación puede tener, nunca se le dan a otros. */
+export const COORDINATION_ONLY: ModuleKey[] = ['comerciales', 'equipo', 'accesos'];
+
+export const DEFAULT_MODULES: Record<WholesaleRole, ModuleKey[]> = {
+  admin: MODULES.map((m) => m.key),
+  coordinator: MODULES.map((m) => m.key),
+  rep: ['resumen', 'clientes', 'casos', 'oportunidades', 'ventas', 'presupuestos', 'proyectos', 'celebraciones', 'documentos'],
+  assistant: ['clientes', 'casos', 'oportunidades', 'celebraciones', 'documentos'],
+};
+
+export function modulesFor(role: WholesaleRole, custom: string[] | null | undefined): ModuleKey[] {
+  if (role === 'admin' || role === 'coordinator' || !custom) return DEFAULT_MODULES[role];
+  return MODULES.map((m) => m.key).filter((k) => custom.includes(k) && !COORDINATION_ONLY.includes(k));
+}
 
 /** Campos que cada quien puede tocar de una ficha de comercial. */
 export const REP_FIELDS = {

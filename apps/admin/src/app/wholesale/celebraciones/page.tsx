@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 const HORIZON_DAYS = 60;
 
 export default async function CelebrationsPage() {
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('celebraciones');
   const supabase = await createSupabaseServerClient();
   const year = new Date().getFullYear();
 

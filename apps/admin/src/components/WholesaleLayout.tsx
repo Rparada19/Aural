@@ -2,32 +2,25 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { LogoutButton } from './LogoutButton';
 import { MARKET_URL } from '@/lib/markets';
-import { ROLE_LABEL } from '@/lib/wholesale-roles';
+import { ROLE_LABEL, MODULES } from '@/lib/wholesale-roles';
+import { getWholesaleMe } from '@/lib/wholesale';
 
 import type { WholesaleRole } from '@/lib/wholesale-roles';
 export type { WholesaleRole };
 
-const NAV: { href: string; label: string; num: string; allowed: WholesaleRole[] }[] = [
-  { href: '/wholesale', label: 'Resumen', num: '01', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/clients', label: 'Clientes', num: '02', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/oportunidades', label: 'Oportunidades', num: '03', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/sales', label: 'Ventas', num: '04', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/budgets', label: 'Presupuestos', num: '05', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/proyectos', label: 'Proyectos', num: '06', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/celebraciones', label: 'Celebraciones', num: '07', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/documentos', label: 'Documentos', num: '08', allowed: ['admin', 'coordinator', 'rep'] },
-  { href: '/wholesale/reps', label: 'Comerciales', num: '09', allowed: ['admin', 'coordinator'] },
-  { href: '/wholesale/equipo', label: 'Equipo y servicio', num: '10', allowed: ['admin', 'coordinator'] },
-];
 
-export function WholesaleLayout({
+
+export async function WholesaleLayout({
   userName, role, children,
 }: {
   userName: string;
   role: WholesaleRole;
   children: React.ReactNode;
 }) {
-  const items = NAV.filter((n) => n.allowed.includes(role));
+  const me = await getWholesaleMe();
+  const allowed = me?.modules ?? [];
+  const items = MODULES.filter((m) => allowed.includes(m.key))
+    .map((m, i) => ({ href: m.href, label: m.label, num: String(i + 1).padStart(2, '0') }));
 
   return (
     <div className="wsale min-h-screen flex">

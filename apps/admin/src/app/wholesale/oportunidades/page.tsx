@@ -26,7 +26,7 @@ export default async function OpportunitiesPage({
   searchParams: Promise<{ rep?: string; tipo?: string }>;
 }) {
   const sp = await searchParams;
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('oportunidades');
   const supabase = await createSupabaseServerClient();
   const t = today();
   const year = t.slice(0, 4);
@@ -106,7 +106,7 @@ export default async function OpportunitiesPage({
         actions={
           <>
             <Link href="/wholesale/oportunidades/red" className="wsale-btn-ghost">Red de relaciones</Link>
-            <NewOpportunity reps={reps ?? []} clients={clients ?? []} isCoordination={me.isCoordination} defaultRep={me.repId} />
+            <NewOpportunity reps={reps ?? []} clients={clients ?? []} isCoordination={me.role !== 'rep'} defaultRep={me.repId} />
           </>
         }
       />
@@ -249,7 +249,7 @@ export default async function OpportunitiesPage({
                     <span className="text-[11px] text-[var(--ink-faint)] w-40">Última compra {c.last} · {daysSince(c.last)} d</span>
                     <span className="wsale-figure text-[13px] w-28 text-right">{cop(c.total)}</span>
                     <NewOpportunity
-                      reps={reps ?? []} clients={clients ?? []} isCoordination={me.isCoordination} defaultRep={me.repId}
+                      reps={reps ?? []} clients={clients ?? []} isCoordination={me.role !== 'rep'} defaultRep={me.repId}
                       preset={{ kind: 'reactivacion', client_id: c.id }} label="Abrir"
                     />
                   </div>

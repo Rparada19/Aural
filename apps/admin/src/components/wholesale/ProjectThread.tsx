@@ -32,7 +32,7 @@ export function ProjectThread({
   projectId: string;
   notes: Note[];
   progress: number;
-  myRole: 'admin' | 'coordinator' | 'rep';
+  myRole: 'admin' | 'coordinator' | 'rep' | 'assistant';
   myId: string;
 }) {
   const router = useRouter();

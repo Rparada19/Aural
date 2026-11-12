@@ -22,7 +22,7 @@ export default async function ExpenseSheet({
   const { id } = await params;
   const { year: yearParam, month: monthParam } = await searchParams;
   const me = await requireWholesaleMe();
-  if (me.role === 'rep' && me.repId !== id) notFound();
+  if (!me.isCoordination && me.repId !== id) notFound();
 
   const now = new Date();
   const year = Number(yearParam) || now.getFullYear();

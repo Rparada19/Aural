@@ -8,7 +8,7 @@ import { requireWholesaleMe } from '@/lib/wholesale';
 export const dynamic = 'force-dynamic';
 
 export default async function NewWholesaleClientPage() {
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('clientes');
   if (!me.isCoordination) redirect('/wholesale/clients');
 
   const supabase = await createSupabaseServerClient();

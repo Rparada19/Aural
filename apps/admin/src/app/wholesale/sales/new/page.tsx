@@ -13,7 +13,7 @@ export default async function NewWholesaleSalePage({
   searchParams: Promise<{ client?: string }>;
 }) {
   const { client } = await searchParams;
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('ventas');
   const supabase = await createSupabaseServerClient();
 
   // La RLS ya limita al comercial a su propia cartera.

@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function OpportunityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('oportunidades');
   const supabase = await createSupabaseServerClient();
 
   const [{ data: o }, { data: contacts }, { data: inter }, { data: reps }, { data: log }] = await Promise.all([
@@ -144,7 +144,7 @@ export default async function OpportunityPage({ params }: { params: Promise<{ id
 
         <aside className="space-y-6">
           <Contacts oppId={opp.id} contacts={people} touches={byContact} />
-          <OppDetails o={opp} reps={(reps ?? []).map((r) => ({ id: r.id, name: r.name }))} isCoordination={me.isCoordination} />
+          <OppDetails o={opp} reps={(reps ?? []).map((r) => ({ id: r.id, name: r.name }))} isCoordination={me.isCoordination} canAssign={me.role !== 'rep'} />
           {(log ?? []).length > 0 && (
             <section className="text-[11px] text-[var(--ink-faint)] space-y-0.5">
               <p className="wsale-overline mb-1">Recorrido</p>

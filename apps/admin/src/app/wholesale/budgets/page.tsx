@@ -29,7 +29,7 @@ export default async function WholesaleBudgetsPage({
   searchParams: Promise<{ year?: string }>;
 }) {
   const { year: yearParam } = await searchParams;
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('presupuestos');
   const supabase = await createSupabaseServerClient();
 
   const year = Number(yearParam) || new Date().getFullYear();

@@ -9,7 +9,7 @@ import { OPEN_STAGES, STAGE_LABEL, today, daysSince, type Stage } from '@/lib/cr
 export const dynamic = 'force-dynamic';
 
 export default async function NetworkPage() {
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('oportunidades');
   const supabase = await createSupabaseServerClient();
   const t = today();
   const d30 = new Date(Date.parse(t) - 30 * 86_400_000).toISOString().slice(0, 10);

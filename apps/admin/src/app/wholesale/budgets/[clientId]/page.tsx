@@ -25,7 +25,7 @@ export default async function WholesaleBudgetDetail({
 }) {
   const { clientId } = await params;
   const { year: yearParam } = await searchParams;
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('presupuestos');
   if (!me.isCoordination) redirect('/wholesale/budgets');
 
   const year = Number(yearParam) || new Date().getFullYear();

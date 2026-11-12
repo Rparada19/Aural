@@ -8,7 +8,7 @@ import { requireWholesaleMe, cop } from '@/lib/wholesale';
 export const dynamic = 'force-dynamic';
 
 export default async function WholesaleClientsPage() {
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('clientes');
   const supabase = await createSupabaseServerClient();
 
   const [{ data: clients }, { data: reps }, { data: sales }, { data: expenses }] = await Promise.all([

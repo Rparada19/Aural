@@ -59,7 +59,7 @@ function Person({ p }: { p: ServicePerson }) {
 }
 
 export default async function TeamPage() {
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('equipo');
   if (!me.isCoordination) redirect('/wholesale');
   const res = await serviceTeam();
 

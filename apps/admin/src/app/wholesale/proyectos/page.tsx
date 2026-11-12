@@ -15,7 +15,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default async function ProjectsPage() {
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('proyectos');
   const supabase = await createSupabaseServerClient();
 
   const [{ data: projects }, { data: reps }, { data: clients }, { data: notes }] = await Promise.all([

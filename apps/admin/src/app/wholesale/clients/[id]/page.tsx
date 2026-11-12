@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { WholesaleLayout } from '@/components/WholesaleLayout';
 import { MetricCard, EmptyState } from '@/components/wholesale/MetricCard';
+import { NewCase } from '@/components/wholesale/cases/CaseForms';
+import { CASE_KIND, CASE_STATUS, OPEN_STATUS } from '@/lib/cases';
 import { requireWholesaleMe, salesMetrics, cop, pct } from '@/lib/wholesale';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +15,7 @@ export default async function WholesaleClientDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('clientes');
   const supabase = await createSupabaseServerClient();
 
   const [{ data: client }, { data: sales }, { data: reps }, { data: expenses }, { data: expenseCats }, { data: styles }] = await Promise.all([
@@ -42,6 +44,13 @@ export default async function WholesaleClientDetail({
 
   if (!client) notFound();
 
+  const { data: clientCases } = me.modules.includes('casos')
+    ? await supabase.from('wholesale_cases')
+        .select('id, number, subject, kind, status, due_on, assigned_name')
+        .eq('client_id', id).is('deleted_at', null).order('created_at', { ascending: false }).limit(20)
+    : { data: [] };
+  const openCases = (clientCases ?? []).filter((c) => OPEN_STATUS.includes(c.status));
+
   const saleList = sales ?? [];
   const all = salesMetrics(saleList);
   const repName = (reps ?? []).find((r) => r.id === client.rep_id)?.name;
@@ -67,12 +76,9 @@ export default async function WholesaleClientDetail({
               .join(' · ') || 'Sin datos de zona'}
           </p>
         </div>
-        <Link
-          href={`/wholesale/sales/new?client=${client.id}`}
-          className="wsale-btn"
-        >
-          Registrar venta
-        </Link>
+        {me.modules.includes('ventas') && (
+          <Link href={`/wholesale/sales/new?client=${client.id}`} className="wsale-btn">Registrar venta</Link>
+        )}
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -186,6 +192,31 @@ export default async function WholesaleClientDetail({
           </div>
         )}
       </section>
+      {me.modules.includes('casos') && (
+        <section className="mt-10">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold">
+              Casos de servicio {openCases.length > 0 && <span className="wsale-warn text-[13px] font-normal">· {openCases.length} abierto{openCases.length === 1 ? '' : 's'}</span>}
+            </h2>
+            <NewCase clients={[{ id: client.id, name: client.name }]} presetClient={client.id} label="Abrir caso" />
+          </div>
+          {(clientCases ?? []).length === 0 ? (
+            <p className="text-sm text-[var(--ink-soft)]">Este cliente no tiene casos registrados.</p>
+          ) : (
+            <div className="wsale-panel divide-y divide-[var(--rule)]">
+              {(clientCases ?? []).map((c) => (
+                <Link key={c.id} href={`/wholesale/casos/${c.id}`} className="flex items-center gap-4 p-3 text-[13px] hover:bg-[rgba(180,85,31,0.03)]">
+                  <span className="wsale-mono text-[var(--ink-faint)] w-8">#{c.number}</span>
+                  <span className="flex-1">{c.subject}</span>
+                  <span className="text-[var(--ink-soft)] w-28">{CASE_KIND[c.kind]?.label}</span>
+                  <span className="w-36">{CASE_STATUS[c.status]}</span>
+                  <span className="text-[var(--ink-faint)] w-36 truncate">{c.assigned_name ?? 'Sin responsable'}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
     </WholesaleLayout>
   );
 }

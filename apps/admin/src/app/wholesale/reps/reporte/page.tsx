@@ -28,7 +28,7 @@ export default async function ChannelReport({
   searchParams: Promise<{ year?: string; month?: string }>;
 }) {
   const { year: yearParam, month: monthParam } = await searchParams;
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('comerciales');
   if (!me.isCoordination) redirect('/wholesale');
 
   const now = new Date();

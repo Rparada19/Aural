@@ -73,7 +73,7 @@ export interface OppData {
   notes: string | null;
 }
 
-export function OppDetails({ o, reps, isCoordination }: { o: OppData; reps: Opt[]; isCoordination: boolean }) {
+export function OppDetails({ o, reps, isCoordination, canAssign }: { o: OppData; reps: Opt[]; isCoordination: boolean; canAssign: boolean }) {
   const { busy, error, run, router } = useRun();
   const [f, setF] = useState({
     name: o.name, kind: o.kind, rep_id: o.rep_id ?? '', city: o.city ?? '', zone: o.zone ?? '',
@@ -117,7 +117,7 @@ export function OppDetails({ o, reps, isCoordination }: { o: OppData; reps: Opt[
           <Field label="Probabilidad %"><input type="number" min="0" max="100" value={f.probability} onChange={set('probability')} className="wsale-input" /></Field>
           <Field label="Cierre probable"><input type="date" value={f.expected_close} onChange={set('expected_close')} className="wsale-input" /></Field>
         </div>
-        {isCoordination && (
+        {canAssign && (
           <Field label="Comercial">
             <select value={f.rep_id} onChange={set('rep_id')} className="wsale-input">
               <option value="">Sin asignar</option>

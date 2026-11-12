@@ -7,7 +7,7 @@ import { getWholesaleMe } from '@/lib/wholesale';
 
 async function ensureCoordinator() {
   const me = await getWholesaleMe();
-  if (!me || me.role !== 'coordinator') throw new Error('Solo coordinación wholesale');
+  if (!me || !me.isCoordination) throw new Error('Solo coordinación wholesale');
   const supabase = await createSupabaseServerClient();
   return { supabase, me };
 }
@@ -711,7 +711,7 @@ export async function addProjectNote(formData: FormData) {
     project_id: projectId,
     author_id: me.id,
     author_name: me.full_name,
-    author_role: me.role === 'coordinator' ? 'Coordinación' : 'Comercial',
+    author_role: me.isCoordination ? 'Coordinación' : me.role === 'assistant' ? 'Servicio al cliente' : 'Comercial',
     body: body || null,
     file_path: filePath,
     file_name: fileName,

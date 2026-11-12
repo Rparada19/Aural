@@ -27,7 +27,7 @@ export default async function ZoneBudgetPage({
   const { zone: zoneParam } = await params;
   const { year: yearParam } = await searchParams;
   const zone = decodeURIComponent(zoneParam);
-  const me = await requireWholesaleMe();
+  const me = await requireWholesaleMe('presupuestos');
   const supabase = await createSupabaseServerClient();
 
   const year = Number(yearParam) || new Date().getFullYear();
